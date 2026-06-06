@@ -553,3 +553,39 @@ Five-layer overhaul applied — all approved at once.
 ```
 
 All 7 routes serve clean. Visual signature now: cream background, ink-black sidebar, ink-black buttons, hairline-bordered cards, monochrome charts with value labels right-of-bars, dot-style badges in 3 tones only.
+
+### 2026-06-06 (Session 7) — Repo restructured for Vercel deployment
+
+After pushing to `github.com/Lucktory/ipc-analyze`, Vercel auto-deployment 404'd because the Next.js app was inside `rental-admin/` and Vercel looks for `package.json` at the repo root by default.
+
+**Change**: promoted `rental-admin/` contents to the repo root. The repo is now a standard Next.js layout — Vercel auto-detects it without any dashboard configuration.
+
+Before:
+```
+ipc-analyze/
+├── WORKLOG.md
+├── COMPETITIVE_AUDIT.md
+├── alejandro-argentina-rental-ipc-automation.md
+└── rental-admin/
+    ├── app/
+    ├── components/
+    └── package.json
+```
+
+After:
+```
+ipc-analyze/
+├── WORKLOG.md
+├── COMPETITIVE_AUDIT.md
+├── alejandro-argentina-rental-ipc-automation.md
+├── app/
+├── components/
+├── db/
+├── lib/
+├── scripts/
+├── middleware.ts
+├── package.json
+└── ...
+```
+
+Historical log entries above still reference the old `rental-admin/` paths — that's accurate to when they were written. From this commit forward, all source files are at the repo root.
