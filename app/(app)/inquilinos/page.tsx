@@ -10,18 +10,18 @@ const kpis = [
 ]
 
 const inquilinos = [
-  { id: '142', nombre: 'Juan Pérez',          contrato: '#142', direccion: 'Av. Santa Fe 2480, Palermo',        alquiler: 180000, estado: 'Atrasado' },
-  { id: '143', nombre: 'Lucía Domínguez',     contrato: '#143', direccion: 'Honduras 4521, Palermo',            alquiler: 245000, estado: 'Al día' },
-  { id: '144', nombre: 'Martín Vázquez',      contrato: '#144', direccion: 'Av. Cabildo 1850, Belgrano',        alquiler: 310000, estado: 'Al día' },
-  { id: '087', nombre: 'Sofía García',        contrato: '#087', direccion: 'Av. Las Heras 1920, Recoleta',      alquiler: 250000, estado: 'Al día' },
-  { id: '155', nombre: 'Diego López',         contrato: '#155', direccion: 'Soler 4188, Villa Crespo',          alquiler: 195000, estado: 'Al día' },
-  { id: '073', nombre: 'Cecilia Martínez',    contrato: '#073', direccion: 'Salguero 2435, Palermo',            alquiler: 165000, estado: 'Atrasado' },
-  { id: '091', nombre: 'Federico Fernández',  contrato: '#091', direccion: 'Av. Pueyrredón 1550, Recoleta',     alquiler: 410000, estado: 'Al día' },
-  { id: '203', nombre: 'Valeria Romero',      contrato: '#203', direccion: 'Av. Corrientes 5220, Villa Crespo', alquiler: 320000, estado: 'Al día' },
-  { id: '118', nombre: 'Pablo Sánchez',       contrato: '#118', direccion: 'Charcas 3290, Palermo',             alquiler: 285000, estado: 'Al día' },
-  { id: '088', nombre: 'Carolina Gómez',      contrato: '#088', direccion: 'Aráoz 950, Almagro',                alquiler: 210000, estado: 'Atrasado' },
-  { id: '172', nombre: 'Martín Torres',       contrato: '#172', direccion: 'Gorriti 4555, Palermo',             alquiler: 295000, estado: 'Al día' },
-  { id: '205', nombre: 'Hernán Ortiz',        contrato: '#205', direccion: 'Av. Rivadavia 7820, Caballito',     alquiler: 235000, estado: 'Al día' },
+  { id: '142', foto: 'https://i.pravatar.cc/64?img=12', nombre: 'Juan Pérez',         contrato: '#142', direccion: 'Av. Santa Fe 2480, Palermo',        alquiler: 180000, estado: 'Atrasado' },
+  { id: '143', foto: 'https://i.pravatar.cc/64?img=23', nombre: 'Lucía Domínguez',    contrato: '#143', direccion: 'Honduras 4521, Palermo',            alquiler: 245000, estado: 'Al día' },
+  { id: '144', foto: 'https://i.pravatar.cc/64?img=15', nombre: 'Martín Vázquez',     contrato: '#144', direccion: 'Av. Cabildo 1850, Belgrano',        alquiler: 310000, estado: 'Al día' },
+  { id: '087', foto: 'https://i.pravatar.cc/64?img=49', nombre: 'Sofía García',       contrato: '#087', direccion: 'Av. Las Heras 1920, Recoleta',      alquiler: 250000, estado: 'Al día' },
+  { id: '155', foto: 'https://i.pravatar.cc/64?img=58', nombre: 'Diego López',        contrato: '#155', direccion: 'Soler 4188, Villa Crespo',          alquiler: 195000, estado: 'Al día' },
+  { id: '073', foto: 'https://i.pravatar.cc/64?img=44', nombre: 'Cecilia Martínez',   contrato: '#073', direccion: 'Salguero 2435, Palermo',            alquiler: 165000, estado: 'Atrasado' },
+  { id: '091', foto: 'https://i.pravatar.cc/64?img=68', nombre: 'Federico Fernández', contrato: '#091', direccion: 'Av. Pueyrredón 1550, Recoleta',     alquiler: 410000, estado: 'Al día' },
+  { id: '203', foto: 'https://i.pravatar.cc/64?img=20', nombre: 'Valeria Romero',     contrato: '#203', direccion: 'Av. Corrientes 5220, Villa Crespo', alquiler: 320000, estado: 'Al día' },
+  { id: '118', foto: 'https://i.pravatar.cc/64?img=53', nombre: 'Pablo Sánchez',      contrato: '#118', direccion: 'Charcas 3290, Palermo',             alquiler: 285000, estado: 'Al día' },
+  { id: '088', foto: 'https://i.pravatar.cc/64?img=45', nombre: 'Carolina Gómez',     contrato: '#088', direccion: 'Aráoz 950, Almagro',                alquiler: 210000, estado: 'Atrasado' },
+  { id: '172', foto: 'https://i.pravatar.cc/64?img=11', nombre: 'Martín Torres',      contrato: '#172', direccion: 'Gorriti 4555, Palermo',             alquiler: 295000, estado: 'Al día' },
+  { id: '205', foto: 'https://i.pravatar.cc/64?img=60', nombre: 'Hernán Ortiz',       contrato: '#205', direccion: 'Av. Rivadavia 7820, Caballito',     alquiler: 235000, estado: 'Al día' },
 ]
 
 const fmt = (n: number) => '$' + n.toLocaleString('es-AR')
@@ -74,8 +74,10 @@ export default function InquilinosPage() {
             {inquilinos.map((i, idx) => (
               <tr key={i.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors`}>
                 <td className="px-5 py-3">
-                  <Link href={`/inquilinos/${i.id}`} className="text-ink font-medium hover:underline underline-offset-4">
-                    {i.nombre}
+                  <Link href={`/inquilinos/${i.id}`} className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={i.foto} alt={i.nombre} className="w-7 h-7 rounded-full object-cover border border-line shrink-0" />
+                    <span className="text-ink font-medium hover:underline underline-offset-4">{i.nombre}</span>
                   </Link>
                 </td>
                 <td className="px-5 py-3 tabular-nums text-slate-dark">{i.contrato}</td>

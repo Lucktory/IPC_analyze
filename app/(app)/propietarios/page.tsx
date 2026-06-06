@@ -9,18 +9,18 @@ const kpis = [
 ]
 
 const propietarios = [
-  { slug: 'bianchi',  nombre: 'Marco Bianchi',       propiedades: 23, ingresos: 4250000, comision: 8,  banco: 'Galicia'   },
-  { slug: 'romano',   nombre: 'Lucía Romano',        propiedades: 18, ingresos: 3680000, comision: 10, banco: 'Santander' },
-  { slug: 'costa',    nombre: 'Andrea Costa',        propiedades: 14, ingresos: 2470000, comision: 8,  banco: 'BBVA'      },
-  { slug: 'esposito', nombre: 'Diego Esposito',      propiedades: 21, ingresos: 4120000, comision: 8,  banco: 'Galicia'   },
-  { slug: 'russo',    nombre: 'Cecilia Russo',       propiedades: 12, ingresos: 2080000, comision: 9,  banco: 'Santander' },
-  { slug: 'ferrari',  nombre: 'Patricia Ferrari',    propiedades: 19, ingresos: 3540000, comision: 10, banco: 'Macro'     },
-  { slug: 'greco',    nombre: 'Sebastián Greco',     propiedades: 15, ingresos: 2810000, comision: 8,  banco: 'Galicia'   },
-  { slug: 'marino',   nombre: 'Florencia Marino',    propiedades: 17, ingresos: 3120000, comision: 9,  banco: 'BBVA'      },
-  { slug: 'bruno',    nombre: 'Hernán Bruno',        propiedades: 10, ingresos: 1860000, comision: 8,  banco: 'Macro'     },
-  { slug: 'gallo',    nombre: 'Mónica Gallo',        propiedades: 13, ingresos: 2410000, comision: 8,  banco: 'Santander' },
-  { slug: 'riva',     nombre: 'Carlos Riva',         propiedades: 22, ingresos: 4380000, comision: 7,  banco: 'Galicia'   },
-  { slug: 'mancini',  nombre: 'Daniela Mancini',     propiedades: 11, ingresos: 1980000, comision: 10, banco: 'BBVA'      },
+  { slug: 'bianchi',  foto: 'https://i.pravatar.cc/64?img=33', nombre: 'Marco Bianchi',    propiedades: 23, ingresos: 4250000, comision: 8,  banco: 'Galicia'   },
+  { slug: 'romano',   foto: 'https://i.pravatar.cc/64?img=42', nombre: 'Lucía Romano',     propiedades: 18, ingresos: 3680000, comision: 10, banco: 'Santander' },
+  { slug: 'costa',    foto: 'https://i.pravatar.cc/64?img=47', nombre: 'Andrea Costa',     propiedades: 14, ingresos: 2470000, comision: 8,  banco: 'BBVA'      },
+  { slug: 'esposito', foto: 'https://i.pravatar.cc/64?img=54', nombre: 'Diego Esposito',   propiedades: 21, ingresos: 4120000, comision: 8,  banco: 'Galicia'   },
+  { slug: 'russo',    foto: 'https://i.pravatar.cc/64?img=29', nombre: 'Cecilia Russo',    propiedades: 12, ingresos: 2080000, comision: 9,  banco: 'Santander' },
+  { slug: 'ferrari',  foto: 'https://i.pravatar.cc/64?img=36', nombre: 'Patricia Ferrari', propiedades: 19, ingresos: 3540000, comision: 10, banco: 'Macro'     },
+  { slug: 'greco',    foto: 'https://i.pravatar.cc/64?img=51', nombre: 'Sebastián Greco',  propiedades: 15, ingresos: 2810000, comision: 8,  banco: 'Galicia'   },
+  { slug: 'marino',   foto: 'https://i.pravatar.cc/64?img=43', nombre: 'Florencia Marino', propiedades: 17, ingresos: 3120000, comision: 9,  banco: 'BBVA'      },
+  { slug: 'bruno',    foto: 'https://i.pravatar.cc/64?img=14', nombre: 'Hernán Bruno',     propiedades: 10, ingresos: 1860000, comision: 8,  banco: 'Macro'     },
+  { slug: 'gallo',    foto: 'https://i.pravatar.cc/64?img=25', nombre: 'Mónica Gallo',     propiedades: 13, ingresos: 2410000, comision: 8,  banco: 'Santander' },
+  { slug: 'riva',     foto: 'https://i.pravatar.cc/64?img=52', nombre: 'Carlos Riva',      propiedades: 22, ingresos: 4380000, comision: 7,  banco: 'Galicia'   },
+  { slug: 'mancini',  foto: 'https://i.pravatar.cc/64?img=46', nombre: 'Daniela Mancini',  propiedades: 11, ingresos: 1980000, comision: 10, banco: 'BBVA'      },
 ]
 
 const fmt = (n: number) => '$' + n.toLocaleString('es-AR')
@@ -75,8 +75,10 @@ export default function PropietariosPage() {
             {propietarios.map((p, idx) => (
               <tr key={p.slug} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors`}>
                 <td className="px-5 py-3">
-                  <Link href={`/propietarios/${p.slug}`} className="text-ink font-medium hover:underline underline-offset-4">
-                    {p.nombre}
+                  <Link href={`/propietarios/${p.slug}`} className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.foto} alt={p.nombre} className="w-7 h-7 rounded-full object-cover border border-line shrink-0" />
+                    <span className="text-ink font-medium hover:underline underline-offset-4">{p.nombre}</span>
                   </Link>
                 </td>
                 <td className="px-5 py-3 text-right tabular-nums text-ink">{p.propiedades}</td>

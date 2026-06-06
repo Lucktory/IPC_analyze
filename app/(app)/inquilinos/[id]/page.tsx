@@ -1,10 +1,14 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { Mail, Phone, IdCard, User } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
+
+type PaymentStatus = 'paid' | 'late' | 'pending'
 
 interface InquilinoData {
   nombre: string
   iniciales: string
+  foto: string
   email: string
   telefono: string
   dni: string
@@ -21,6 +25,7 @@ interface InquilinoData {
   diasAtraso?: number
   propietario: string
   banco: string
+  paymentGrid: PaymentStatus[]
   pagos: Array<{ fecha: string; periodo: string; monto: number; estado: 'Pagado' | 'Atrasado' | 'Pendiente' }>
   aumentos: Array<{ fecha: string; indice: string; factor: number; anterior: number; nuevo: number }>
 }
@@ -29,6 +34,7 @@ const inquilinos: Record<string, InquilinoData> = {
   '142': {
     nombre: 'Juan Pérez',
     iniciales: 'JP',
+    foto: 'https://i.pravatar.cc/200?img=12',
     email: 'juan.perez@example.com',
     telefono: '+54 11 4823-5847',
     dni: '28.456.789',
@@ -45,6 +51,7 @@ const inquilinos: Record<string, InquilinoData> = {
     diasAtraso: 15,
     propietario: 'Marco Bianchi',
     banco: 'Banco Galicia',
+    paymentGrid: ['paid','paid','paid','paid','paid','paid','paid','paid','paid','paid','paid','late'],
     pagos: [
       { fecha: '—',         periodo: 'Junio 2026',     monto: 180000, estado: 'Atrasado'  },
       { fecha: '03/05/26',  periodo: 'Mayo 2026',      monto: 180000, estado: 'Pagado'    },
@@ -62,6 +69,7 @@ const inquilinos: Record<string, InquilinoData> = {
   '087': {
     nombre: 'Sofía García',
     iniciales: 'SG',
+    foto: 'https://i.pravatar.cc/200?img=49',
     email: 'sofia.garcia@example.com',
     telefono: '+54 11 5247-8390',
     dni: '32.108.554',
@@ -77,6 +85,7 @@ const inquilinos: Record<string, InquilinoData> = {
     estado: 'Al día',
     propietario: 'Lucía Romano',
     banco: 'Banco Santander',
+    paymentGrid: ['paid','paid','paid','paid','paid','paid','paid','paid','paid','paid','paid','paid'],
     pagos: [
       { fecha: '04/06/26', periodo: 'Junio 2026',   monto: 250000, estado: 'Pagado' },
       { fecha: '05/05/26', periodo: 'Mayo 2026',    monto: 250000, estado: 'Pagado' },
@@ -93,6 +102,7 @@ const inquilinos: Record<string, InquilinoData> = {
   '073': {
     nombre: 'Cecilia Martínez',
     iniciales: 'CM',
+    foto: 'https://i.pravatar.cc/200?img=44',
     email: 'cecilia.martinez@example.com',
     telefono: '+54 11 4178-2965',
     dni: '30.554.218',
@@ -109,6 +119,7 @@ const inquilinos: Record<string, InquilinoData> = {
     diasAtraso: 6,
     propietario: 'Andrea Costa',
     banco: 'Banco BBVA',
+    paymentGrid: ['paid','paid','paid','paid','paid','paid','paid','paid','paid','paid','paid','late'],
     pagos: [
       { fecha: '—',         periodo: 'Junio 2026',     monto: 165000, estado: 'Atrasado' },
       { fecha: '04/05/26',  periodo: 'Mayo 2026',      monto: 165000, estado: 'Pagado'   },
@@ -122,13 +133,37 @@ const inquilinos: Record<string, InquilinoData> = {
   },
 }
 
+const TODAY = new Date('2026-06-06')
 const fmt = (n: number) => '$' + n.toLocaleString('es-AR')
+
+function parseDate(s: string) {
+  const [d, m, y] = s.split('/').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function calcProgress(startStr: string, endStr: string) {
+  const start = parseDate(startStr)
+  const end = parseDate(endStr)
+  const total = end.getTime() - start.getTime()
+  const elapsed = TODAY.getTime() - start.getTime()
+  return Math.round(Math.max(0, Math.min(100, (elapsed / total) * 100)))
+}
+
+function calcRemainingMonths(endStr: string) {
+  const end = parseDate(endStr)
+  return Math.max(0, Math.round((end.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
+}
+
+// Last 12 month labels ending at current month (June 2026)
+const MONTH_LABELS = ['Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun']
 
 export default async function InquilinoDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const data = inquilinos[id]
   if (!data) notFound()
 
+  const progress = calcProgress(data.fechaInicio, data.finContrato)
+  const remainingMonths = calcRemainingMonths(data.finContrato)
   const punitorio = data.diasAtraso ? Math.round((data.alquiler * 0.05 / 30) * data.diasAtraso) : 0
 
   return (
@@ -140,14 +175,17 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
         </Link>
       </div>
 
-      <div className="flex items-center gap-4 mb-8 flex-wrap">
-        <div className="w-14 h-14 rounded-full bg-ink text-paper flex items-center justify-center font-display font-semibold text-[18px] tracking-tight">
-          {data.iniciales}
-        </div>
-        <div className="flex-1">
+      <div className="flex items-center gap-5 mb-8 flex-wrap">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={data.foto}
+          alt={data.nombre}
+          className="w-16 h-16 rounded-full object-cover border border-line"
+        />
+        <div className="flex-1 min-w-0">
           <h1 className="font-display text-[24px] text-ink leading-tight tracking-tight">{data.nombre}</h1>
           <p className="text-[12px] text-slate mt-1">
-            Inquilino · Contrato <span className="tabular-nums">{data.contrato}</span> · desde {data.fechaInicio}
+            Inquilino · Contrato <span className="tabular-nums">{data.contrato}</span> · firmado el <span className="tabular-nums">{data.fechaInicio}</span>
           </p>
         </div>
         <Badge tone={data.estado === 'Al día' ? 'success' : 'danger'}>
@@ -155,81 +193,78 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="bg-paper border border-line rounded p-5">
-          <h2 className="label-cap mb-4">Datos de contacto</h2>
-          <dl className="space-y-3">
-            <div>
-              <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Email</dt>
-              <dd className="text-[13px] text-ink">{data.email}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Teléfono</dt>
-              <dd className="text-[13px] text-ink tabular-nums">{data.telefono}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">DNI</dt>
-              <dd className="text-[13px] text-ink tabular-nums">{data.dni}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Propietario</dt>
-              <dd className="text-[13px] text-ink">{data.propietario}</dd>
-            </div>
-          </dl>
-        </section>
+      {/* Visual contract status */}
+      <section className="bg-paper border border-line rounded p-6 mb-6">
+        <h2 className="label-cap mb-5">Estado del contrato</h2>
 
-        <section className="bg-paper border border-line rounded p-5">
-          <h2 className="label-cap mb-4">Contrato vigente</h2>
-          <dl className="space-y-3">
-            <div>
-              <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Dirección</dt>
-              <dd className="text-[13px] text-ink">{data.direccion}</dd>
+        <div className="mb-7">
+          <div className="flex justify-between text-[11px] text-slate uppercase tracking-wider mb-1.5">
+            <span>Inicio</span>
+            <span>Fin</span>
+          </div>
+          <div className="flex justify-between text-[12px] text-ink mb-3 tabular-nums font-medium">
+            <span>{data.fechaInicio}</span>
+            <span>{data.finContrato}</span>
+          </div>
+          <div className="relative h-2 bg-cream-2 rounded-sm overflow-hidden">
+            <div
+              className="absolute inset-y-0 left-0 bg-ink rounded-sm transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[12px] mt-2.5">
+            <span className="text-slate-dark tabular-nums">{progress}% transcurrido</span>
+            <span className="text-slate-dark tabular-nums">{remainingMonths} meses restantes</span>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <p className="text-[11px] text-slate uppercase tracking-wider">Pagos últimos 12 meses</p>
+            <div className="flex gap-4 text-[11px] text-slate">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-success/30 border border-success/50" />
+                <span>Pagado</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-danger/30 border border-danger/50" />
+                <span>Atrasado</span>
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Alquiler</dt>
-                <dd className="text-[15px] font-display font-semibold text-ink tabular-nums">{fmt(data.alquiler)}</dd>
+          </div>
+          <div className="grid grid-cols-12 gap-1.5">
+            {data.paymentGrid.map((status, i) => (
+              <div
+                key={i}
+                title={`${MONTH_LABELS[i]} — ${status === 'paid' ? 'Pagado' : status === 'late' ? 'Atrasado' : 'Pendiente'}`}
+                className={
+                  status === 'paid'
+                    ? 'aspect-square rounded-sm bg-success/30 border border-success/50'
+                    : status === 'late'
+                    ? 'aspect-square rounded-sm bg-danger/30 border border-danger/50'
+                    : 'aspect-square rounded-sm bg-cream-2 border border-line'
+                }
+              />
+            ))}
+          </div>
+          <div className="grid grid-cols-12 gap-1.5 mt-2">
+            {MONTH_LABELS.map((m, i) => (
+              <div key={i} className="text-[10px] text-slate text-center tabular-nums">
+                {i === 0 || i === 11 || i === 6 ? m : ''}
               </div>
-              <div>
-                <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Expensas</dt>
-                <dd className="text-[15px] font-display font-semibold text-ink tabular-nums">{fmt(data.expensas)}</dd>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Índice</dt>
-                <dd className="text-[13px] text-ink">{data.indice}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Cadencia</dt>
-                <dd className="text-[13px] text-ink">{data.cadencia}</dd>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Próximo aumento</dt>
-                <dd className="text-[13px] text-ink tabular-nums">{data.proximoAumento}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Fin de contrato</dt>
-                <dd className="text-[13px] text-ink tabular-nums">{data.finContrato}</dd>
-              </div>
-            </div>
-            <div>
-              <dt className="text-[11px] text-slate uppercase tracking-wider mb-0.5">Deposita en</dt>
-              <dd className="text-[13px] text-ink">{data.banco}</dd>
-            </div>
-          </dl>
-        </section>
-      </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {data.diasAtraso && (
-        <div className="mt-6 bg-paper border border-danger/30 rounded p-5">
+        <div className="mb-6 bg-paper border border-danger/30 rounded p-5">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
             <div>
               <p className="label-cap text-danger">Atraso vigente</p>
               <p className="text-[13px] text-ink mt-1">
-                Pago de junio 2026 vencido hace <strong className="text-danger">{data.diasAtraso} días</strong>. Punitorio acumulado: <strong className="text-ink tabular-nums">{fmt(punitorio)}</strong>.
+                Pago de junio 2026 vencido hace <strong className="text-danger">{data.diasAtraso} días</strong>. Punitorio acumulado:{' '}
+                <strong className="text-ink tabular-nums">{fmt(punitorio)}</strong>.
               </p>
             </div>
             <button className="bg-ink text-paper px-4 py-2 rounded-sm text-[13px] font-medium hover:opacity-90 transition-opacity">
@@ -238,6 +273,82 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
           </div>
         </div>
       )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section className="bg-paper border border-line rounded p-5">
+          <h2 className="label-cap mb-5">Datos de contacto</h2>
+          <dl className="space-y-4">
+            <div>
+              <dt className="text-[11px] text-slate uppercase tracking-wider mb-1.5">Email</dt>
+              <dd className="text-[13px] text-ink flex items-center gap-2">
+                <Mail className="w-3.5 h-3.5 text-slate shrink-0" strokeWidth={1.5} />
+                <span>{data.email}</span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] text-slate uppercase tracking-wider mb-1.5">Teléfono</dt>
+              <dd className="text-[13px] text-ink flex items-center gap-2 tabular-nums">
+                <Phone className="w-3.5 h-3.5 text-slate shrink-0" strokeWidth={1.5} />
+                <span>{data.telefono}</span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] text-slate uppercase tracking-wider mb-1.5">DNI</dt>
+              <dd className="text-[13px] text-ink flex items-center gap-2 tabular-nums">
+                <IdCard className="w-3.5 h-3.5 text-slate shrink-0" strokeWidth={1.5} />
+                <span>{data.dni}</span>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] text-slate uppercase tracking-wider mb-1.5">Propietario</dt>
+              <dd className="text-[13px] text-ink flex items-center gap-2">
+                <User className="w-3.5 h-3.5 text-slate shrink-0" strokeWidth={1.5} />
+                <span>{data.propietario}</span>
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="bg-paper border border-line rounded p-5">
+          <h2 className="label-cap mb-5">Contrato vigente</h2>
+          <dl className="space-y-4">
+            <div>
+              <dt className="text-[11px] text-slate uppercase tracking-wider mb-1">Dirección</dt>
+              <dd className="text-[13px] text-ink">{data.direccion}</dd>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <dt className="text-[11px] text-slate uppercase tracking-wider mb-1">Alquiler</dt>
+                <dd className="text-[15px] font-display font-semibold text-ink tabular-nums">{fmt(data.alquiler)}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-slate uppercase tracking-wider mb-1">Expensas</dt>
+                <dd className="text-[15px] font-display font-semibold text-ink tabular-nums">{fmt(data.expensas)}</dd>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <dt className="text-[11px] text-slate uppercase tracking-wider mb-1">Índice</dt>
+                <dd className="text-[13px] text-ink">{data.indice}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-slate uppercase tracking-wider mb-1">Cadencia</dt>
+                <dd className="text-[13px] text-ink">{data.cadencia}</dd>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <dt className="text-[11px] text-slate uppercase tracking-wider mb-1">Próximo aumento</dt>
+                <dd className="text-[13px] text-ink tabular-nums">{data.proximoAumento}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-slate uppercase tracking-wider mb-1">Deposita en</dt>
+                <dd className="text-[13px] text-ink">{data.banco}</dd>
+              </div>
+            </div>
+          </dl>
+        </section>
+      </div>
 
       <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
         <div className="px-5 py-4 border-b border-line">
