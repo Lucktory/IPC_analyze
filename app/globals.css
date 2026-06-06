@@ -64,9 +64,9 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 
 /* IPC-ANALYZE diagonal watermark — SVG <pattern> with patternTransform
    rotation so individual text instances line up into continuous diagonal
-   rows. 9% ink opacity is visible against cream but quiet enough that
-   opaque cards take focus. Sourced from /public/watermark.svg for
-   maximum browser compatibility. */
+   rows. Light gray fill (#D8D8D8) at full opacity gives crisp, defined
+   letterforms in a quiet color — the premium watermark technique used by
+   Linear / Stripe-class tools — rather than smudgy dark-low-opacity. */
 .bg-watermark {
   background-color: var(--cream);
   background-image: url('/watermark.svg');
