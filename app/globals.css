@@ -64,10 +64,11 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 
 /* IPC-ANALYZE diagonal watermark — SVG <pattern> with patternTransform
    rotation so individual text instances line up into continuous diagonal
-   rows. 4% ink opacity keeps it quiet; cards' opaque bg-paper hides it
-   so only the margins / gaps between cards reveal it. */
+   rows. 9% ink opacity is visible against cream but quiet enough that
+   opaque cards take focus. Sourced from /public/watermark.svg for
+   maximum browser compatibility. */
 .bg-watermark {
   background-color: var(--cream);
-  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='1000'%3E%3Cdefs%3E%3Cpattern id='w' patternUnits='userSpaceOnUse' width='220' height='70' patternTransform='rotate(-22)'%3E%3Ctext x='0' y='40' font-family='Lexend, system-ui, sans-serif' font-size='13' font-weight='600' letter-spacing='1.5' fill='%231F1F1F' fill-opacity='0.04'%3EIPC-ANALYZE%3C/text%3E%3C/pattern%3E%3C/defs%3E%3Crect width='1600' height='1000' fill='url(%23w)'/%3E%3C/svg%3E");
+  background-image: url('/watermark.svg');
   background-repeat: repeat;
 }
