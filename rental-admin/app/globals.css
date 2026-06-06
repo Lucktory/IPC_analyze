@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --coral: #FF8552;
+  --coral-dark: #E66A36;
+  --peach: #FFBC7D;
+  --slate: #7D8491;
+  --slate-dark: #4A4F58;
+  --ink: #111111;
+  --ink-soft: #1F1F1F;
+  --paper: #FFFFFF;
+  --cream: #FAF6F1;
+  --cream-2: #F3EEE6;
+  --line: #E6E1D8;
+  --success: #16A34A;
+  --warn: #F2994A;
+  --danger: #DC2626;
+  --info: #2563EB;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-lexend), system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--cream);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-lexend), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0;
+  color: var(--ink);
+}
+
+button { font-family: inherit; }
+input, select, textarea { font-family: inherit; font-size: 14px; }
+
+/* Small uppercase label — used across KPI cards, table headers, sidebar sections. */
+.label-cap {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--slate);
+}
+
+/* Warm scrollbar — signature detail of the design system. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #d6cfc1; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #c4bca9; }
+::-webkit-scrollbar-track { background: transparent; }
