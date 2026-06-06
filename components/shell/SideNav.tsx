@@ -6,16 +6,18 @@ import { usePathname } from 'next/navigation'
 interface NavItem {
   to: string
   label: string
-  icon: 'dashboard' | 'contracts' | 'payments' | 'adjustments' | 'receipts' | 'reports'
+  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'payments' | 'adjustments' | 'receipts' | 'reports'
 }
 
 const mainItems: NavItem[] = [
-  { to: '/dashboard', label: 'Panel',     icon: 'dashboard'   },
-  { to: '/contratos', label: 'Contratos', icon: 'contracts'   },
-  { to: '/pagos',     label: 'Pagos',     icon: 'payments'    },
-  { to: '/aumentos',  label: 'Aumentos',  icon: 'adjustments' },
-  { to: '/recibos',   label: 'Recibos',   icon: 'receipts'    },
-  { to: '/reportes',  label: 'Reportes',  icon: 'reports'     },
+  { to: '/dashboard',    label: 'Panel',         icon: 'dashboard'   },
+  { to: '/contratos',    label: 'Contratos',     icon: 'contracts'   },
+  { to: '/inquilinos',   label: 'Inquilinos',    icon: 'tenants'     },
+  { to: '/propietarios', label: 'Propietarios',  icon: 'owners'      },
+  { to: '/pagos',        label: 'Pagos',         icon: 'payments'    },
+  { to: '/aumentos',     label: 'Aumentos',      icon: 'adjustments' },
+  { to: '/recibos',      label: 'Recibos',       icon: 'receipts'    },
+  { to: '/reportes',     label: 'Reportes',      icon: 'reports'     },
 ]
 
 function NavIcon({ name }: { name: NavItem['icon'] }) {
@@ -47,6 +49,25 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
           <path d="M6.5 9.5 H13" />
           <path d="M6.5 12 H13" />
           <path d="M6.5 14.5 H10.5" />
+        </svg>
+      )
+    case 'tenants':
+      return (
+        <svg {...common} strokeLinejoin="round">
+          <circle cx="7" cy="8" r="2.2" />
+          <circle cx="13" cy="8" r="2.2" />
+          <path d="M2.5 16 Q2.5 12 7 12 Q11.5 12 11.5 16" />
+          <path d="M8.5 16 Q8.5 12 13 12 Q17.5 12 17.5 16" />
+        </svg>
+      )
+    case 'owners':
+      return (
+        <svg {...common} strokeLinejoin="round">
+          <path d="M3 17 V8 L10 4 L17 8 V17 Z" />
+          <path d="M3 17 H17" />
+          <rect x="8.5" y="13" width="3" height="4" fill="currentColor" stroke="none" opacity="0.8" />
+          <path d="M5.5 9.5 H7.5 V11.5 H5.5 Z" />
+          <path d="M12.5 9.5 H14.5 V11.5 H12.5 Z" />
         </svg>
       )
     case 'payments':

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
@@ -125,9 +126,16 @@ export default function ContratosPage() {
           </thead>
           <tbody>
             {contratos.map((c, i) => (
-              <tr key={c.id} className={`${i % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors cursor-pointer`}>
+              <tr key={c.id} className={`${i % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors`}>
                 <td className="px-5 py-3 tabular-nums text-slate-dark font-medium">{c.id}</td>
-                <td className="px-5 py-3 text-ink font-medium">{c.inquilino}</td>
+                <td className="px-5 py-3">
+                  <Link
+                    href={`/inquilinos/${c.id.replace('#', '')}`}
+                    className="text-ink font-medium hover:underline underline-offset-4"
+                  >
+                    {c.inquilino}
+                  </Link>
+                </td>
                 <td className="px-5 py-3 text-slate-dark">{c.direccion}</td>
                 <td className="px-5 py-3 text-right tabular-nums text-ink">{fmt(c.alquiler)}</td>
                 <td className="px-5 py-3 text-right tabular-nums text-slate-dark">{fmt(c.expensas)}</td>
