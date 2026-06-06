@@ -195,62 +195,67 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
 
       {/* Visual contract status */}
       <section className="bg-paper border border-line rounded p-6 mb-6">
-        <h2 className="label-cap mb-5">Estado del contrato</h2>
+        <h2 className="label-cap mb-6">Estado del contrato</h2>
 
-        <div className="mb-7">
-          <div className="flex justify-between text-[11px] text-slate uppercase tracking-wider mb-1.5">
-            <span>Inicio</span>
-            <span>Fin</span>
+        {/* Refined progress: subtle bar + today marker dot */}
+        <div className="mb-8">
+          <div className="flex justify-between items-baseline mb-3">
+            <div>
+              <p className="text-[10px] text-slate uppercase tracking-[0.08em] mb-1">Inicio</p>
+              <p className="text-[13px] text-ink tabular-nums font-medium">{data.fechaInicio}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] text-slate uppercase tracking-[0.08em] mb-1">Fin</p>
+              <p className="text-[13px] text-ink tabular-nums font-medium">{data.finContrato}</p>
+            </div>
           </div>
-          <div className="flex justify-between text-[12px] text-ink mb-3 tabular-nums font-medium">
-            <span>{data.fechaInicio}</span>
-            <span>{data.finContrato}</span>
-          </div>
-          <div className="relative h-2 bg-cream-2 rounded-sm overflow-hidden">
+          <div className="relative h-[3px] bg-cream-2 rounded-full">
             <div
-              className="absolute inset-y-0 left-0 bg-ink rounded-sm transition-all duration-500"
+              className="absolute inset-y-0 left-0 bg-ink rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
+            <div
+              className="absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-ink ring-[3px] ring-paper transition-all duration-500"
+              style={{ left: `calc(${progress}% - 5px)` }}
+              title={`Hoy · ${progress}% transcurrido`}
+            />
           </div>
-          <div className="flex justify-between text-[12px] mt-2.5">
-            <span className="text-slate-dark tabular-nums">{progress}% transcurrido</span>
-            <span className="text-slate-dark tabular-nums">{remainingMonths} meses restantes</span>
+          <div className="flex justify-between text-[11px] mt-3 tabular-nums">
+            <span className="text-slate">{progress}% transcurrido</span>
+            <span className="text-slate">{remainingMonths} meses restantes</span>
           </div>
         </div>
 
+        {/* Compact payment grid — GitHub contribution style */}
         <div>
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <p className="text-[11px] text-slate uppercase tracking-wider">Pagos últimos 12 meses</p>
-            <div className="flex gap-4 text-[11px] text-slate">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <p className="text-[10px] text-slate uppercase tracking-[0.08em]">Pagos · últimos 12 meses</p>
+            <div className="flex gap-3.5 text-[10.5px] text-slate items-center">
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-success/30 border border-success/50" />
+                <span className="w-2 h-2 rounded-[2px] bg-success/45" />
                 <span>Pagado</span>
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-danger/30 border border-danger/50" />
+                <span className="w-2 h-2 rounded-[2px] bg-danger/50" />
                 <span>Atrasado</span>
               </span>
             </div>
           </div>
-          <div className="grid grid-cols-12 gap-1.5">
+          <div className="flex gap-1.5">
             {data.paymentGrid.map((status, i) => (
-              <div
-                key={i}
-                title={`${MONTH_LABELS[i]} — ${status === 'paid' ? 'Pagado' : status === 'late' ? 'Atrasado' : 'Pendiente'}`}
-                className={
-                  status === 'paid'
-                    ? 'aspect-square rounded-sm bg-success/30 border border-success/50'
-                    : status === 'late'
-                    ? 'aspect-square rounded-sm bg-danger/30 border border-danger/50'
-                    : 'aspect-square rounded-sm bg-cream-2 border border-line'
-                }
-              />
-            ))}
-          </div>
-          <div className="grid grid-cols-12 gap-1.5 mt-2">
-            {MONTH_LABELS.map((m, i) => (
-              <div key={i} className="text-[10px] text-slate text-center tabular-nums">
-                {i === 0 || i === 11 || i === 6 ? m : ''}
+              <div key={i} className="flex flex-col items-center gap-2 shrink-0">
+                <div
+                  title={`${MONTH_LABELS[i]} ${i < 6 ? '2025' : '2026'} — ${status === 'paid' ? 'Pagado' : status === 'late' ? 'Atrasado' : 'Pendiente'}`}
+                  className={
+                    'w-7 h-7 rounded-[3px] transition-colors cursor-default ' +
+                    (status === 'paid'
+                      ? 'bg-success/45 hover:bg-success/60'
+                      : status === 'late'
+                      ? 'bg-danger/50 hover:bg-danger/65'
+                      : 'bg-cream-2 hover:bg-cream-2/80')
+                  }
+                />
+                <span className="text-[9.5px] text-slate tabular-nums leading-none">{MONTH_LABELS[i]}</span>
               </div>
             ))}
           </div>
