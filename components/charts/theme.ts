@@ -27,7 +27,7 @@ export const chartBaseStyle = {
     backgroundColor: '#FFFFFF',
     borderColor: '#E6E1D8',
     borderWidth: 1,
-    textStyle: { color: '#111111', fontFamily: 'Lexend, system-ui, sans-serif' },
+    textStyle: { color: '#1F1F1F', fontFamily: 'Lexend, system-ui, sans-serif' },
     padding: [8, 12] as [number, number],
   },
 }

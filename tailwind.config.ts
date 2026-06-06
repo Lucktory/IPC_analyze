@@ -12,7 +12,7 @@ export default {
         coral: { DEFAULT: '#FF8552', dark: '#E66A36' },
         peach: '#FFBC7D',
         slate: { DEFAULT: '#7D8491', dark: '#4A4F58' },
-        ink: { DEFAULT: '#111111', soft: '#1F1F1F' },
+        ink: { DEFAULT: '#1F1F1F', soft: '#2A2A2A' },
         paper: '#FFFFFF',
         cream: { DEFAULT: '#FAF6F1', 2: '#F3EEE6' },
         line: '#E6E1D8',
