@@ -14,8 +14,8 @@ export default {
         slate: { DEFAULT: '#7D8491', dark: '#4A4F58' },
         ink: { DEFAULT: '#1F1F1F', soft: '#2A2A2A' },
         paper: '#FFFFFF',
-        cream: { DEFAULT: '#FAF6F1', 2: '#F3EEE6' },
-        line: '#E6E1D8',
+        cream: { DEFAULT: '#FAFAFA', 2: '#F2F2F2' },
+        line: '#E5E5E5',
         royal: {
           DEFAULT: '#4068d8',
           dark: '#3457b8',

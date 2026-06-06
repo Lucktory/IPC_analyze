@@ -55,7 +55,7 @@ export default function ReportesPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="bg-paper border border-line rounded overflow-hidden">
+        <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="font-display text-[16px] font-semibold text-ink">Cumplimiento por banco</h2>
@@ -75,7 +75,7 @@ export default function ReportesPage() {
 
         </section>
 
-        <section className="bg-paper border border-line rounded overflow-hidden">
+        <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line">
             <h2 className="font-display text-[16px] font-semibold text-ink">Ingresos por banco</h2>
             <p className="text-[12px] text-slate mt-0.5">Acumulado · últimos 6 meses</p>
@@ -85,7 +85,7 @@ export default function ReportesPage() {
           </div>
         </section>
 
-        <section className="bg-paper border border-line rounded overflow-hidden">
+        <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line">
             <h2 className="font-display text-[16px] font-semibold text-ink">Cadencia de ajuste</h2>
             <p className="text-[12px] text-slate mt-0.5">Distribución de contratos por frecuencia IPC</p>
@@ -102,7 +102,7 @@ export default function ReportesPage() {
           </div>
         </section>
 
-        <section className="bg-paper border border-line rounded overflow-hidden">
+        <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line">
             <h2 className="font-display text-[16px] font-semibold text-ink">Tipo de propiedad</h2>
             <p className="text-[12px] text-slate mt-0.5">Vivienda vs comercial</p>
@@ -120,7 +120,7 @@ export default function ReportesPage() {
         </section>
       </div>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line">
           <h2 className="font-display text-[16px] font-semibold text-ink">Top 10 contratos por monto</h2>
           <p className="text-[12px] text-slate mt-0.5">Alquileres más altos de la cartera</p>

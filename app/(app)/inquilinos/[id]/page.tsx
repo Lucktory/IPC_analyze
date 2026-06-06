@@ -258,7 +258,7 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
       </section>
 
       {data.diasAtraso && (
-        <div className="mb-8 bg-danger/[0.04] border-l-2 border-l-danger pl-5 pr-4 py-4 rounded-r">
+        <div className="mb-8 bg-danger/[0.08] border-l-2 border-l-danger pl-5 pr-4 py-4 rounded-r">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
             <div>
               <p className="label-cap text-danger">Atraso vigente</p>
@@ -275,7 +275,7 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="bg-paper border border-line rounded p-5">
+        <section className="bg-paper border border-line rounded shadow-card p-5">
           <h2 className="label-cap mb-5">Datos de contacto</h2>
           <dl className="space-y-4">
             <div>
@@ -309,7 +309,7 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
           </dl>
         </section>
 
-        <section className="bg-paper border border-line rounded p-5">
+        <section className="bg-paper border border-line rounded shadow-card p-5">
           <h2 className="label-cap mb-5">Contrato vigente</h2>
           <dl className="space-y-4">
             <div>
@@ -350,7 +350,7 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
         </section>
       </div>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line">
           <h2 className="font-display text-[15px] font-medium text-ink">Pagos recientes</h2>
           <p className="text-[12px] text-slate mt-0.5">Últimos 6 períodos</p>
@@ -370,7 +370,7 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
                 key={i}
                 className={
                   p.estado === 'Atrasado'
-                    ? 'bg-danger/[0.04] transition-colors'
+                    ? 'bg-danger/[0.08] transition-colors'
                     : (i % 2 === 0 ? 'bg-cream/40' : '')
                 }
               >
@@ -388,7 +388,7 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
         </table>
       </section>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line">
           <h2 className="font-display text-[15px] font-medium text-ink">Historial de aumentos</h2>
           <p className="text-[12px] text-slate mt-0.5">Ajustes aplicados con factor IPC compuesto</p>

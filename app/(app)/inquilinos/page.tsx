@@ -44,7 +44,7 @@ export default function InquilinosPage() {
         ))}
       </div>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3 flex-1">
             <input
@@ -76,7 +76,7 @@ export default function InquilinosPage() {
                 key={i.id}
                 className={
                   (i.estado === 'Atrasado'
-                    ? 'bg-danger/[0.04] hover:bg-danger/[0.08]'
+                    ? 'bg-danger/[0.08] hover:bg-danger/[0.14]'
                     : (idx % 2 === 0 ? 'bg-cream/40 ' : '') + 'hover:bg-cream-2') +
                   ' transition-colors'
                 }

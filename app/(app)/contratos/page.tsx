@@ -59,7 +59,7 @@ export default function ContratosPage() {
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="bg-paper border border-line rounded overflow-hidden">
+        <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line">
             <h2 className="font-display text-[16px] font-semibold text-ink">Distribución por cadencia</h2>
             <p className="text-[12px] text-slate mt-0.5">Frecuencia de ajuste IPC en cartera</p>
@@ -76,7 +76,7 @@ export default function ContratosPage() {
           </div>
         </section>
 
-        <section className="bg-paper border border-line rounded overflow-hidden">
+        <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line">
             <h2 className="font-display text-[16px] font-semibold text-ink">Tipo de propiedad</h2>
             <p className="text-[12px] text-slate mt-0.5">Vivienda vs comercial</p>
@@ -94,7 +94,7 @@ export default function ContratosPage() {
         </section>
       </div>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3 flex-1">
             <input
@@ -131,7 +131,7 @@ export default function ContratosPage() {
                 key={c.id}
                 className={
                   (c.estado === 'Atrasado'
-                    ? 'bg-danger/[0.04] hover:bg-danger/[0.08]'
+                    ? 'bg-danger/[0.08] hover:bg-danger/[0.14]'
                     : (i % 2 === 0 ? 'bg-cream/40 ' : '') + 'hover:bg-cream-2') +
                   ' transition-colors'
                 }

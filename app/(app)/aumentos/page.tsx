@@ -49,7 +49,7 @@ export default function AumentosPage() {
         ))}
       </div>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line flex items-center justify-between">
           <div>
             <h2 className="font-display text-[16px] font-semibold text-ink">Aumentos proyectados por mes</h2>
@@ -68,7 +68,7 @@ export default function AumentosPage() {
         </div>
       </section>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line">
           <h2 className="font-display text-[16px] font-semibold text-ink">Próximos aumentos a aplicar</h2>
           <p className="text-[12px] text-slate mt-0.5">El factor se calcula compuesto sobre la ventana del índice asignado al contrato</p>

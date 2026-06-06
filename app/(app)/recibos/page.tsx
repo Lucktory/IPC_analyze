@@ -51,7 +51,7 @@ export default function RecibosPage() {
         ))}
       </div>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line">
           <h2 className="font-display text-[16px] font-semibold text-ink">Recibos emitidos por mes</h2>
           <p className="text-[12px] text-slate mt-0.5">Últimos 6 meses · volumen mensual</p>
@@ -67,7 +67,7 @@ export default function RecibosPage() {
         </div>
       </section>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 className="font-display text-[16px] font-semibold text-ink">Recibos recientes</h2>

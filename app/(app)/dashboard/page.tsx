@@ -91,7 +91,7 @@ export default function DashboardPage() {
 
       {/* Row 2: asymmetric 3/5 + 2/5 split */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <section className="lg:col-span-3 bg-paper border border-line rounded overflow-hidden">
+        <section className="lg:col-span-3 bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="font-display text-[15px] font-medium text-ink">Cobro del mes</h2>
@@ -119,7 +119,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="lg:col-span-2 bg-paper border border-line rounded overflow-hidden">
+        <section className="lg:col-span-2 bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="font-display text-[15px] font-medium text-ink">Faltante por banco</h2>
@@ -138,7 +138,7 @@ export default function DashboardPage() {
 
       {/* Row 3: 3-col with new alerts list as right column */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-7 gap-6">
-        <section className="lg:col-span-3 bg-paper border border-line rounded overflow-hidden">
+        <section className="lg:col-span-3 bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="font-display text-[15px] font-medium text-ink">Atrasados por antigüedad</h2>
@@ -158,7 +158,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="lg:col-span-2 bg-paper border border-line rounded overflow-hidden">
+        <section className="lg:col-span-2 bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="font-display text-[15px] font-medium text-ink">Aumentos próximos</h2>
@@ -179,7 +179,7 @@ export default function DashboardPage() {
         </section>
 
         {/* Alerts list — new third column */}
-        <section className="lg:col-span-2 bg-paper border border-line rounded p-5">
+        <section className="lg:col-span-2 bg-paper border border-line rounded shadow-card p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display text-[15px] font-medium text-ink">Acciones urgentes</h2>
             <Badge tone="danger">5</Badge>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <section className="mt-8 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-8 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line">
           <h2 className="font-display text-[15px] font-medium text-ink">Próximos aumentos</h2>
           <p className="text-[12px] text-slate mt-0.5">Detalle por contrato, próximos 30 días</p>
@@ -259,7 +259,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line flex items-center justify-between">
           <div>
             <h2 className="font-display text-[15px] font-medium text-ink">Inquilinos atrasados</h2>
@@ -282,7 +282,7 @@ export default function DashboardPage() {
             {atrasados.map((a, i) => (
               <tr
                 key={a.contrato}
-                className={i % 2 === 0 ? 'bg-danger/[0.06]' : 'bg-danger/[0.03]'}
+                className={i % 2 === 0 ? 'bg-danger/[0.10]' : 'bg-danger/[0.05]'}
               >
                 <td className="px-5 py-3 text-ink font-medium">{a.inquilino}</td>
                 <td className="px-5 py-3 tabular-nums text-slate-dark">{a.contrato}</td>

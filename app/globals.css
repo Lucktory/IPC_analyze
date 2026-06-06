@@ -11,9 +11,9 @@
   --ink: #1F1F1F;
   --ink-soft: #2A2A2A;
   --paper: #FFFFFF;
-  --cream: #FAF6F1;
-  --cream-2: #F3EEE6;
-  --line: #E6E1D8;
+  --cream: #FAFAFA;
+  --cream-2: #F2F2F2;
+  --line: #E5E5E5;
   --success: #16A34A;
   --warn: #F2994A;
   --danger: #DC2626;
@@ -56,8 +56,8 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   color: var(--slate);
 }
 
-/* Warm scrollbar — signature detail of the design system. */
+/* Neutral scrollbar. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #d6cfc1; border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: #c4bca9; }
+::-webkit-scrollbar-thumb { background: #D1D1D1; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #B8B8B8; }
 ::-webkit-scrollbar-track { background: transparent; }
