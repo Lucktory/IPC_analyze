@@ -266,7 +266,14 @@ export default async function PropietarioDetail({ params }: { params: Promise<{ 
           </thead>
           <tbody>
             {data.propiedades.map((p, i) => (
-              <tr key={p.contrato} className={i % 2 === 0 ? 'bg-cream/40' : ''}>
+              <tr
+                key={p.contrato}
+                className={
+                  p.estado === 'Atrasado'
+                    ? 'bg-danger/[0.04] transition-colors'
+                    : (i % 2 === 0 ? 'bg-cream/40' : '')
+                }
+              >
                 <td className="px-5 py-3 tabular-nums text-slate-dark font-medium">{p.contrato}</td>
                 <td className="px-5 py-3 text-ink">{p.direccion}</td>
                 <td className="px-5 py-3 text-right tabular-nums text-ink">{fmt(p.alquiler)}</td>

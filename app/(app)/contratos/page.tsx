@@ -127,7 +127,15 @@ export default function ContratosPage() {
           </thead>
           <tbody>
             {contratos.map((c, i) => (
-              <tr key={c.id} className={`${i % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors`}>
+              <tr
+                key={c.id}
+                className={
+                  (c.estado === 'Atrasado'
+                    ? 'bg-danger/[0.04] hover:bg-danger/[0.08]'
+                    : (i % 2 === 0 ? 'bg-cream/40 ' : '') + 'hover:bg-cream-2') +
+                  ' transition-colors'
+                }
+              >
                 <td className="px-5 py-3 tabular-nums text-slate-dark font-medium">{c.id}</td>
                 <td className="px-5 py-3">
                   <Link

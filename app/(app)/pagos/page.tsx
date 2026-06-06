@@ -118,7 +118,14 @@ export default function PagosPage() {
           </thead>
           <tbody>
             {pagos.map((p, i) => (
-              <tr key={i} className={i % 2 === 0 ? 'bg-cream/40' : ''}>
+              <tr
+                key={i}
+                className={
+                  p.estado === 'Atrasado'
+                    ? 'bg-danger/[0.04] transition-colors'
+                    : (i % 2 === 0 ? 'bg-cream/40' : '')
+                }
+              >
                 <td className="px-5 py-3 tabular-nums text-ink font-medium">{p.fecha}</td>
                 <td className="px-5 py-3 tabular-nums text-slate-dark">{p.contrato}</td>
                 <td className="px-5 py-3 text-ink">{p.inquilino}</td>

@@ -280,7 +280,10 @@ export default function DashboardPage() {
           </thead>
           <tbody>
             {atrasados.map((a, i) => (
-              <tr key={a.contrato} className={i % 2 === 0 ? 'bg-cream/40' : ''}>
+              <tr
+                key={a.contrato}
+                className={i % 2 === 0 ? 'bg-danger/[0.06]' : 'bg-danger/[0.03]'}
+              >
                 <td className="px-5 py-3 text-ink font-medium">{a.inquilino}</td>
                 <td className="px-5 py-3 tabular-nums text-slate-dark">{a.contrato}</td>
                 <td className="px-5 py-3 text-right tabular-nums text-ink">{fmt(a.monto)}</td>

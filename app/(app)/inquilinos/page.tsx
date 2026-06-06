@@ -72,7 +72,15 @@ export default function InquilinosPage() {
           </thead>
           <tbody>
             {inquilinos.map((i, idx) => (
-              <tr key={i.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors`}>
+              <tr
+                key={i.id}
+                className={
+                  (i.estado === 'Atrasado'
+                    ? 'bg-danger/[0.04] hover:bg-danger/[0.08]'
+                    : (idx % 2 === 0 ? 'bg-cream/40 ' : '') + 'hover:bg-cream-2') +
+                  ' transition-colors'
+                }
+              >
                 <td className="px-5 py-3">
                   <Link href={`/inquilinos/${i.id}`} className="flex items-center gap-3 hover:opacity-90 transition-opacity">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
