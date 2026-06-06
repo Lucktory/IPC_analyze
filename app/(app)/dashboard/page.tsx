@@ -4,11 +4,11 @@ import { DonutChart } from '@/components/charts/DonutChart'
 import { BarHorizontal } from '@/components/charts/BarHorizontal'
 import { fmtCompactARS, accentInk } from '@/components/charts/theme'
 
+// Reduced from 4 cards to the 2 that are actually actionable in daily work.
+// Tiempo ahorrado was vanity; Contratos activos was informational only.
 const kpis = [
-  { label: 'Tiempo ahorrado',   value: '32 hs', delta: 'equivalente a 4 jornadas', tone: 'positive' as const },
-  { label: 'Contratos activos', value: '247',   delta: '+3 este mes',              tone: 'neutral'  as const },
-  { label: 'Atrasados',         value: '12',    delta: '$2,4 M pendiente',         tone: 'negative' as const },
-  { label: 'Aumentos próximos', value: '5',     delta: 'esta semana',              tone: 'neutral'  as const },
+  { label: 'Atrasados',         value: '12', delta: '$2,4 M pendiente', tone: 'negative' as const },
+  { label: 'Aumentos próximos', value: '5',  delta: 'esta semana',      tone: 'neutral'  as const },
 ]
 
 // Cobro del mes — collapsed palette: success / slate / danger.
@@ -83,7 +83,7 @@ export default function DashboardPage() {
         <p className="label-cap text-slate">Junio 2026</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
         {kpis.map((k) => (
           <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
         ))}
