@@ -15,7 +15,7 @@ const toneClass: Record<Tone, string> = {
 
 export function KPICard({ label, value, delta, deltaTone = 'neutral' }: KPICardProps) {
   return (
-    <div className="bg-paper border border-line rounded p-5">
+    <div className="bg-paper border border-line rounded p-5 transition-all duration-200 hover:border-ink/25 hover:-translate-y-0.5">
       <p className="label-cap">{label}</p>
       <p className="font-display text-[32px] leading-none font-semibold text-ink mt-3 tabular-nums tracking-tight">
         {value}

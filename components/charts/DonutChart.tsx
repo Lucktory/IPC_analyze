@@ -59,7 +59,10 @@ export function DonutChart({
 
   const option: any = {
     ...chartBaseStyle,
-    animation: false,
+    animation: true,
+    animationDuration: 700,
+    animationEasing: 'cubicOut',
+    animationType: 'expansion',
     tooltip: { show: false },
     series: [
       {
@@ -101,7 +104,7 @@ export function DonutChart({
               text: totalOverride ?? fmt(total),
               fontSize: centerFontSize,
               fontWeight: 600,
-              fill: '#111111',
+              fill: '#1F1F1F',
               fontFamily: 'Lexend',
             },
           },

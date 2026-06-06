@@ -55,7 +55,9 @@ export function BarHorizontal({
 
   const option = {
     ...chartBaseStyle,
-    animation: false,
+    animation: true,
+    animationDuration: 600,
+    animationEasing: 'cubicOut',
     grid: { left: 8, right: 88, top: 4, bottom: 8, containLabel: true },
     tooltip: { show: false },
     xAxis: {
@@ -78,7 +80,7 @@ export function BarHorizontal({
         label: {
           show: showLabels,
           position: 'right' as const,
-          color: '#111111',
+          color: '#1F1F1F',
           fontSize: 11,
           fontFamily: 'Lexend',
           fontWeight: 500,
