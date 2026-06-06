@@ -13,7 +13,10 @@ export const monoRedPalette   = ['#991B1B', '#DC2626', '#F87171']
 export const monoGreenPalette = ['#14532D', '#16A34A', '#86EFAC']
 
 // Single accent colors for bar charts where bar = one value per row.
-export const accentInk   = '#1F1F1F'
+// accentInk softened from pure ink (#1F1F1F) to slate-dark (#4A4F58) —
+// pure black on near-white reads as harsh slabs and tires the eye over
+// scan time. The cool-gray is what Stripe / Mercury / Linear use.
+export const accentInk   = '#4A4F58'
 export const accentGreen = '#16A34A'
 export const accentRed   = '#DC2626'
 
