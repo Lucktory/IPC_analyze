@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000">
   <defs>
-    <pattern id="w" patternUnits="userSpaceOnUse" width="170" height="54" patternTransform="rotate(-22)">
-      <text x="0" y="36" font-family="Lexend, system-ui, sans-serif" font-size="11" font-weight="500" letter-spacing="2" fill="#D8D8D8">IPC-ANALYZE</text>
+    <pattern id="w" patternUnits="userSpaceOnUse" width="150" height="48" patternTransform="rotate(-22)">
+      <text x="0" y="32" font-family="Lexend, system-ui, sans-serif" font-size="10" font-weight="400" letter-spacing="2" fill="#EAEAEA">IPC-ANALYZE</text>
     </pattern>
   </defs>
   <rect width="1600" height="1000" fill="url(#w)"/>
