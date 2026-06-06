@@ -63,7 +63,22 @@ export function DonutChart({
     animationDuration: 700,
     animationEasing: 'cubicOut',
     animationType: 'expansion',
-    tooltip: { show: false },
+    tooltip: {
+      show: true,
+      trigger: 'item',
+      backgroundColor: '#1F1F1F',
+      borderWidth: 0,
+      padding: [10, 14],
+      textStyle: {
+        color: '#FAF6F1',
+        fontFamily: 'Lexend, system-ui, sans-serif',
+        fontSize: 12,
+      },
+      extraCssText: 'border-radius: 4px; box-shadow: 0 2px 12px rgba(31,31,31,0.18);',
+      formatter: (p: any) =>
+        `<div style="font-weight:500;margin-bottom:3px;letter-spacing:0.01em">${p.name}</div>` +
+        `<div style="display:flex;gap:10px;align-items:baseline"><span style="font-variant-numeric:tabular-nums">${fmt(p.value)}</span><span style="opacity:0.6;font-variant-numeric:tabular-nums">${p.percent}%</span></div>`,
+    },
     series: [
       {
         type: 'pie',
@@ -72,7 +87,13 @@ export function DonutChart({
         itemStyle: {},
         label: { show: false },
         labelLine: { show: false },
-        emphasis: { disabled: true },
+        emphasis: {
+          focus: 'series',
+          scaleSize: 2,
+        },
+        blur: {
+          itemStyle: { opacity: 0.4 },
+        },
         data: data.map((d, i) => ({
           name: d.name,
           value: d.value,
