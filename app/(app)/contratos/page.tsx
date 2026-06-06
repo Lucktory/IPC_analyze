@@ -111,7 +111,8 @@ export default function ContratosPage() {
           </div>
           <p className="text-[12px] text-slate">Mostrando 1-12 de 247</p>
         </div>
-        <table className="w-full text-[13px]">
+        <div className="overflow-x-auto">
+        <table className="w-full text-[13px] min-w-[860px]">
           <thead>
             <tr className="border-b border-line">
               <th className="text-left   px-5 py-2.5 label-cap font-medium">Contrato</th>
@@ -150,6 +151,7 @@ export default function ContratosPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
     </>
   )

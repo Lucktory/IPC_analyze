@@ -193,29 +193,24 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
         </Badge>
       </div>
 
-      {/* Visual contract status */}
-      <section className="bg-paper border border-line rounded p-6 mb-6">
-        <h2 className="label-cap mb-6">Estado del contrato</h2>
+      {/* Estado del contrato — flush hero, no card chrome */}
+      <section className="mb-10">
+        <div className="flex items-baseline justify-between mb-6 flex-wrap gap-2">
+          <h2 className="label-cap">Estado del contrato</h2>
+          <span className="text-[11px] text-slate tabular-nums">
+            <span className="hidden sm:inline">Inicio </span>{data.fechaInicio} <span className="text-slate/60 mx-1">→</span> <span className="hidden sm:inline">Fin </span>{data.finContrato}
+          </span>
+        </div>
 
-        {/* Refined progress: subtle bar + today marker dot */}
-        <div className="mb-8">
-          <div className="flex justify-between items-baseline mb-3">
-            <div>
-              <p className="text-[10px] text-slate uppercase tracking-[0.08em] mb-1">Inicio</p>
-              <p className="text-[13px] text-ink tabular-nums font-medium">{data.fechaInicio}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] text-slate uppercase tracking-[0.08em] mb-1">Fin</p>
-              <p className="text-[13px] text-ink tabular-nums font-medium">{data.finContrato}</p>
-            </div>
-          </div>
-          <div className="relative h-[3px] bg-cream-2 rounded-full">
+        {/* Progress: hairline on cream, today marker rings cream */}
+        <div className="mb-9">
+          <div className="relative h-[3px] bg-line rounded-full">
             <div
               className="absolute inset-y-0 left-0 bg-ink rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
             <div
-              className="absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-ink ring-[3px] ring-paper transition-all duration-500"
+              className="absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-ink ring-[3px] ring-cream transition-all duration-500"
               style={{ left: `calc(${progress}% - 5px)` }}
               title={`Hoy · ${progress}% transcurrido`}
             />
@@ -226,7 +221,7 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
           </div>
         </div>
 
-        {/* Compact payment grid — GitHub contribution style */}
+        {/* Compact payment grid */}
         <div>
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <p className="text-[10px] text-slate uppercase tracking-[0.08em]">Pagos · últimos 12 meses</p>
@@ -241,7 +236,7 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
               </span>
             </div>
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-1">
             {data.paymentGrid.map((status, i) => (
               <div key={i} className="flex flex-col items-center gap-2 shrink-0">
                 <div
@@ -263,7 +258,7 @@ export default async function InquilinoDetail({ params }: { params: Promise<{ id
       </section>
 
       {data.diasAtraso && (
-        <div className="mb-6 bg-paper border border-danger/30 rounded p-5">
+        <div className="mb-8 bg-danger/[0.04] border-l-2 border-l-danger pl-5 pr-4 py-4 rounded-r">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
             <div>
               <p className="label-cap text-danger">Atraso vigente</p>

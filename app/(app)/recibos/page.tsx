@@ -79,7 +79,8 @@ export default function RecibosPage() {
             className="h-9 w-80 px-3 rounded-md border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
           />
         </div>
-        <table className="w-full text-[13px]">
+        <div className="overflow-x-auto">
+        <table className="w-full text-[13px] min-w-[820px]">
           <thead>
             <tr className="border-b border-line">
               <th className="text-left   px-5 py-2.5 label-cap font-medium">Número</th>
@@ -107,6 +108,7 @@ export default function RecibosPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
     </>
   )

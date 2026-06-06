@@ -103,7 +103,8 @@ export default function PagosPage() {
             <button className="px-3 py-1.5 rounded-sm text-[12px] font-medium border border-transparent text-slate-dark hover:text-ink transition-colors">Egresos</button>
           </div>
         </div>
-        <table className="w-full text-[13px]">
+        <div className="overflow-x-auto">
+        <table className="w-full text-[13px] min-w-[820px]">
           <thead>
             <tr className="border-b border-line">
               <th className="text-left   px-5 py-2.5 label-cap font-medium">Fecha</th>
@@ -137,6 +138,7 @@ export default function PagosPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
     </>
   )

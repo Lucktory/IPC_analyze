@@ -105,12 +105,16 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
   }
 }
 
-export function SideNav() {
+interface SideNavProps {
+  onNavigate?: () => void
+}
+
+export function SideNav({ onNavigate }: SideNavProps = {}) {
   const pathname = usePathname()
   const isActive = (to: string) => pathname === to || pathname.startsWith(to + '/')
 
   return (
-    <aside className="w-[240px] shrink-0 bg-ink text-paper flex flex-col">
+    <>
       <div className="h-14 flex items-center gap-3 px-5 border-b border-paper/10">
         <div className="h-7 w-7 rounded bg-paper/10 flex items-center justify-center font-display font-semibold text-paper text-[14px] shrink-0">
           A
@@ -133,6 +137,7 @@ export function SideNav() {
               <li key={item.to}>
                 <Link
                   href={item.to}
+                  onClick={onNavigate}
                   className={[
                     'flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium transition-colors',
                     active
@@ -185,6 +190,6 @@ export function SideNav() {
         <p className="mt-0.5">Buenos Aires · Argentina</p>
         <p className="mt-2 text-paper/35 tabular-nums">v0.1.0</p>
       </footer>
-    </aside>
+    </>
   )
 }

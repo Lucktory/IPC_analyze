@@ -73,7 +73,8 @@ export default function AumentosPage() {
           <h2 className="font-display text-[16px] font-semibold text-ink">Próximos aumentos a aplicar</h2>
           <p className="text-[12px] text-slate mt-0.5">El factor se calcula compuesto sobre la ventana del índice asignado al contrato</p>
         </div>
-        <table className="w-full text-[13px]">
+        <div className="overflow-x-auto">
+        <table className="w-full text-[13px] min-w-[900px]">
           <thead>
             <tr className="border-b border-line">
               <th className="text-left   px-5 py-2.5 label-cap font-medium">Fecha</th>
@@ -105,6 +106,7 @@ export default function AumentosPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
     </>
   )

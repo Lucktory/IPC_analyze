@@ -143,34 +143,35 @@ export default async function PropietarioDetail({ params }: { params: Promise<{ 
         </Badge>
       </div>
 
-      {/* Visual portfolio health */}
-      <section className="bg-paper border border-line rounded p-6 mb-6">
-        <h2 className="label-cap mb-5">Estado de la cartera</h2>
+      {/* Estado de la cartera — flush hero */}
+      <section className="mb-10">
+        <div className="flex items-baseline justify-between mb-6 flex-wrap gap-2">
+          <h2 className="label-cap">Estado de la cartera</h2>
+          <span className="text-[11px] text-slate tabular-nums">
+            {alDia} de {totalProps} al día · {healthPct}%
+          </span>
+        </div>
 
         <div className="mb-6">
-          <div className="flex justify-between text-[12px] text-ink mb-2 font-medium">
-            <span className="tabular-nums">{alDia} de {totalProps} al día</span>
-            <span className="tabular-nums">{healthPct}%</span>
-          </div>
-          <div className="h-2 bg-cream-2 rounded-sm overflow-hidden flex">
+          <div className="h-[3px] bg-line rounded-full overflow-hidden flex">
             <div
-              className="bg-success/70 transition-all duration-500"
+              className="bg-success transition-all duration-500"
               style={{ width: `${healthPct}%` }}
             />
             {atrasados > 0 && (
               <div
-                className="bg-danger/70 transition-all duration-500"
+                className="bg-danger transition-all duration-500"
                 style={{ width: `${100 - healthPct}%` }}
               />
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5">
           {data.propiedades.map((p) => (
             <div key={p.contrato} className="flex items-center gap-2 text-[12px]">
               <span
-                className={`w-2 h-2 rounded-full shrink-0 ${
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                   p.estado === 'Al día' ? 'bg-success' : 'bg-danger'
                 }`}
               />

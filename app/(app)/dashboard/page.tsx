@@ -89,8 +89,9 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="bg-paper border border-line rounded overflow-hidden">
+      {/* Row 2: asymmetric 3/5 + 2/5 split */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <section className="lg:col-span-3 bg-paper border border-line rounded overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="font-display text-[15px] font-medium text-ink">Cobro del mes</h2>
@@ -105,7 +106,7 @@ export default function DashboardPage() {
               totalOverride={cobroPct + '%'}
               height={240}
             />
-            <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
               {cobroMes.map((c) => (
                 <div key={c.name} className="border-l-2 pl-3" style={{ borderColor: c.color }}>
                   <p className="label-cap">{c.name}</p>
@@ -118,16 +119,16 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="bg-paper border border-line rounded overflow-hidden">
+        <section className="lg:col-span-2 bg-paper border border-line rounded overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="font-display text-[15px] font-medium text-ink">Faltante por banco</h2>
-              <p className="text-[12px] text-slate mt-0.5">Diferencia entre lo esperado y lo recibido</p>
+              <p className="text-[12px] text-slate mt-0.5">Esperado vs recibido</p>
             </div>
             <Badge tone="neutral">4 cuentas</Badge>
           </div>
           <div className="p-5">
-            <BarHorizontal data={faltantePorBanco} height={240} preserveOrder barColor={accentInk} />
+            <BarHorizontal data={faltantePorBanco} height={200} preserveOrder barColor={accentInk} />
             <p className="text-[12px] text-slate mt-3">
               Macro concentra el 75% del faltante del mes.
             </p>
@@ -135,8 +136,9 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="bg-paper border border-line rounded overflow-hidden">
+      {/* Row 3: 3-col with new alerts list as right column */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-7 gap-6">
+        <section className="lg:col-span-3 bg-paper border border-line rounded overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="font-display text-[15px] font-medium text-ink">Atrasados por antigüedad</h2>
@@ -156,11 +158,11 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="bg-paper border border-line rounded overflow-hidden">
+        <section className="lg:col-span-2 bg-paper border border-line rounded overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center justify-between">
             <div>
               <h2 className="font-display text-[15px] font-medium text-ink">Aumentos próximos</h2>
-              <p className="text-[12px] text-slate mt-0.5">Cantidad de contratos a aumentar por semana</p>
+              <p className="text-[12px] text-slate mt-0.5">Por semana</p>
             </div>
             <Badge tone="neutral">25 próximos</Badge>
           </div>
@@ -175,6 +177,51 @@ export default function DashboardPage() {
             />
           </div>
         </section>
+
+        {/* Alerts list — new third column */}
+        <section className="lg:col-span-2 bg-paper border border-line rounded p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-[15px] font-medium text-ink">Acciones urgentes</h2>
+            <Badge tone="danger">5</Badge>
+          </div>
+          <ul className="space-y-3.5 text-[13px]">
+            <li className="flex items-start gap-2.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-danger mt-1.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-ink">Pérez — 15 días atrasado</p>
+                <p className="text-slate text-[11px]">Enviar recordatorio</p>
+              </div>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-danger mt-1.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-ink">Gómez — 8 días atrasado</p>
+                <p className="text-slate text-[11px]">Enviar recordatorio</p>
+              </div>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-warn mt-1.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-ink">5 aumentos esta semana</p>
+                <p className="text-slate text-[11px]">Revisar y aplicar</p>
+              </div>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-warn mt-1.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-ink">Macro — $210K faltante</p>
+                <p className="text-slate text-[11px]">Conciliar pagos pendientes</p>
+              </div>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-slate mt-1.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-ink">López vence en 45 días</p>
+                <p className="text-slate text-[11px]">Conversar renovación</p>
+              </div>
+            </li>
+          </ul>
+        </section>
       </div>
 
       <section className="mt-8 bg-paper border border-line rounded overflow-hidden">
@@ -182,7 +229,8 @@ export default function DashboardPage() {
           <h2 className="font-display text-[15px] font-medium text-ink">Próximos aumentos</h2>
           <p className="text-[12px] text-slate mt-0.5">Detalle por contrato, próximos 30 días</p>
         </div>
-        <table className="w-full text-[13px]">
+        <div className="overflow-x-auto">
+        <table className="w-full text-[13px] min-w-[640px]">
           <thead>
             <tr className="border-b border-line">
               <th className="text-left   px-5 py-2.5 label-cap font-medium">Fecha</th>
@@ -208,6 +256,7 @@ export default function DashboardPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
       <section className="mt-6 bg-paper border border-line rounded overflow-hidden">
@@ -218,7 +267,8 @@ export default function DashboardPage() {
           </div>
           <Badge tone="danger">3 más urgentes</Badge>
         </div>
-        <table className="w-full text-[13px]">
+        <div className="overflow-x-auto">
+        <table className="w-full text-[13px] min-w-[560px]">
           <thead>
             <tr className="border-b border-line">
               <th className="text-left  px-5 py-2.5 label-cap font-medium">Inquilino</th>
@@ -240,19 +290,23 @@ export default function DashboardPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </section>
 
+      {/* Phase 2 features as inline pills, not full cards */}
       <section className="mt-10">
         <p className="label-cap mb-3">Próximas integraciones</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="flex flex-wrap gap-2">
           {phase2Features.map((f) => (
-            <div key={f.title} className="bg-paper border border-line rounded p-5">
-              <div className="flex items-start justify-between mb-2 gap-3">
-                <h3 className="font-display text-[14px] font-medium text-ink-soft">{f.title}</h3>
-                <span className="text-[10px] uppercase tracking-wider text-slate font-medium">Próximamente</span>
-              </div>
-              <p className="text-[12px] text-slate leading-relaxed">{f.description}</p>
-            </div>
+            <span
+              key={f.title}
+              title={f.description}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cream-2 border border-line text-[12px] text-slate-dark"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-dark/40" />
+              {f.title}
+              <span className="text-[10px] text-slate ml-1 uppercase tracking-wider">Próx.</span>
+            </span>
           ))}
         </div>
       </section>
