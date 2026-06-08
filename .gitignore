@@ -30,3 +30,9 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Client PII — Alejandro's spreadsheet + everything derived from it.
+# These contain real client names, phones, CBUs, rents — do not commit.
+client-data/
+db/seed-from-sheet.sql
+db/seed-report.txt

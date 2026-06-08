@@ -3,316 +3,265 @@ import { Badge } from '@/components/ui/Badge'
 import { DonutChart } from '@/components/charts/DonutChart'
 import { BarHorizontal } from '@/components/charts/BarHorizontal'
 import { fmtCompactARS, accentInk } from '@/components/charts/theme'
+import {
+  getDashboardKpis,
+  getCommissionByDestination,
+  getTopLandlords,
+  getPropertyTypeBreakdown,
+  getContractsWithoutPayment,
+} from '@/lib/dashboard/queries'
 
-// Reduced from 4 cards to the 2 that are actually actionable in daily work.
-// Tiempo ahorrado was vanity; Contratos activos was informational only.
-const kpis = [
-  { label: 'Atrasados',         value: '12', delta: '$2,4 M pendiente', tone: 'negative' as const },
-  { label: 'Aumentos próximos', value: '5',  delta: 'esta semana',      tone: 'neutral'  as const },
-]
+export const revalidate = 0  // SSR every request — data changes when seed re-runs
 
-// Cobro del mes — collapsed palette: success / slate / danger.
-const cobroMes = [
-  { name: 'Cobrado',   value: 11800000, color: '#16A34A' },
-  { name: 'Pendiente', value:    880000, color: '#7D8491' },
-  { name: 'Atrasado',  value:  1820000, color: '#DC2626' },
-]
-const totalEsperado = cobroMes.reduce((s, x) => s + x.value, 0)
-const cobroPct = Math.round((cobroMes[0].value / totalEsperado) * 100)
+const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
-const faltantePorBanco = [
-  { name: 'Banco Galicia',   value:  70000 },
-  { name: 'Banco Santander', value:      0 },
-  { name: 'Banco Macro',     value: 210000 },
-  { name: 'Banco BBVA',      value:      0 },
-]
+export default async function DashboardPage() {
+  // Fetch everything in parallel
+  const [kpis, byDest, topLandlords, propTypes, unpaid] = await Promise.all([
+    getDashboardKpis(),
+    getCommissionByDestination(),
+    getTopLandlords(10),
+    getPropertyTypeBreakdown(),
+    getContractsWithoutPayment(),
+  ])
 
-// Single-hue red urgency progression: light → mid → dark = newer → middle → oldest.
-const atrasadosAntiguedad = [
-  { name: '1 a 7 días',  value: 4, color: '#F87171' },
-  { name: '8 a 15 días', value: 5, color: '#DC2626' },
-  { name: '16+ días',    value: 3, color: '#991B1B' },
-]
+  // Donut data: commission by destination
+  const donutColors: Record<string, string> = {
+    ADM_GALICIA:      '#4A4F58',
+    ADM_FRANCES_50_9: '#7D8491',
+    ADM_FRANCES_51_6: '#D6CFC1',
+    OTHER:            '#E5E5E5',
+  }
+  const cobroMes = byDest.map(d => ({
+    name:  d.label.split('·')[0].trim(),
+    value: d.total,
+    color: donutColors[d.destination] ?? '#7D8491',
+  }))
 
-const aumentosPorSemana = [
-  { name: 'Esta semana',  value: 5 },
-  { name: 'Sem. próxima', value: 3 },
-  { name: 'En 2 semanas', value: 4 },
-  { name: 'En 3 semanas', value: 7 },
-  { name: 'En 4 semanas', value: 6 },
-]
+  // Bar chart: top landlords
+  const topLandlordsBar = topLandlords.slice(0, 6).map(l => ({
+    name:  l.name.length > 24 ? l.name.slice(0, 22) + '…' : l.name,
+    value: l.revenue,
+  }))
 
-const proximosAumentos = [
-  { fecha: '08/06', contrato: '#142', inquilino: 'Pérez',     indice: 'IPC', actual: 180000, nuevo: 204426, cadencia: 'Trimestral' },
-  { fecha: '12/06', contrato: '#087', inquilino: 'García',    indice: 'IPC', actual: 250000, nuevo: 283925, cadencia: 'Trimestral' },
-  { fecha: '18/06', contrato: '#203', inquilino: 'Romero',    indice: 'IPC', actual: 320000, nuevo: 363424, cadencia: 'Semestral' },
-  { fecha: '22/06', contrato: '#155', inquilino: 'López',     indice: 'ICL', actual: 195000, nuevo: 218041, cadencia: 'Trimestral' },
-  { fecha: '28/06', contrato: '#091', inquilino: 'Fernández', indice: 'IPC', actual: 410000, nuevo: 465607, cadencia: 'Trimestral' },
-]
+  // Donut data: property types
+  const propTypeColors: Record<string, string> = {
+    vivienda: '#4A4F58',
+    local:    '#7D8491',
+    cochera:  '#D6CFC1',
+    oficina:  '#B8B8B8',
+    deposito: '#9CA3AF',
+  }
+  const propTypeDonut = propTypes.map(p => ({
+    name:  p.type[0].toUpperCase() + p.type.slice(1),
+    value: p.count,
+    color: propTypeColors[p.type] ?? '#7D8491',
+  }))
 
-const atrasados = [
-  { inquilino: 'Pérez',    contrato: '#142', monto: 180000, dias: 15, punitorio: 4500 },
-  { inquilino: 'Gómez',    contrato: '#088', monto: 210000, dias:  8, punitorio: 2800 },
-  { inquilino: 'Martínez', contrato: '#073', monto: 165000, dias:  6, punitorio: 1650 },
-]
-
-const phase2Features = [
-  {
-    title: 'Portal inquilino',
-    description: 'Acceso self-service para que cada inquilino vea sus pagos, vencimientos y recibos.',
-  },
-  {
-    title: 'Recordatorios por WhatsApp',
-    description: 'Aviso automático antes del vencimiento y al detectar un atraso.',
-  },
-  {
-    title: 'Factura electrónica ARCA',
-    description: 'Emisión automática de comprobantes según condición fiscal del propietario.',
-  },
-]
-
-const fmt = (n: number) => '$' + n.toLocaleString('es-AR')
-
-export default function DashboardPage() {
   return (
     <>
       <div className="flex items-baseline justify-between mb-6 flex-wrap gap-2">
         <p className="text-[13px] text-slate-dark">
-          Sábado 6 de junio · <strong className="text-ink font-medium">12 acciones</strong> requieren atención
+          Período actual: <strong className="text-ink font-medium">Mayo 2026</strong>
         </p>
-        <p className="label-cap text-slate">Junio 2026</p>
+        <p className="label-cap text-slate">Datos en vivo desde Supabase</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-        {kpis.map((k) => (
-          <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
-        ))}
+      {/* KPIs row */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <KPICard
+          label="Contratos activos"
+          value={kpis.activeContracts.toString()}
+          delta={kpis.rescindedContracts + ' rescindidos'}
+          deltaTone="neutral"
+        />
+        <KPICard
+          label="Sin pago de mayo"
+          value={unpaid.length.toString()}
+          delta={unpaid.length > 0 ? 'requieren atención' : 'todo cobrado'}
+          deltaTone={unpaid.length > 0 ? 'negative' : 'positive'}
+        />
+        <KPICard
+          label="Ingresos del mes"
+          value={fmtCompactARS(kpis.monthlyIncome)}
+          delta="alquileres de mayo"
+          deltaTone="neutral"
+        />
+        <KPICard
+          label="Comisión del mes"
+          value={fmtCompactARS(kpis.monthlyCommission)}
+          delta="ADMI total"
+          deltaTone="positive"
+        />
       </div>
 
-      {/* Row 2: asymmetric 3/5 + 2/5 split */}
+      {/* Commission by destination — the section chief's reconciliation view */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
         <section className="lg:col-span-3 bg-paper border border-line rounded shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-[15px] font-medium text-ink">Cobro del mes</h2>
-              <p className="text-[12px] text-slate mt-0.5">Junio 2026, esperado vs realidad</p>
-            </div>
-            <Badge tone="success">{cobroPct}% cobrado</Badge>
-          </div>
-          <div className="p-5">
-            <DonutChart
-              data={cobroMes}
-              totalLabel="Cobrado del esperado"
-              totalOverride={cobroPct + '%'}
-              height={240}
-            />
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {cobroMes.map((c) => (
-                <div key={c.name} className="border-l-2 pl-3" style={{ borderColor: c.color }}>
-                  <p className="label-cap">{c.name}</p>
-                  <p className="font-display text-[15px] font-medium tabular-nums text-ink mt-0.5">
-                    {fmtCompactARS(c.value)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="lg:col-span-2 bg-paper border border-line rounded shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-[15px] font-medium text-ink">Faltante por banco</h2>
-              <p className="text-[12px] text-slate mt-0.5">Esperado vs recibido</p>
-            </div>
-            <Badge tone="neutral">4 cuentas</Badge>
-          </div>
-          <div className="p-5">
-            <BarHorizontal data={faltantePorBanco} height={200} preserveOrder barColor={accentInk} />
-            <p className="text-[12px] text-slate mt-3">
-              Macro concentra el 75% del faltante del mes.
+          <div className="px-5 py-4 border-b border-line">
+            <h2 className="font-display text-[15px] font-medium text-ink">
+              Comisión por cuenta destino
+            </h2>
+            <p className="text-[12px] text-slate mt-0.5">
+              Vista de conciliación bancaria — cuánto debería figurar en cada cuenta de Pampa
             </p>
           </div>
-        </section>
-      </div>
-
-      {/* Row 3: 3-col with new alerts list as right column */}
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-7 gap-6">
-        <section className="lg:col-span-3 bg-paper border border-line rounded shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-[15px] font-medium text-ink">Atrasados por antigüedad</h2>
-              <p className="text-[12px] text-slate mt-0.5">12 inquilinos atrasados al 6 de junio</p>
-            </div>
-            <Badge tone="danger">12 atrasados</Badge>
-          </div>
           <div className="p-5">
-            <DonutChart
-              data={atrasadosAntiguedad}
-              totalLabel="Inquilinos atrasados"
-              totalOverride="12"
-              unit="inquilino"
-              unitPlural="inquilinos"
-              height={240}
-            />
+            {cobroMes.length > 0 ? (
+              <>
+                <DonutChart
+                  data={cobroMes}
+                  totalLabel="Comisión total mayo"
+                  totalOverride={fmtCompactARS(kpis.monthlyCommission)}
+                  height={240}
+                />
+                <div className="mt-4 space-y-2">
+                  {byDest.map((d) => (
+                    <div
+                      key={d.destination}
+                      className="flex items-center justify-between border-l-2 pl-3 py-1"
+                      style={{ borderColor: donutColors[d.destination] }}
+                    >
+                      <div>
+                        <p className="text-[13px] text-ink">{d.label}</p>
+                        <p className="text-[11px] text-slate">{d.txCount} movimientos</p>
+                      </div>
+                      <p className="font-display text-[14px] font-medium tabular-nums text-ink">
+                        {fmt(d.total)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <EmptyState text="No hay comisiones registradas para este período" />
+            )}
           </div>
         </section>
 
         <section className="lg:col-span-2 bg-paper border border-line rounded shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-[15px] font-medium text-ink">Aumentos próximos</h2>
-              <p className="text-[12px] text-slate mt-0.5">Por semana</p>
-            </div>
-            <Badge tone="neutral">25 próximos</Badge>
+          <div className="px-5 py-4 border-b border-line">
+            <h2 className="font-display text-[15px] font-medium text-ink">Cartera por tipo</h2>
+            <p className="text-[12px] text-slate mt-0.5">Propiedades en administración</p>
           </div>
           <div className="p-5">
-            <BarHorizontal
-              data={aumentosPorSemana}
-              unit="aumento"
-              unitPlural="aumentos"
-              barColor={accentInk}
-              preserveOrder
-              height={240}
-            />
+            {propTypeDonut.length > 0 ? (
+              <DonutChart
+                data={propTypeDonut}
+                totalLabel="Propiedades"
+                unit="propiedad"
+                unitPlural="propiedades"
+                height={240}
+              />
+            ) : (
+              <EmptyState text="Sin propiedades cargadas" />
+            )}
           </div>
-        </section>
-
-        {/* Alerts list — new third column */}
-        <section className="lg:col-span-2 bg-paper border border-line rounded shadow-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-[15px] font-medium text-ink">Acciones urgentes</h2>
-            <Badge tone="danger">5</Badge>
-          </div>
-          <ul className="space-y-3.5 text-[13px]">
-            <li className="flex items-start gap-2.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-danger mt-1.5 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-ink">Pérez — 15 días atrasado</p>
-                <p className="text-slate text-[11px]">Enviar recordatorio</p>
-              </div>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-danger mt-1.5 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-ink">Gómez — 8 días atrasado</p>
-                <p className="text-slate text-[11px]">Enviar recordatorio</p>
-              </div>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-warn mt-1.5 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-ink">5 aumentos esta semana</p>
-                <p className="text-slate text-[11px]">Revisar y aplicar</p>
-              </div>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-warn mt-1.5 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-ink">Macro — $210K faltante</p>
-                <p className="text-slate text-[11px]">Conciliar pagos pendientes</p>
-              </div>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate mt-1.5 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-ink">López vence en 45 días</p>
-                <p className="text-slate text-[11px]">Conversar renovación</p>
-              </div>
-            </li>
-          </ul>
         </section>
       </div>
 
-      <section className="mt-8 bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-line">
-          <h2 className="font-display text-[15px] font-medium text-ink">Próximos aumentos</h2>
-          <p className="text-[12px] text-slate mt-0.5">Detalle por contrato, próximos 30 días</p>
-        </div>
-        <div className="overflow-x-auto">
-        <table className="w-full text-[13px] min-w-[640px]">
-          <thead>
-            <tr className="border-b border-line">
-              <th className="text-left   px-5 py-2.5 label-cap font-medium">Fecha</th>
-              <th className="text-left   px-5 py-2.5 label-cap font-medium">Contrato</th>
-              <th className="text-left   px-5 py-2.5 label-cap font-medium">Inquilino</th>
-              <th className="text-left   px-5 py-2.5 label-cap font-medium">Índice</th>
-              <th className="text-right  px-5 py-2.5 label-cap font-medium">Actual</th>
-              <th className="text-right  px-5 py-2.5 label-cap font-medium">Nuevo estimado</th>
-              <th className="text-left   px-5 py-2.5 label-cap font-medium">Cadencia</th>
-            </tr>
-          </thead>
-          <tbody>
-            {proximosAumentos.map((a, i) => (
-              <tr key={a.contrato} className={i % 2 === 0 ? 'bg-cream/40' : ''}>
-                <td className="px-5 py-3 tabular-nums text-ink font-medium">{a.fecha}</td>
-                <td className="px-5 py-3 tabular-nums text-slate-dark">{a.contrato}</td>
-                <td className="px-5 py-3 text-ink">{a.inquilino}</td>
-                <td className="px-5 py-3 text-slate-dark tabular-nums">{a.indice}</td>
-                <td className="px-5 py-3 text-right tabular-nums text-slate-dark">{fmt(a.actual)}</td>
-                <td className="px-5 py-3 text-right tabular-nums text-ink font-medium">{fmt(a.nuevo)}</td>
-                <td className="px-5 py-3 text-slate-dark">{a.cadencia}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      </section>
-
+      {/* Top landlords */}
       <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line flex items-center justify-between">
           <div>
-            <h2 className="font-display text-[15px] font-medium text-ink">Inquilinos atrasados</h2>
-            <p className="text-[12px] text-slate mt-0.5">Detalle por contrato, con punitorio acumulado</p>
+            <h2 className="font-display text-[15px] font-medium text-ink">
+              Propietarios con mayor ingreso (mayo)
+            </h2>
+            <p className="text-[12px] text-slate mt-0.5">Top 6 por alquileres cobrados</p>
           </div>
-          <Badge tone="danger">3 más urgentes</Badge>
+          <Badge tone="neutral">{topLandlords.length} con cobros</Badge>
         </div>
-        <div className="overflow-x-auto">
-        <table className="w-full text-[13px] min-w-[560px]">
-          <thead>
-            <tr className="border-b border-line">
-              <th className="text-left  px-5 py-2.5 label-cap font-medium">Inquilino</th>
-              <th className="text-left  px-5 py-2.5 label-cap font-medium">Contrato</th>
-              <th className="text-right px-5 py-2.5 label-cap font-medium">Monto adeudado</th>
-              <th className="text-right px-5 py-2.5 label-cap font-medium">Días atrasado</th>
-              <th className="text-right px-5 py-2.5 label-cap font-medium">Punitorio acumulado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {atrasados.map((a, i) => (
-              <tr
-                key={a.contrato}
-                className={i % 2 === 0 ? 'bg-danger/[0.10]' : 'bg-danger/[0.05]'}
-              >
-                <td className="px-5 py-3 text-ink font-medium">{a.inquilino}</td>
-                <td className="px-5 py-3 tabular-nums text-slate-dark">{a.contrato}</td>
-                <td className="px-5 py-3 text-right tabular-nums text-ink">{fmt(a.monto)}</td>
-                <td className="px-5 py-3 text-right tabular-nums text-danger font-medium">{a.dias}</td>
-                <td className="px-5 py-3 text-right tabular-nums text-slate-dark">{fmt(a.punitorio)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="p-5">
+          {topLandlordsBar.length > 0 ? (
+            <BarHorizontal
+              data={topLandlordsBar}
+              height={Math.max(180, topLandlordsBar.length * 32)}
+              preserveOrder
+              barColor={accentInk}
+            />
+          ) : (
+            <EmptyState text="Sin cobros registrados" />
+          )}
         </div>
       </section>
 
-      {/* Phase 2 features as inline pills, not full cards */}
+      {/* Unpaid contracts (atrasados proxy) */}
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-line flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-[15px] font-medium text-ink">
+              Contratos sin pago de mayo
+            </h2>
+            <p className="text-[12px] text-slate mt-0.5">
+              Activos que aún no registran RENT_IN del período actual
+            </p>
+          </div>
+          <Badge tone={unpaid.length > 0 ? 'danger' : 'success'}>
+            {unpaid.length} {unpaid.length === 1 ? 'pendiente' : 'pendientes'}
+          </Badge>
+        </div>
+        <div className="overflow-x-auto">
+          {unpaid.length > 0 ? (
+            <table className="w-full text-[13px] min-w-[640px]">
+              <thead>
+                <tr className="border-b border-line">
+                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Inquilino</th>
+                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Propietario</th>
+                  <th className="text-right px-5 py-2.5 label-cap font-medium">Alquiler esperado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unpaid.slice(0, 15).map((u, i) => (
+                  <tr
+                    key={u.contractId}
+                    className={i % 2 === 0 ? 'bg-danger/[0.08]' : 'bg-danger/[0.04]'}
+                  >
+                    <td className="px-5 py-3 text-ink font-medium">{u.tenantName}</td>
+                    <td className="px-5 py-3 text-slate-dark">{u.landlordName}</td>
+                    <td className="px-5 py-3 text-right tabular-nums text-ink">{fmt(u.expectedRent)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-5">
+              <EmptyState text="Todos los contratos activos tienen el alquiler de mayo cobrado" />
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Footer note about Phase D features that need IPC engine */}
       <section className="mt-10">
-        <p className="label-cap mb-3">Próximas integraciones</p>
+        <p className="label-cap mb-3">Próximas integraciones (Fase D)</p>
         <div className="flex flex-wrap gap-2">
-          {phase2Features.map((f) => (
-            <span
-              key={f.title}
-              title={f.description}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cream-2 border border-line text-[12px] text-slate-dark"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-dark/40" />
-              {f.title}
-              <span className="text-[10px] text-slate ml-1 uppercase tracking-wider">Próx.</span>
-            </span>
-          ))}
+          <FuturePill title="Próximos aumentos" desc="Requiere conexión a INDEC para calcular fechas y factores" />
+          <FuturePill title="Liquidaciones gris/verde/azul" desc="Workflow de envío y conciliación con propietario" />
+          <FuturePill title="Recordatorios automáticos" desc="WhatsApp + email vía Resend" />
         </div>
       </section>
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="py-10 text-center">
+      <p className="text-[13px] text-slate">{text}</p>
+    </div>
+  )
+}
+
+function FuturePill({ title, desc }: { title: string; desc: string }) {
+  return (
+    <span
+      title={desc}
+      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cream-2 border border-line text-[12px] text-slate-dark"
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-dark/40" />
+      {title}
+      <span className="text-[10px] text-slate ml-1 uppercase tracking-wider">Próx.</span>
+    </span>
   )
 }

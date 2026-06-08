@@ -1,139 +1,224 @@
-import { createSupabaseServer } from '@/lib/supabase/server'
-import { addDays, format, startOfMonth, endOfMonth } from 'date-fns'
+// ============================================================================
+// Dashboard queries — wired against the v2 schema.
+//
+// Notes:
+//   • The CSV snapshot covers May 2026, so the "current month" for display
+//     purposes is May 2026 (transactions.period = '2026-05-01').
+//   • next_adjustment_date is not yet populated (Phase D — IPC engine).
+//     Upcoming-adjustments returns [] until then.
+//   • "Atrasados" requires a payments/expected model that doesn't yet exist
+//     in the data — we derive a proxy from contracts that have no RENT_IN
+//     in the latest period.
+// ============================================================================
 
-const TODAY = new Date('2026-06-06')
-const fmtDate = (d: Date) => format(d, 'yyyy-MM-dd')
+import { createSupabaseServer } from '@/lib/supabase/server'
+
+// The CSV is a May 2026 snapshot. Use that as "current period".
+const CURRENT_PERIOD = '2026-05-01'
 
 export interface DashboardKpis {
-  activeContracts: number
-  expiringSoon: number
-  lateCount: number
-  lateTotal: number
-  weeklyAdjustments: number
+  activeContracts:   number
+  rescindedContracts: number
+  monthlyIncome:     number  // RENT_IN sum for current period
+  monthlyCommission: number  // COMMISSION_OUT sum for current period
 }
 
-export interface UpcomingAdjustment {
-  fecha: string
-  contrato: string
-  inquilino: string
-  actual: number
-  nuevo: number
-  cadencia: string
+export interface CommissionByDestination {
+  destination: 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6' | 'OTHER'
+  label:       string
+  total:       number
+  txCount:     number
 }
 
-export interface BankPosition {
-  banco: string
-  esperado: number
-  recibido: number
+export interface TopLandlord {
+  name:     string
+  revenue:  number
+  contracts: number
 }
 
-export interface LateTenant {
-  inquilino: string
-  contrato: string
-  monto: number
-  dias: number
-  interes: number
+export interface TenantWithoutPayment {
+  contractId:   string
+  tenantName:   string
+  landlordName: string
+  expectedRent: number
 }
 
-export async function getKpis(): Promise<DashboardKpis> {
+// ---------------------------------------------------------------------------
+// 1. Top-level KPIs
+// ---------------------------------------------------------------------------
+export async function getDashboardKpis(): Promise<DashboardKpis> {
   const supabase = await createSupabaseServer()
-  const monthEnd60 = fmtDate(addDays(TODAY, 60))
-  const weekEnd = fmtDate(addDays(TODAY, 7))
 
-  const [active, expiring, late, weekly] = await Promise.all([
+  // Contract status counts
+  const [activeRes, rescindedRes, rentInRes, commissionRes] = await Promise.all([
     supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-    supabase.from('contracts').select('*', { count: 'exact', head: true }).lte('end_date', monthEnd60),
-    supabase.from('payments').select('amount').eq('status', 'late'),
-    supabase.from('contracts').select('*', { count: 'exact', head: true })
-      .gte('next_adjustment_date', fmtDate(TODAY))
-      .lte('next_adjustment_date', weekEnd),
+    supabase.from('contracts').select('*', { count: 'exact', head: true }).eq('status', 'rescinded'),
+    // RENT_IN total for current period — sum via .select('amount')
+    supabase
+      .from('transactions')
+      .select('amount, transaction_types!inner(code)')
+      .eq('transaction_types.code', 'RENT_IN')
+      .eq('period', CURRENT_PERIOD),
+    supabase
+      .from('transactions')
+      .select('amount, transaction_types!inner(code)')
+      .eq('transaction_types.code', 'COMMISSION_OUT')
+      .eq('period', CURRENT_PERIOD),
   ])
 
-  const lateTotal = (late.data ?? []).reduce((s, p) => s + Number(p.amount), 0)
+  const sum = (rows: { amount: number | string }[] | null) =>
+    (rows ?? []).reduce((s, r) => s + Number(r.amount), 0)
+
   return {
-    activeContracts: active.count ?? 0,
-    expiringSoon: expiring.count ?? 0,
-    lateCount: (late.data ?? []).length,
-    lateTotal,
-    weeklyAdjustments: weekly.count ?? 0,
+    activeContracts:    activeRes.count ?? 0,
+    rescindedContracts: rescindedRes.count ?? 0,
+    monthlyIncome:      sum(rentInRes.data as any),
+    monthlyCommission:  sum(commissionRes.data as any),
   }
 }
 
-export async function getUpcomingAdjustments(limit = 5): Promise<UpcomingAdjustment[]> {
+// ---------------------------------------------------------------------------
+// 2. Commission by destination — the section chief's reconciliation view
+// ---------------------------------------------------------------------------
+export async function getCommissionByDestination(): Promise<CommissionByDestination[]> {
   const supabase = await createSupabaseServer()
-  const window30 = fmtDate(addDays(TODAY, 30))
 
   const { data } = await supabase
+    .from('transactions')
+    .select('amount, description, transaction_types!inner(code)')
+    .eq('transaction_types.code', 'COMMISSION_OUT')
+    .eq('period', CURRENT_PERIOD)
+
+  const buckets: Record<string, { total: number; count: number; label: string }> = {
+    ADM_GALICIA:      { total: 0, count: 0, label: 'ADM Galicia' },
+    ADM_FRANCES_50_9: { total: 0, count: 0, label: 'BBVA Francés 50/9 · DONDE.LISA.VALOR' },
+    ADM_FRANCES_51_6: { total: 0, count: 0, label: 'BBVA Francés 51/6 · DORSO.LISA.VALOR' },
+    OTHER:            { total: 0, count: 0, label: 'Sin destino identificado' },
+  }
+
+  for (const row of data ?? []) {
+    const descr = (row.description ?? '') as string
+    const key =
+      descr.includes('ADM_GALICIA')       ? 'ADM_GALICIA' :
+      descr.includes('ADM_FRANCES_50_9')  ? 'ADM_FRANCES_50_9' :
+      descr.includes('ADM_FRANCES_51_6')  ? 'ADM_FRANCES_51_6' : 'OTHER'
+    buckets[key].total += Number(row.amount)
+    buckets[key].count += 1
+  }
+
+  return (Object.entries(buckets) as [keyof typeof buckets, typeof buckets[string]][])
+    .filter(([, v]) => v.count > 0)
+    .map(([destination, v]) => ({
+      destination: destination as CommissionByDestination['destination'],
+      label:       v.label,
+      total:       v.total,
+      txCount:     v.count,
+    }))
+    .sort((a, b) => b.total - a.total)
+}
+
+// ---------------------------------------------------------------------------
+// 3. Top landlords by current-period revenue
+// ---------------------------------------------------------------------------
+export async function getTopLandlords(limit = 10): Promise<TopLandlord[]> {
+  const supabase = await createSupabaseServer()
+
+  // Fetch every RENT_IN for the period with its contract → contract_landlords → landlord
+  const { data } = await supabase
+    .from('transactions')
+    .select(`
+      amount,
+      contracts!inner(
+        id,
+        contract_landlords!inner(
+          landlords!inner(name)
+        )
+      ),
+      transaction_types!inner(code)
+    `)
+    .eq('transaction_types.code', 'RENT_IN')
+    .eq('period', CURRENT_PERIOD)
+
+  // Aggregate in JS — easier than complex Supabase aggregates.
+  const acc = new Map<string, { revenue: number; contracts: Set<string> }>()
+  for (const row of (data ?? []) as any[]) {
+    const contract = row.contracts
+    if (!contract) continue
+    for (const cl of contract.contract_landlords ?? []) {
+      const name = cl.landlords?.name ?? '(sin nombre)'
+      if (!acc.has(name)) acc.set(name, { revenue: 0, contracts: new Set() })
+      const entry = acc.get(name)!
+      entry.revenue += Number(row.amount)
+      entry.contracts.add(contract.id)
+    }
+  }
+
+  return [...acc.entries()]
+    .map(([name, v]) => ({ name, revenue: v.revenue, contracts: v.contracts.size }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, limit)
+}
+
+// ---------------------------------------------------------------------------
+// 4. Property type breakdown
+// ---------------------------------------------------------------------------
+export interface PropertyTypeBreakdown {
+  type:  string
+  count: number
+}
+
+export async function getPropertyTypeBreakdown(): Promise<PropertyTypeBreakdown[]> {
+  const supabase = await createSupabaseServer()
+  const { data } = await supabase.from('properties').select('property_type')
+  const counts = new Map<string, number>()
+  for (const row of data ?? []) {
+    const t = (row as any).property_type as string
+    counts.set(t, (counts.get(t) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count)
+}
+
+// ---------------------------------------------------------------------------
+// 5. Contracts with no current-period payment — proxy for "atrasados"
+// ---------------------------------------------------------------------------
+export async function getContractsWithoutPayment(): Promise<TenantWithoutPayment[]> {
+  const supabase = await createSupabaseServer()
+
+  // Pull all active contracts with their primary tenant + first landlord
+  const { data: contracts } = await supabase
     .from('contracts')
-    .select('id, current_rent, cadence, next_adjustment_date, tenants(name)')
-    .gte('next_adjustment_date', fmtDate(TODAY))
-    .lte('next_adjustment_date', window30)
-    .order('next_adjustment_date', { ascending: true })
-    .limit(limit)
+    .select(`
+      id, current_rent,
+      contract_tenants(is_primary, tenants(name)),
+      contract_landlords(landlords(name))
+    `)
+    .eq('status', 'active')
 
-  // Estimated factor for display purposes — exact value comes from the live engine.
-  const ESTIMATED_FACTOR = 1.1357
-  return (data ?? []).map((c: any) => ({
-    fecha: format(new Date(c.next_adjustment_date), 'dd/MM'),
-    contrato: '#' + c.id.slice(0, 4).toUpperCase(),
-    inquilino: c.tenants?.name?.split(' ').slice(-1)[0] ?? '—',
-    actual: Number(c.current_rent),
-    nuevo: Math.round((Number(c.current_rent) * ESTIMATED_FACTOR) / 100) * 100,
-    cadencia: c.cadence.charAt(0).toUpperCase() + c.cadence.slice(1),
-  }))
-}
+  if (!contracts) return []
 
-export async function getBankPositions(): Promise<BankPosition[]> {
-  const supabase = await createSupabaseServer()
-  const monthStart = fmtDate(startOfMonth(TODAY))
-  const monthEnd = fmtDate(endOfMonth(TODAY))
+  // For each contract, check if there's a RENT_IN in the current period
+  const contractIds = contracts.map(c => (c as any).id)
+  const { data: payments } = await supabase
+    .from('transactions')
+    .select('contract_id, transaction_types!inner(code)')
+    .eq('transaction_types.code', 'RENT_IN')
+    .eq('period', CURRENT_PERIOD)
+    .in('contract_id', contractIds)
 
-  const [banksRes, paymentsRes] = await Promise.all([
-    supabase.from('bank_accounts').select('id, bank_name'),
-    supabase
-      .from('payments')
-      .select('bank_account_id, amount, status, bank_date, expected_date')
-      .eq('direction', 'IN')
-      .gte('expected_date', monthStart)
-      .lte('expected_date', monthEnd),
-  ])
+  const paidIds = new Set((payments ?? []).map(p => (p as any).contract_id))
 
-  const banks = banksRes.data ?? []
-  const payments = paymentsRes.data ?? []
+  const unpaid = contracts.filter(c => !paidIds.has((c as any).id))
 
-  return banks.map(b => {
-    const forBank = payments.filter(p => p.bank_account_id === b.id)
-    const esperado = forBank.reduce((s, p) => s + Number(p.amount), 0)
-    const recibido = forBank
-      .filter(p => p.status === 'paid' && p.bank_date)
-      .reduce((s, p) => s + Number(p.amount), 0)
-    return { banco: b.bank_name, esperado, recibido }
-  })
-}
-
-export async function getLateTenants(limit = 10): Promise<LateTenant[]> {
-  const supabase = await createSupabaseServer()
-
-  const { data } = await supabase
-    .from('payments')
-    .select('id, amount, expected_date, contracts(id, late_interest_rate, late_interest_enabled, tenants(name))')
-    .eq('status', 'late')
-    .order('expected_date', { ascending: true })
-    .limit(limit)
-
-  return (data ?? []).map((p: any) => {
-    const expected = new Date(p.expected_date)
-    const dias = Math.max(0, Math.floor((TODAY.getTime() - expected.getTime()) / 86_400_000))
-    const c = p.contracts
-    const interes = c?.late_interest_enabled
-      ? Math.round((Number(p.amount) * (Number(c.late_interest_rate) / 100 / 30) * dias) / 100) * 100
-      : 0
+  return unpaid.map((c: any) => {
+    const primary = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
+    const firstLandlord = c.contract_landlords?.[0]
     return {
-      inquilino: c?.tenants?.name?.split(' ').slice(-1)[0] ?? '—',
-      contrato: '#' + (c?.id?.slice(0, 4).toUpperCase() ?? '----'),
-      monto: Number(p.amount),
-      dias,
-      interes,
+      contractId:   c.id,
+      tenantName:   primary?.tenants?.name ?? '(sin inquilino)',
+      landlordName: firstLandlord?.landlords?.name ?? '(sin propietario)',
+      expectedRent: Number(c.current_rent),
     }
   })
 }
