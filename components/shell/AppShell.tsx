@@ -5,7 +5,12 @@ import { usePathname } from 'next/navigation'
 import { SideNav } from './SideNav'
 import { TopBar } from './TopBar'
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+interface AppShellProps {
+  children:   React.ReactNode
+  userEmail:  string | null
+}
+
+export function AppShell({ children, userEmail }: AppShellProps) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
 
@@ -35,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         ].join(' ')}
       >
-        <SideNav onNavigate={() => setOpen(false)} />
+        <SideNav onNavigate={() => setOpen(false)} userEmail={userEmail} />
       </aside>
 
       {/* Backdrop only visible on small screens when drawer is open. */}

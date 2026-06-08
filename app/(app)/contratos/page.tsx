@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
 import { listContracts } from '@/lib/entities/queries'
@@ -72,7 +73,11 @@ export default async function ContratosPage() {
                   key={c.id}
                   className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${c.status === 'rescinded' ? 'opacity-60' : ''} hover:bg-cream-2 transition-colors`}
                 >
-                  <td className="px-5 py-3 text-ink font-medium">{c.primaryTenant}</td>
+                  <td className="px-5 py-3 text-ink font-medium">
+                    <Link href={`/contratos/${c.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
+                      {c.primaryTenant}
+                    </Link>
+                  </td>
                   <td className="px-5 py-3 text-slate-dark">{c.primaryLandlord}</td>
                   <td className="px-5 py-3 text-right tabular-nums text-ink">{fmt(c.currentRent)}</td>
                   <td className="px-5 py-3 text-slate-dark capitalize">{c.cadence}</td>

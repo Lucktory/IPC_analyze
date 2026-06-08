@@ -107,24 +107,31 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
 
 interface SideNavProps {
   onNavigate?: () => void
+  userEmail?:  string | null
 }
 
-export function SideNav({ onNavigate }: SideNavProps = {}) {
+export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
   const pathname = usePathname()
   const isActive = (to: string) => pathname === to || pathname.startsWith(to + '/')
+
+  // Display name: prefer the local-part of the email; fall back to "Sesión activa".
+  const displayName = userEmail
+    ? userEmail.split('@')[0]
+    : 'Sesión activa'
+  const initial = displayName.charAt(0).toUpperCase() || 'P'
 
   return (
     <>
       <div className="h-14 flex items-center gap-3 px-5 border-b border-paper/10">
         <div className="h-7 w-7 rounded bg-paper/10 flex items-center justify-center font-display font-semibold text-paper text-[14px] shrink-0">
-          A
+          {initial}
         </div>
-        <div className="flex flex-col leading-tight">
-          <span className="font-display font-medium text-[15px] text-paper tracking-tight">
-            Alejandro
+        <div className="flex flex-col leading-tight min-w-0">
+          <span className="font-display font-medium text-[15px] text-paper tracking-tight truncate">
+            {displayName}
           </span>
           <span className="text-[9px] text-paper/50 uppercase tracking-[0.18em] mt-0.5">
-            Administración
+            Pampa Administración
           </span>
         </div>
       </div>
@@ -186,8 +193,8 @@ export function SideNav({ onNavigate }: SideNavProps = {}) {
       </nav>
 
       <footer className="px-5 py-4 border-t border-paper/10 text-[10.5px] text-paper/45 leading-relaxed">
-        <p className="text-paper/80 font-medium">Administración Alejandro</p>
-        <p className="mt-0.5">Buenos Aires · Argentina</p>
+        <p className="text-paper/80 font-medium">Pampa Administración</p>
+        <p className="mt-0.5">IPC-ANALYZE</p>
         <p className="mt-2 text-paper/35 tabular-nums">v0.1.0</p>
       </footer>
     </>
