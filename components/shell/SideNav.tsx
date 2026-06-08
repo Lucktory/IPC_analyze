@@ -6,18 +6,18 @@ import { usePathname } from 'next/navigation'
 interface NavItem {
   to: string
   label: string
-  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'payments' | 'adjustments' | 'receipts' | 'reports'
+  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile'
 }
 
 const mainItems: NavItem[] = [
-  { to: '/dashboard',    label: 'Panel',         icon: 'dashboard'   },
-  { to: '/contratos',    label: 'Contratos',     icon: 'contracts'   },
-  { to: '/inquilinos',   label: 'Inquilinos',    icon: 'tenants'     },
-  { to: '/propietarios', label: 'Propietarios',  icon: 'owners'      },
-  { to: '/pagos',        label: 'Pagos',         icon: 'payments'    },
-  { to: '/aumentos',     label: 'Aumentos',      icon: 'adjustments' },
-  { to: '/recibos',      label: 'Recibos',       icon: 'receipts'    },
-  { to: '/reportes',     label: 'Reportes',      icon: 'reports'     },
+  { to: '/dashboard',    label: 'Panel',         icon: 'dashboard'  },
+  { to: '/contratos',    label: 'Contratos',     icon: 'contracts'  },
+  { to: '/propietarios', label: 'Propietarios',  icon: 'owners'     },
+  { to: '/inquilinos',   label: 'Inquilinos',    icon: 'tenants'    },
+  { to: '/propiedades',  label: 'Propiedades',   icon: 'properties' },
+  { to: '/movimientos',  label: 'Movimientos',   icon: 'payments'   },
+  { to: '/bancos',       label: 'Bancos',        icon: 'banks'      },
+  { to: '/conciliacion', label: 'Conciliación',  icon: 'reconcile'  },
 ]
 
 function NavIcon({ name }: { name: NavItem['icon'] }) {
@@ -77,29 +77,29 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
           <circle cx="10" cy="10" r="2.2" />
         </svg>
       )
-    case 'adjustments':
+    case 'properties':
       return (
         <svg {...common} strokeLinejoin="round">
-          <path d="M3 14 L7.5 9.5 L11 12 L17 5.5" />
-          <path d="M13 5.5 H17 V9.5" />
+          <path d="M3 9 L10 3 L17 9 V17 H3 Z" />
+          <path d="M8 17 V12 H12 V17" />
         </svg>
       )
-    case 'receipts':
+    case 'banks':
       return (
         <svg {...common} strokeLinejoin="round">
-          <path d="M5 3 H15 V17 L13 16 L11 17 L9 16 L7 17 L5 16 Z" />
-          <path d="M7.5 6.5 H12.5" />
-          <path d="M7.5 9 H12.5" />
-          <path d="M7.5 11.5 H10.5" />
+          <path d="M3 8 L10 4 L17 8" />
+          <path d="M5 8 V14" />
+          <path d="M9 8 V14" />
+          <path d="M11 8 V14" />
+          <path d="M15 8 V14" />
+          <path d="M3 16 H17" />
         </svg>
       )
-    case 'reports':
+    case 'reconcile':
       return (
-        <svg {...common}>
-          <rect x="3" y="3" width="14" height="14" rx="1.5" />
-          <path d="M6 13 V11" />
-          <path d="M10 13 V7" />
-          <path d="M14 13 V9" />
+        <svg {...common} strokeLinejoin="round">
+          <path d="M4 6 H13 L16 9 L13 12 H4" />
+          <path d="M16 14 H7 L4 17 L7 20" />
         </svg>
       )
   }
