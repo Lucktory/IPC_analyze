@@ -221,3 +221,185 @@ export async function listBanks(): Promise<BankRow[]> {
     shortCode: (b as any).short_code,
   }))
 }
+
+// ---------------------------------------------------------------------------
+// CONTRACTS  (the spine of the business)
+// ---------------------------------------------------------------------------
+export interface ContractRow {
+  id:              string
+  primaryTenant:   string
+  primaryLandlord: string
+  currentRent:     number
+  cadence:         string
+  status:          string
+  startDate:       string
+  endDate:         string
+}
+
+export async function listContracts(): Promise<ContractRow[]> {
+  const supabase = await createSupabaseServer()
+
+  const { data } = await supabase
+    .from('contracts')
+    .select(`
+      id, current_rent, cadence, status, start_date, end_date,
+      contract_tenants(is_primary, tenants(name)),
+      contract_landlords(ownership_pct, landlords(name))
+    `)
+    .order('start_date', { ascending: false })
+
+  return (data ?? []).map((c: any) => {
+    const primary = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
+    const topOwner = (c.contract_landlords ?? [])
+      .slice()
+      .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
+    return {
+      id:              c.id,
+      primaryTenant:   primary?.tenants?.name ?? '(sin inquilino)',
+      primaryLandlord: topOwner?.landlords?.name ?? '(sin propietario)',
+      currentRent:     Number(c.current_rent),
+      cadence:         c.cadence,
+      status:          c.status,
+      startDate:       c.start_date,
+      endDate:         c.end_date,
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// PROPERTIES
+// ---------------------------------------------------------------------------
+export interface PropertyRow {
+  id:            string
+  address:       string
+  propertyType:  string
+  isVacant:      boolean       // address ends with "(vacante)" OR no contract
+  hasContract:   boolean
+  tenant:        string | null
+  landlord:      string | null // derived from contract (active) or placeholder address
+  currentRent:   number
+}
+
+export async function listProperties(): Promise<PropertyRow[]> {
+  const supabase = await createSupabaseServer()
+
+  const [propsRes, contractsRes] = await Promise.all([
+    supabase
+      .from('properties')
+      .select('id, address, property_type')
+      .order('address'),
+    supabase
+      .from('contracts')
+      .select(`
+        id, property_id, current_rent, status,
+        contract_tenants(is_primary, tenants(name)),
+        contract_landlords(ownership_pct, landlords(name))
+      `)
+      .neq('status', 'rescinded'),
+  ])
+
+  // Map property_id → contract details
+  const contractByProp = new Map<string, any>()
+  for (const c of (contractsRes.data ?? []) as any[]) {
+    contractByProp.set(c.property_id, c)
+  }
+
+  return (propsRes.data ?? []).map((p: any) => {
+    const addr  = String(p.address)
+    const isVacantByAddress = /\(vacante\)/i.test(addr)
+    const contract          = contractByProp.get(p.id)
+    const isVacant          = isVacantByAddress || !contract
+
+    let tenant: string | null = null
+    let landlord: string | null = null
+    let rent = 0
+    if (contract) {
+      const primary  = contract.contract_tenants?.find((ct: any) => ct.is_primary) ?? contract.contract_tenants?.[0]
+      const topOwner = (contract.contract_landlords ?? [])
+        .slice()
+        .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
+      tenant   = primary?.tenants?.name ?? null
+      landlord = topOwner?.landlords?.name ?? null
+      rent     = Number(contract.current_rent)
+    } else {
+      // Vacant — try to extract landlord from address text "Propiedad de X"
+      const m = addr.match(/^Propiedad de (.+?)( \(vacante\))?$/i)
+      if (m) landlord = m[1]
+    }
+
+    return {
+      id:           p.id,
+      address:      addr,
+      propertyType: p.property_type,
+      isVacant,
+      hasContract:  !!contract,
+      tenant,
+      landlord,
+      currentRent:  rent,
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// TRANSACTIONS  (movimientos)
+// ---------------------------------------------------------------------------
+export interface TransactionRow {
+  id:            string
+  typeCode:      string
+  typeLabel:     string
+  direction:     'IN' | 'OUT'
+  amount:        number
+  period:        string | null
+  bankDate:      string | null
+  description:   string | null
+  contractId:    string | null
+  tenantName:    string | null
+}
+
+export async function listTransactions(period?: string): Promise<TransactionRow[]> {
+  const supabase = await createSupabaseServer()
+
+  let q = supabase
+    .from('transactions')
+    .select(`
+      id, amount, period, bank_date, description, contract_id,
+      transaction_types!inner(code, label, direction),
+      contracts(
+        contract_tenants(is_primary, tenants(name))
+      )
+    `)
+    .order('bank_date', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+
+  if (period) q = q.eq('period', period)
+
+  const { data } = await q
+
+  return (data ?? []).map((t: any) => {
+    const primary = t.contracts?.contract_tenants?.find((ct: any) => ct.is_primary) ?? t.contracts?.contract_tenants?.[0]
+    return {
+      id:          t.id,
+      typeCode:    t.transaction_types.code,
+      typeLabel:   t.transaction_types.label,
+      direction:   t.transaction_types.direction,
+      amount:      Number(t.amount),
+      period:      t.period,
+      bankDate:    t.bank_date,
+      description: t.description,
+      contractId:  t.contract_id,
+      tenantName:  primary?.tenants?.name ?? null,
+    }
+  })
+}
+
+// Periods that have at least one transaction — for the period filter dropdown
+export async function listTransactionPeriods(): Promise<string[]> {
+  const supabase = await createSupabaseServer()
+  const { data } = await supabase
+    .from('transactions')
+    .select('period')
+    .not('period', 'is', null)
+  const seen = new Set<string>()
+  for (const r of (data ?? []) as any[]) if (r.period) seen.add(r.period)
+  return [...seen].sort().reverse()
+}
