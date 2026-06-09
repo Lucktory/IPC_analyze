@@ -44,18 +44,21 @@ export default async function DashboardPage() {
     value: l.revenue,
   }))
 
-  // Donut data: property types
-  const propTypeColors: Record<string, string> = {
-    vivienda: '#4A4F58',
-    local:    '#7D8491',
-    cochera:  '#D6CFC1',
-    oficina:  '#B8B8B8',
-    deposito: '#9CA3AF',
+  // Property type breakdown — capped at top 2 for the dashboard tile.
+  // Plural labels are domain-correct (vivienda/local → viviendas/locales).
+  const PROP_PLURAL: Record<string, string> = {
+    vivienda: 'Viviendas',
+    local:    'Locales',
+    cochera:  'Cocheras',
+    oficina:  'Oficinas',
+    deposito: 'Depósitos',
   }
-  const propTypeDonut = propTypes.map(p => ({
-    name:  p.type[0].toUpperCase() + p.type.slice(1),
-    value: p.count,
-    color: propTypeColors[p.type] ?? '#7D8491',
+  const propTypesTop  = propTypes.slice(0, 2)
+  const propTypeTotal = propTypes.reduce((s, p) => s + p.count, 0)
+  const propTypesView = propTypesTop.map(p => ({
+    label: PROP_PLURAL[p.type] ?? p.type,
+    count: p.count,
+    pct:   propTypeTotal > 0 ? (p.count / propTypeTotal) * 100 : 0,
   }))
 
   return (
@@ -142,17 +145,33 @@ export default async function DashboardPage() {
         <section className="lg:col-span-2 bg-paper border border-line rounded shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-line">
             <h2 className="font-display text-[15px] font-medium text-ink">Cartera por tipo</h2>
-            <p className="text-[12px] text-slate mt-0.5">Propiedades en administración</p>
+            <p className="text-[12px] text-slate mt-0.5">{propTypeTotal} propiedades en administración</p>
           </div>
           <div className="p-5">
-            {propTypeDonut.length > 0 ? (
-              <DonutChart
-                data={propTypeDonut}
-                totalLabel="Propiedades"
-                unit="propiedad"
-                unitPlural="propiedades"
-                height={240}
-              />
+            {propTypesView.length > 0 ? (
+              <>
+                {/* Single proportion bar showing both segments */}
+                <div className="flex h-2 rounded-full overflow-hidden bg-cream-2">
+                  {propTypesView.map((p, i) => (
+                    <div
+                      key={p.label}
+                      style={{ width: `${p.pct}%`, backgroundColor: i === 0 ? '#4A4F58' : '#D6CFC1' }}
+                      title={`${p.label}: ${p.pct.toFixed(0)}%`}
+                    />
+                  ))}
+                </div>
+
+                {/* Two big stats side by side */}
+                <div className="mt-5 grid grid-cols-2 divide-x divide-line">
+                  {propTypesView.map((p, i) => (
+                    <div key={p.label} className={i === 0 ? 'pr-4' : 'pl-4'}>
+                      <p className="font-display text-[32px] font-medium tabular-nums text-ink leading-none">{p.count}</p>
+                      <p className="label-cap mt-2">{p.label}</p>
+                      <p className="text-[11px] text-slate mt-0.5 tabular-nums">{p.pct.toFixed(0)}%</p>
+                    </div>
+                  ))}
+                </div>
+              </>
             ) : (
               <EmptyState text="Sin propiedades cargadas" />
             )}

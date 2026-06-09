@@ -241,7 +241,24 @@ export interface ContractRow {
   endDate:         string
 }
 
-export async function listContracts(): Promise<ContractRow[]> {
+export interface ContractListFilters {
+  estado?:     'todos' | 'activo' | 'por_vencer' | 'rescindido'
+  cadencia?:   string   // 'trimestral', 'cuatrimestral', etc., or 'todas'
+  landlordId?: string   // landlord uuid, or 'todos'
+  q?:          string   // free-text search across tenant + landlord names
+}
+
+export interface ContractListResult {
+  rows:          ContractRow[]
+  counts: {
+    todos:       number
+    activo:      number
+    por_vencer:  number
+    rescindido:  number
+  }
+}
+
+export async function listContracts(filters: ContractListFilters = {}): Promise<ContractListResult> {
   const supabase = await createSupabaseServer()
 
   const { data } = await supabase
@@ -249,12 +266,16 @@ export async function listContracts(): Promise<ContractRow[]> {
     .select(`
       id, current_rent, cadence, status, start_date, end_date,
       contract_tenants(is_primary, tenants(name)),
-      contract_landlords(ownership_pct, landlords(name))
+      contract_landlords(ownership_pct, landlords(id, name))
     `)
     .order('start_date', { ascending: false })
 
-  return (data ?? []).map((c: any) => {
-    const primary = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
+  // Normalise to ContractRow shape
+  const today = new Date()
+  const in60days = new Date(today.getTime() + 60 * 86400000)
+
+  const all: (ContractRow & { landlordId: string })[] = (data ?? []).map((c: any) => {
+    const primary  = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
     const topOwner = (c.contract_landlords ?? [])
       .slice()
       .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
@@ -262,6 +283,7 @@ export async function listContracts(): Promise<ContractRow[]> {
       id:              c.id,
       primaryTenant:   primary?.tenants?.name ?? '(sin inquilino)',
       primaryLandlord: topOwner?.landlords?.name ?? '(sin propietario)',
+      landlordId:      topOwner?.landlords?.id ?? '',
       currentRent:     Number(c.current_rent),
       cadence:         c.cadence,
       status:          c.status,
@@ -269,6 +291,45 @@ export async function listContracts(): Promise<ContractRow[]> {
       endDate:         c.end_date,
     }
   })
+
+  // Status counts (always over the full set — independent of current filters)
+  const counts = {
+    todos:      all.length,
+    activo:     all.filter(c => c.status === 'active').length,
+    por_vencer: all.filter(c => {
+      const end = new Date(c.endDate)
+      return c.status === 'active' && end >= today && end <= in60days
+    }).length,
+    rescindido: all.filter(c => c.status === 'rescinded').length,
+  }
+
+  // Apply filters
+  let rows = all
+  if (filters.estado === 'activo') {
+    rows = rows.filter(c => c.status === 'active')
+  } else if (filters.estado === 'rescindido') {
+    rows = rows.filter(c => c.status === 'rescinded')
+  } else if (filters.estado === 'por_vencer') {
+    rows = rows.filter(c => {
+      const end = new Date(c.endDate)
+      return c.status === 'active' && end >= today && end <= in60days
+    })
+  }
+  if (filters.cadencia && filters.cadencia !== 'todas') {
+    rows = rows.filter(c => c.cadence === filters.cadencia)
+  }
+  if (filters.landlordId && filters.landlordId !== 'todos') {
+    rows = rows.filter(c => c.landlordId === filters.landlordId)
+  }
+  if (filters.q) {
+    const q = filters.q.trim().toLowerCase()
+    rows = rows.filter(c =>
+      c.primaryTenant.toLowerCase().includes(q) ||
+      c.primaryLandlord.toLowerCase().includes(q),
+    )
+  }
+
+  return { rows: rows.map(({ landlordId: _l, ...rest }) => rest), counts }
 }
 
 // ---------------------------------------------------------------------------
