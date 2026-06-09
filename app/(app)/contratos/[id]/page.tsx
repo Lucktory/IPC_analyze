@@ -6,6 +6,8 @@ import {
   getEmbudoForContract,
   getContractPeriods,
 } from '@/lib/contract/queries'
+import { getNoteForPeriod } from '@/lib/contract/notes'
+import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 
 export const revalidate = 0
 
@@ -58,7 +60,10 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
 
   const periods = await getContractPeriods(id)
   const period  = paramPeriod ?? periods[0] ?? '2026-05-01'
-  const embudo  = await getEmbudoForContract(id, period)
+  const [embudo, note] = await Promise.all([
+    getEmbudoForContract(id, period),
+    getNoteForPeriod(id, period),
+  ])
 
   const primaryTenant   = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
   const topLandlord     = contract.landlords.slice().sort((a, b) => b.ownershipPct - a.ownershipPct)[0]
@@ -193,6 +198,28 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
             </div>
           </div>
         )}
+      </section>
+
+      {/* Observaciones del período — Alejandro's DEUDA scratchpad */}
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
+        <div className="px-6 py-4 border-b border-line">
+          <h2 className="font-display text-[15px] font-medium text-ink">
+            Observaciones · {PERIOD_LABEL(period)}
+          </h2>
+          <p className="text-[12px] text-slate mt-0.5">
+            Notas libres por mes — recuperos pendientes, deudas, observaciones para el inquilino o el propietario.
+          </p>
+        </div>
+        <div className="px-6 py-5">
+          <PeriodNotesEditor
+            contractId={id}
+            period={period}
+            periodLabel={PERIOD_LABEL(period)}
+            initialBody={note.body}
+            initialUpdatedAt={note.updatedAt}
+            initialUpdatedBy={note.updatedBy}
+          />
+        </div>
       </section>
 
       {/* Sidebar info — landlords + tenants */}

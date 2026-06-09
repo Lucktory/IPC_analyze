@@ -21,6 +21,7 @@ alter table contracts               disable row level security;
 alter table contract_landlords      disable row level security;
 alter table contract_tenants        disable row level security;
 alter table contract_administrators disable row level security;
+alter table contract_period_notes   disable row level security;
 alter table transaction_types       disable row level security;
 alter table transactions            disable row level security;
 alter table liquidaciones           disable row level security;

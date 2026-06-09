@@ -28,6 +28,7 @@ drop table if exists transactions cascade;
 drop table if exists transaction_types cascade;
 drop table if exists contract_administrators cascade;
 drop table if exists contract_tenants cascade;
+drop table if exists contract_period_notes cascade;
 drop table if exists property_landlords cascade;
 drop table if exists contract_landlords cascade;
 drop table if exists contracts cascade;
@@ -255,6 +256,22 @@ create table contract_administrators (
   primary key (contract_id, administrator_id)
 );
 create index idx_contract_administrators_administrator on contract_administrators(administrator_id);
+
+-- ----------------------------------------------------------------------------
+-- 13b. CONTRACT_PERIOD_NOTES — free-text scratchpad per (contract × period).
+--      Mirrors Alejandro's DEUDA Y/U OBSERVACIONES column from his ledger:
+--      a place to jot the month's expected rent, ad-hoc deductions
+--      (THU bills, deposit recoveries, accountant remarks, etc.).
+-- ----------------------------------------------------------------------------
+create table contract_period_notes (
+  contract_id uuid        not null references contracts(id) on delete cascade,
+  period      date        not null,
+  body        text        not null default '',
+  updated_at  timestamptz not null default now(),
+  updated_by  text,
+  primary key (contract_id, period)
+);
+create index idx_contract_period_notes_period on contract_period_notes(period);
 
 -- ----------------------------------------------------------------------------
 -- 14. TRANSACTION_TYPES — lookup for every kind of money movement
