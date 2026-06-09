@@ -11,8 +11,6 @@ import {
 // Slugify a bucket code into an anchor id (hyphens, lowercase, safe chars)
 const anchor = (code: string) => 'b-' + code.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
-export const revalidate = 0
-
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
 const PERIOD_LABEL = (s: string) => {

@@ -3,8 +3,6 @@ import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { listBanks, listBankAccounts } from '@/lib/entities/queries'
 
-export const revalidate = 0
-
 export default async function BancosPage() {
   const [banks, accounts] = await Promise.all([listBanks(), listBankAccounts()])
 

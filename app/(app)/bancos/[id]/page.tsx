@@ -5,8 +5,6 @@ import { getBankAccountDetail } from '@/lib/bank/queries'
 import { listBanks } from '@/lib/entities/queries'
 import { EditBankAccountForm } from '@/components/bank/EditBankAccountForm'
 
-export const revalidate = 0
-
 interface PageProps {
   params: Promise<{ id: string }>
 }

@@ -3,8 +3,6 @@ import { Badge } from '@/components/ui/Badge'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { listProperties } from '@/lib/entities/queries'
 
-export const revalidate = 0
-
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
 const TYPE_LABEL: Record<string, string> = {

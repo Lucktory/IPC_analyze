@@ -9,8 +9,6 @@ import {
 import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 
-export const revalidate = 0
-
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
 

@@ -5,8 +5,6 @@ import { FilterPill } from '@/components/ui/FilterPill'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { listContracts, listLandlords, type ContractListFilters } from '@/lib/entities/queries'
 
-export const revalidate = 0
-
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => {
   const d = new Date(s)

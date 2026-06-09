@@ -5,8 +5,6 @@ import { FilterPill } from '@/components/ui/FilterPill'
 import Link from 'next/link'
 import { listTransactions, listTransactionPeriods, type TransactionRow } from '@/lib/entities/queries'
 
-export const revalidate = 0
-
 const PAGE_SIZE = 50
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')

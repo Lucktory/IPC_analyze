@@ -12,8 +12,6 @@ import {
   getContractsWithoutPayment,
 } from '@/lib/dashboard/queries'
 
-export const revalidate = 0  // SSR every request — data changes when seed re-runs
-
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
 export default async function DashboardPage() {

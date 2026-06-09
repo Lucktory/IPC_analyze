@@ -4,8 +4,6 @@ import { StickyHeader } from '@/components/ui/StickyHeader'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { listTenants, type TenantRow } from '@/lib/entities/queries'
 
-export const revalidate = 0
-
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
 type Tipo = 'todos' | 'con_contrato' | 'sin_contrato' | 'sin_telefono'
