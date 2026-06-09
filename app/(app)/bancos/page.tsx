@@ -1,29 +1,78 @@
 import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
-import { listBanks, listBankAccounts } from '@/lib/entities/queries'
+import { FilterPill } from '@/components/ui/FilterPill'
+import { listBanks, listBankAccounts, type BankAccountRow } from '@/lib/entities/queries'
 
-export default async function BancosPage() {
-  const [banks, accounts] = await Promise.all([listBanks(), listBankAccounts()])
+type Categoria = 'todas' | 'admin' | 'administrator' | 'landlord'
 
-  const totalBanks         = banks.length
-  const totalAccounts      = accounts.length
-  const adminAccounts      = accounts.filter(a => a.ownerType === 'admin'    ).length
-  const landlordAccounts   = accounts.filter(a => a.ownerType === 'landlord' ).length
+interface PageProps {
+  searchParams: Promise<{
+    categoria?: string
+    q?:         string
+  }>
+}
+
+export default async function BancosPage({ searchParams }: PageProps) {
+  const sp        = await searchParams
+  const categoria = (sp.categoria as Categoria) ?? 'todas'
+  const q         = sp.q?.trim() ?? ''
+
+  const [banks, all] = await Promise.all([listBanks(), listBankAccounts()])
+
+  const match = (a: BankAccountRow, c: Categoria) => {
+    if (c === 'todas') return true
+    return a.ownerType === c
+  }
+
+  const counts = {
+    todas:         all.length,
+    admin:         all.filter(a => match(a, 'admin')).length,
+    administrator: all.filter(a => match(a, 'administrator')).length,
+    landlord:      all.filter(a => match(a, 'landlord')).length,
+  }
+
+  let rows = all.filter(a => match(a, categoria))
+  if (q) {
+    const ql = q.toLowerCase()
+    rows = rows.filter(a =>
+      a.alias.toLowerCase().includes(ql) ||
+      a.bankName.toLowerCase().includes(ql) ||
+      a.ownerLabel.toLowerCase().includes(ql) ||
+      (a.cbu?.toLowerCase().includes(ql) ?? false),
+    )
+  }
+
+  const totalBanks       = banks.length
+  const totalAccounts    = counts.todas
+  const adminAccounts    = counts.admin
+  const landlordAccounts = counts.landlord
 
   const kpis = [
-    { label: 'Bancos disponibles',  value: totalBanks.toString(),       delta: 'lista maestra',           tone: 'neutral' as const },
-    { label: 'Cuentas registradas', value: totalAccounts.toString(),    delta: 'todas las cuentas',       tone: 'neutral' as const },
+    { label: 'Bancos disponibles',   value: totalBanks.toString(),       delta: 'lista maestra',          tone: 'neutral'  as const },
+    { label: 'Cuentas registradas',  value: totalAccounts.toString(),    delta: 'todas las cuentas',      tone: 'neutral'  as const },
     { label: 'De la administración', value: adminAccounts.toString(),    delta: 'cuentas operativas',     tone: 'positive' as const },
-    { label: 'De propietarios',     value: landlordAccounts.toString(), delta: 'CBUs para transferir',   tone: 'neutral' as const },
+    { label: 'De propietarios',      value: landlordAccounts.toString(), delta: 'CBUs para transferir',   tone: 'neutral'  as const },
   ]
+
+  const buildHref = (overrides: Partial<{ categoria: Categoria; q: string }>) => {
+    const params = new URLSearchParams()
+    const merged = { categoria, q, ...overrides }
+    if (merged.categoria && merged.categoria !== 'todas') params.set('categoria', merged.categoria)
+    if (merged.q)                                          params.set('q',         merged.q)
+    const qs = params.toString()
+    return qs ? `/bancos?${qs}` : '/bancos'
+  }
 
   return (
     <>
       <StickyHeader>
         <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
           <p className="text-[13px] text-slate-dark">
-            <strong className="text-ink font-medium">Bancos y cuentas</strong>
+            <strong className="text-ink font-medium">Bancos y cuentas</strong> ·{' '}
+            {rows.length === counts.todas
+              ? `${counts.todas} cuentas`
+              : `${rows.length} de ${counts.todas} filtradas`}
           </p>
           <p className="label-cap text-slate">Datos en vivo</p>
         </div>
@@ -35,49 +84,91 @@ export default async function BancosPage() {
         </div>
       </StickyHeader>
 
+      {/* FILTER STRIP */}
+      <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="label-cap text-slate mr-1">Categoría</span>
+          <FilterPill href={buildHref({ categoria: 'todas' })}         label="Todas"          count={counts.todas}         active={categoria === 'todas'} />
+          <FilterPill href={buildHref({ categoria: 'admin' })}         label="Administración" count={counts.admin}         active={categoria === 'admin'} />
+          <FilterPill href={buildHref({ categoria: 'administrator' })} label="Socios"         count={counts.administrator} active={categoria === 'administrator'} />
+          <FilterPill href={buildHref({ categoria: 'landlord' })}      label="Propietarios"   count={counts.landlord}      active={categoria === 'landlord'} />
+        </div>
+
+        <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
+          {categoria && categoria !== 'todas' && <input type="hidden" name="categoria" value={categoria} />}
+
+          <label className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+            <span className="label-cap">Búsqueda</span>
+            <input
+              type="text"
+              name="q"
+              defaultValue={q}
+              placeholder="Buscar por alias, banco, titular o CBU…"
+              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
+            />
+          </label>
+
+          <button
+            type="submit"
+            className="h-9 px-4 bg-ink text-paper rounded text-[12px] font-medium hover:opacity-90 transition-opacity"
+          >
+            Filtrar
+          </button>
+
+          {q && (
+            <Link
+              href={buildHref({ q: '' })}
+              className="h-9 inline-flex items-center px-3 text-[12px] text-slate hover:text-ink transition-colors"
+            >
+              Limpiar
+            </Link>
+          )}
+        </form>
+      </section>
+
       <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-line">
-          <h2 className="font-display text-[15px] font-medium text-ink">Cuentas bancarias</h2>
-          <p className="text-[12px] text-slate mt-0.5">
-            Las cuentas operativas (administración) reciben las comisiones; las de propietarios reciben las transferencias.
-          </p>
+        <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="font-display text-[15px] font-medium text-ink">Cuentas bancarias</h2>
+            <p className="text-[12px] text-slate mt-0.5">
+              Las cuentas operativas reciben las comisiones; las de propietarios reciben las transferencias.
+            </p>
+          </div>
+          <p className="text-[12px] text-slate tabular-nums">{rows.length} resultado{rows.length === 1 ? '' : 's'}</p>
         </div>
         <div className="overflow-x-auto">
-          {accounts.length > 0 ? (
-            <table className="w-full text-[13px] min-w-[860px]">
-              <thead>
+          {rows.length > 0 ? (
+            <table className="w-full text-[13px] min-w-[860px] border-collapse">
+              <thead className="bg-cream-2/60">
                 <tr className="border-b border-line">
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Alias</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Banco</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Tipo</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">CBU</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Titular</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Categoría</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Alias</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Banco</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Tipo</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">CBU</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Titular</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium">Categoría</th>
                 </tr>
               </thead>
               <tbody>
-                {accounts.map((a, idx) => (
-                  <tr key={a.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors`}>
-                    <td className="px-5 py-3 text-ink font-medium">
+                {rows.map((a, idx) => (
+                  <tr key={a.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}>
+                    <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">
                       <Link href={`/bancos/${a.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
                         {a.alias}
                       </Link>
                     </td>
-                    <td className="px-5 py-3 text-slate-dark">{a.bankName}</td>
-                    <td className="px-5 py-3 text-slate-dark">{a.accountType}</td>
-                    <td className="px-5 py-3 text-slate-dark tabular-nums">{a.cbu ?? <span className="text-slate/50">—</span>}</td>
-                    <td className="px-5 py-3 text-slate-dark">{a.ownerLabel}</td>
-                    <td className="px-5 py-3 text-slate-dark capitalize">{categoryLabel(a.ownerType)}</td>
+                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{a.bankName}</td>
+                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{a.accountType}</td>
+                    <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{a.cbu ?? <span className="text-slate/50">—</span>}</td>
+                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{a.ownerLabel}</td>
+                    <td className="px-4 py-1.5 text-slate-dark capitalize">{categoryLabel(a.ownerType)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           ) : (
             <div className="p-10 text-center">
-              <p className="text-[14px] text-slate mb-2">Aún no hay cuentas cargadas</p>
-              <p className="text-[12px] text-slate">
-                Cuando Alejandro cargue los CBUs de Pampa y de los propietarios, aparecerán acá.
-              </p>
+              <p className="text-[14px] text-slate">Ninguna cuenta coincide con los filtros aplicados</p>
             </div>
           )}
         </div>

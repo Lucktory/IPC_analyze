@@ -6,7 +6,7 @@ import { listTenants, type TenantRow } from '@/lib/entities/queries'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
-type Tipo = 'todos' | 'con_contrato' | 'sin_contrato' | 'sin_telefono'
+type Tipo = 'todos' | 'con_contrato' | 'sin_contrato' | 'sin_telefono' | 'sin_email'
 
 interface PageProps {
   searchParams: Promise<{
@@ -27,6 +27,7 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
       case 'con_contrato':  return t.contractCount > 0
       case 'sin_contrato':  return t.contractCount === 0
       case 'sin_telefono':  return !t.phone
+      case 'sin_email':     return !t.email
       default:              return true
     }
   }
@@ -36,6 +37,7 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
     con_contrato:  all.filter(t => match(t, 'con_contrato')).length,
     sin_contrato:  all.filter(t => match(t, 'sin_contrato')).length,
     sin_telefono:  all.filter(t => match(t, 'sin_telefono')).length,
+    sin_email:     all.filter(t => match(t, 'sin_email')).length,
   }
 
   let rows = all.filter(t => match(t, tipo))
@@ -95,6 +97,7 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
           <FilterPill href={buildHref({ tipo: 'con_contrato' })} label="Con contrato" count={counts.con_contrato} active={tipo === 'con_contrato'} />
           <FilterPill href={buildHref({ tipo: 'sin_contrato' })} label="Sin contrato" count={counts.sin_contrato} active={tipo === 'sin_contrato'} />
           <FilterPill href={buildHref({ tipo: 'sin_telefono' })} label="Sin teléfono" count={counts.sin_telefono} active={tipo === 'sin_telefono'} />
+          <FilterPill href={buildHref({ tipo: 'sin_email' })}    label="Sin email"    count={counts.sin_email}    active={tipo === 'sin_email'} />
         </div>
 
         <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
