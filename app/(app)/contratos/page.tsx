@@ -13,6 +13,19 @@ const fmtDate = (s: string) => {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+// "Mayo 2026" — matches the manual "PROX. AUMENTO MAYO 2026" notation
+// Alejandro uses on ~50 rows of his ledger.
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+const fmtMonthYear = (s: string) => {
+  const d = new Date(s)
+  return `${MONTHS_ES[d.getMonth()]} ${d.getFullYear()}`
+}
+const daysUntil = (s: string) => {
+  const target = new Date(s)
+  const today  = new Date()
+  return Math.round((target.getTime() - today.getTime()) / 86400000)
+}
+
 const CADENCES = ['mensual', 'bimestral', 'trimestral', 'cuatrimestral', 'semestral', 'anual']
 
 interface PageProps {
@@ -158,14 +171,14 @@ export default async function ContratosPage({ searchParams }: PageProps) {
         </div>
         <div className="overflow-x-auto">
           {rows.length > 0 ? (
-            <table className="w-full text-[13px] min-w-[860px]">
+            <table className="w-full text-[13px] min-w-[980px]">
               <thead>
                 <tr className="border-b border-line">
                   <th className="text-left  px-5 py-2.5 label-cap font-medium">Inquilino</th>
                   <th className="text-left  px-5 py-2.5 label-cap font-medium">Propietario</th>
                   <th className="text-right px-5 py-2.5 label-cap font-medium">Alquiler</th>
                   <th className="text-left  px-5 py-2.5 label-cap font-medium">Cadencia</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Inicio</th>
+                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Próx. aumento</th>
                   <th className="text-left  px-5 py-2.5 label-cap font-medium">Vencimiento</th>
                   <th className="text-left  px-5 py-2.5 label-cap font-medium">Estado</th>
                 </tr>
@@ -184,7 +197,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
                     <td className="px-5 py-3 text-slate-dark">{c.primaryLandlord}</td>
                     <td className="px-5 py-3 text-right tabular-nums text-ink">{fmt(c.currentRent)}</td>
                     <td className="px-5 py-3 text-slate-dark capitalize">{c.cadence}</td>
-                    <td className="px-5 py-3 text-slate-dark tabular-nums">{fmtDate(c.startDate)}</td>
+                    <td className="px-5 py-3"><NextAdjustment date={c.nextAdjustment} /></td>
                     <td className="px-5 py-3 text-slate-dark tabular-nums">{fmtDate(c.endDate)}</td>
                     <td className="px-5 py-3"><StatusBadge status={c.status} /></td>
                   </tr>
@@ -209,4 +222,22 @@ function StatusBadge({ status }: { status: string }) {
     case 'ended':      return <Badge tone="neutral">Finalizado</Badge>
     default:           return <Badge tone="neutral">{status}</Badge>
   }
+}
+
+// "Próx. aumento" cell. Surfaces what Alejandro tracks manually as
+// "PROX. AUMENTO MAYO 2026" in the spreadsheet. Visual emphasis grows as the
+// adjustment date approaches.
+function NextAdjustment({ date }: { date: string | null }) {
+  if (!date) return <span className="text-slate/50">—</span>
+  const d = daysUntil(date)
+  // ≤ 30 days → ink + soft cream-2 pill (eye magnet for Alejandro's reminder)
+  if (d <= 30) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded bg-cream-2 border border-line text-ink font-medium tabular-nums">
+        {fmtMonthYear(date)}
+      </span>
+    )
+  }
+  // > 30 days → muted, no emphasis
+  return <span className="text-slate-dark tabular-nums">{fmtMonthYear(date)}</span>
 }

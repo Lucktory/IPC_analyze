@@ -239,6 +239,34 @@ export interface ContractRow {
   status:          string
   startDate:       string
   endDate:         string
+  nextAdjustment:  string | null   // YYYY-MM-DD — next rent adjustment per cadence
+}
+
+// Cadence → step in months between adjustments
+const CADENCE_MONTHS: Record<string, number> = {
+  mensual:       1,
+  bimestral:     2,
+  trimestral:    3,
+  cuatrimestral: 4,
+  semestral:     6,
+  anual:         12,
+}
+
+// Next adjustment date = start_date + N × cadence months, where N is the
+// smallest positive integer such that the result is strictly after `today`.
+// Returns null for unknown cadences or non-active contracts.
+function computeNextAdjustment(startDate: string, cadence: string, status: string, today: Date): string | null {
+  if (status !== 'active') return null
+  const months = CADENCE_MONTHS[cadence]
+  if (!months) return null
+  const next = new Date(startDate)
+  // Guard against infinite loops on bad data
+  let safety = 1000
+  while (next <= today && safety-- > 0) {
+    next.setMonth(next.getMonth() + months)
+  }
+  if (safety <= 0) return null
+  return next.toISOString().slice(0, 10)
 }
 
 export interface ContractListFilters {
@@ -289,6 +317,7 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
       status:          c.status,
       startDate:       c.start_date,
       endDate:         c.end_date,
+      nextAdjustment:  computeNextAdjustment(c.start_date, c.cadence, c.status, today),
     }
   })
 
