@@ -1,5 +1,6 @@
 import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
+import { StickyHeader } from '@/components/ui/StickyHeader'
 import { listProperties } from '@/lib/entities/queries'
 
 export const revalidate = 0
@@ -40,18 +41,20 @@ export default async function PropiedadesPage() {
 
   return (
     <>
-      <div className="flex items-baseline justify-between mb-6 flex-wrap gap-2">
-        <p className="text-[13px] text-slate-dark">
-          <strong className="text-ink font-medium">Propiedades</strong> · {total} en cartera · {vacant} vacantes
-        </p>
-        <p className="label-cap text-slate">Datos en vivo</p>
-      </div>
+      <StickyHeader>
+        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+          <p className="text-[13px] text-slate-dark">
+            <strong className="text-ink font-medium">Propiedades</strong> · {total} en cartera · {vacant} vacantes
+          </p>
+          <p className="label-cap text-slate">Datos en vivo</p>
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((k) => (
-          <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
-        ))}
-      </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpis.map((k) => (
+            <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
+          ))}
+        </div>
+      </StickyHeader>
 
       <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line">

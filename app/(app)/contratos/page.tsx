@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
 import { FilterPill } from '@/components/ui/FilterPill'
+import { StickyHeader } from '@/components/ui/StickyHeader'
 import { listContracts, listLandlords, type ContractListFilters } from '@/lib/entities/queries'
 
 export const revalidate = 0
@@ -60,21 +61,23 @@ export default async function ContratosPage({ searchParams }: PageProps) {
 
   return (
     <>
-      <div className="flex items-baseline justify-between mb-6 flex-wrap gap-2">
-        <p className="text-[13px] text-slate-dark">
-          <strong className="text-ink font-medium">Contratos</strong> ·{' '}
-          {rows.length === counts.todos
-            ? `${counts.todos} en total`
-            : `${rows.length} de ${counts.todos} filtrados`}
-        </p>
-        <p className="label-cap text-slate">Datos en vivo · Mayo 2026</p>
-      </div>
+      <StickyHeader>
+        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+          <p className="text-[13px] text-slate-dark">
+            <strong className="text-ink font-medium">Contratos</strong> ·{' '}
+            {rows.length === counts.todos
+              ? `${counts.todos} en total`
+              : `${rows.length} de ${counts.todos} filtrados`}
+          </p>
+          <p className="label-cap text-slate">Datos en vivo · Mayo 2026</p>
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((k) => (
-          <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
-        ))}
-      </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpis.map((k) => (
+            <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
+          ))}
+        </div>
+      </StickyHeader>
 
       {/* FILTER STRIP */}
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">

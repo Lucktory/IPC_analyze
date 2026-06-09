@@ -1,5 +1,6 @@
 import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
+import { StickyHeader } from '@/components/ui/StickyHeader'
 import { DonutChart } from '@/components/charts/DonutChart'
 import { BarHorizontal } from '@/components/charts/BarHorizontal'
 import { fmtCompactARS, accentInk } from '@/components/charts/theme'
@@ -63,40 +64,41 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <div className="flex items-baseline justify-between mb-6 flex-wrap gap-2">
-        <p className="text-[13px] text-slate-dark">
-          Período actual: <strong className="text-ink font-medium">Mayo 2026</strong>
-        </p>
-        <p className="label-cap text-slate">Datos en vivo desde Supabase</p>
-      </div>
+      <StickyHeader>
+        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+          <p className="text-[13px] text-slate-dark">
+            Período actual: <strong className="text-ink font-medium">Mayo 2026</strong>
+          </p>
+          <p className="label-cap text-slate">Datos en vivo desde Supabase</p>
+        </div>
 
-      {/* KPIs row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <KPICard
-          label="Contratos activos"
-          value={kpis.activeContracts.toString()}
-          delta={kpis.rescindedContracts + ' rescindidos'}
-          deltaTone="neutral"
-        />
-        <KPICard
-          label="Sin pago de mayo"
-          value={unpaid.length.toString()}
-          delta={unpaid.length > 0 ? 'requieren atención' : 'todo cobrado'}
-          deltaTone={unpaid.length > 0 ? 'negative' : 'positive'}
-        />
-        <KPICard
-          label="Ingresos del mes"
-          value={fmtCompactARS(kpis.monthlyIncome)}
-          delta="alquileres de mayo"
-          deltaTone="neutral"
-        />
-        <KPICard
-          label="Comisión del mes"
-          value={fmtCompactARS(kpis.monthlyCommission)}
-          delta="ADMI total"
-          deltaTone="positive"
-        />
-      </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <KPICard
+            label="Contratos activos"
+            value={kpis.activeContracts.toString()}
+            delta={kpis.rescindedContracts + ' rescindidos'}
+            deltaTone="neutral"
+          />
+          <KPICard
+            label="Sin pago de mayo"
+            value={unpaid.length.toString()}
+            delta={unpaid.length > 0 ? 'requieren atención' : 'todo cobrado'}
+            deltaTone={unpaid.length > 0 ? 'negative' : 'positive'}
+          />
+          <KPICard
+            label="Ingresos del mes"
+            value={fmtCompactARS(kpis.monthlyIncome)}
+            delta="alquileres de mayo"
+            deltaTone="neutral"
+          />
+          <KPICard
+            label="Comisión del mes"
+            value={fmtCompactARS(kpis.monthlyCommission)}
+            delta="ADMI total"
+            deltaTone="positive"
+          />
+        </div>
+      </StickyHeader>
 
       {/* Commission by destination — the section chief's reconciliation view */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
