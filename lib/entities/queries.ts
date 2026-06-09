@@ -442,6 +442,7 @@ export interface TransactionRow {
   id:            string
   typeCode:      string
   typeLabel:     string
+  category:      string                   // 'rent' | 'commission' | 'expense' | 'tax' | 'utility' | 'deposit' | 'refund' | 'transfer' | 'other'
   direction:     'IN' | 'OUT'
   amount:        number
   period:        string | null
@@ -458,7 +459,7 @@ export async function listTransactions(period?: string): Promise<TransactionRow[
     .from('transactions')
     .select(`
       id, amount, period, bank_date, description, contract_id,
-      transaction_types!inner(code, label, direction),
+      transaction_types!inner(code, label, direction, category),
       contracts(
         contract_tenants(is_primary, tenants(name))
       )
@@ -476,6 +477,7 @@ export async function listTransactions(period?: string): Promise<TransactionRow[
       id:          t.id,
       typeCode:    t.transaction_types.code,
       typeLabel:   t.transaction_types.label,
+      category:    t.transaction_types.category,
       direction:   t.transaction_types.direction,
       amount:      Number(t.amount),
       period:      t.period,
