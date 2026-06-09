@@ -457,7 +457,7 @@ const COL = {
 // ---------------------------------------------------------------------------
 type LandlordRec = { id: string; name: string }
 type TenantRec   = { id: string; name: string; phone: string | null }
-type PropertyRec = { id: string; landlord_id: string; address: string; property_type: string }
+type PropertyRec = { id: string; landlord_ids: string[]; address: string; property_type: string }
 type ContractRec = {
   id: string
   property_id: string
@@ -607,7 +607,7 @@ for (let i = dataStart; i < rows.length; i++) {
     const primary = getOrCreateLandlord(currentLandlordNames[0])
     properties.push({
       id: randomUUID(),
-      landlord_id: primary.id,
+      landlord_ids: [primary.id],
       address: `Propiedad de ${primary.name} (vacante)`,
       property_type: detectPropertyType(tenantCell),
     })
@@ -626,9 +626,11 @@ for (let i = dataStart; i < rows.length; i++) {
     const detectedAddress = extractAddressFromTenantCell(tenantCell)
     let property: PropertyRec
     if (primaryLandlord) {
+      // Co-ownership at the property level mirrors the contract co-ownership.
+      // ALL contract landlords own the property, not just the primary.
       property = {
         id: randomUUID(),
-        landlord_id: primaryLandlord.id,
+        landlord_ids: landlordRecs.map(l => l.id),
         address: detectedAddress ?? `Propiedad de ${primaryLandlord.name}`,
         property_type: detectPropertyType(tenantCell),
       }
@@ -638,7 +640,7 @@ for (let i = dataStart; i < rows.length; i++) {
       const placeholder = getOrCreateLandlord(`Sin propietario asignado (fila ${i + 1})`)
       property = {
         id: randomUUID(),
-        landlord_id: placeholder.id,
+        landlord_ids: [placeholder.id],
         address: detectedAddress ?? `Propiedad sin asignar (fila ${i + 1})`,
         property_type: detectPropertyType(tenantCell),
       }
@@ -697,7 +699,7 @@ for (let i = dataStart; i < rows.length; i++) {
     const contract: ContractRec = {
       id: randomUUID(),
       property_id: property.id,
-      landlord_ids: landlordRecs.length ? landlordRecs.map(l => l.id) : [property.landlord_id],
+      landlord_ids: landlordRecs.length ? landlordRecs.map(l => l.id) : property.landlord_ids,
       tenant_ids: tenantRecs.map(t => t.id),
       administrator_codes: partnerFromCode(lfaCode),
       commission_pct: isFinite(pct) ? pct : 6,
@@ -948,11 +950,21 @@ for (const c of contracts) {
 sql.push('')
 
 // Junction: contract_landlords
-sql.push('  -- contract_landlords (co-ownership)')
+sql.push('  -- contract_landlords (co-ownership at the contract level)')
 for (const c of contracts) {
   const share = +(100 / Math.max(c.landlord_ids.length, 1)).toFixed(2)
   for (const lid of c.landlord_ids) {
     sql.push(`  insert into contract_landlords (contract_id, landlord_id, ownership_pct) values (${sqlString(c.id)}, ${sqlString(lid)}, ${share}) on conflict do nothing;`)
+  }
+}
+sql.push('')
+
+// Junction: property_landlords (direct property↔landlord, includes vacancies)
+sql.push('  -- property_landlords (direct ownership — includes vacancies)')
+for (const p of properties) {
+  const share = +(100 / Math.max(p.landlord_ids.length, 1)).toFixed(2)
+  for (const lid of p.landlord_ids) {
+    sql.push(`  insert into property_landlords (property_id, landlord_id, ownership_pct) values (${sqlString(p.id)}, ${sqlString(lid)}, ${share}) on conflict do nothing;`)
   }
 }
 sql.push('')

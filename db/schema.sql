@@ -28,6 +28,7 @@ drop table if exists transactions cascade;
 drop table if exists transaction_types cascade;
 drop table if exists contract_administrators cascade;
 drop table if exists contract_tenants cascade;
+drop table if exists property_landlords cascade;
 drop table if exists contract_landlords cascade;
 drop table if exists contracts cascade;
 drop table if exists properties cascade;
@@ -168,6 +169,28 @@ create table properties (
   created_at timestamptz default now()
 );
 create index idx_properties_admin on properties(administration_id);
+
+-- ----------------------------------------------------------------------------
+-- 9b. PROPERTY_LANDLORDS — direct property↔landlord ownership (junction)
+--
+-- Why this junction exists separately from contract_landlords:
+--   • A property has owners even when it has NO active contract (vacancies
+--     would otherwise be orphaned).
+--   • Co-ownership at the property level: BIRKHOFER MONICA + SONIA,
+--     ESTRADA ENRIQUE + QUEDIMAN, etc. — these share ownership independent
+--     of which contract is currently active.
+--   • Ownership persists across contract changes (when one tenant rescinds
+--     and another comes in, the owners don't change).
+--   • Future: add is_active + start_date + end_date here to track ownership
+--     transfers (property sold from X to Y on date Z).
+-- ----------------------------------------------------------------------------
+create table property_landlords (
+  property_id uuid not null references properties(id) on delete cascade,
+  landlord_id uuid not null references landlords(id) on delete restrict,
+  ownership_pct numeric(5,2) not null default 100.0 check (ownership_pct > 0 and ownership_pct <= 100),
+  primary key (property_id, landlord_id)
+);
+create index idx_property_landlords_landlord on property_landlords(landlord_id);
 
 -- ----------------------------------------------------------------------------
 -- 10. CONTRACTS — rental agreements (tied to a property)

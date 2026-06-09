@@ -16,6 +16,7 @@ alter table banks                   disable row level security;
 alter table bank_accounts           disable row level security;
 alter table tenants                 disable row level security;
 alter table properties              disable row level security;
+alter table property_landlords      disable row level security;
 alter table contracts               disable row level security;
 alter table contract_landlords      disable row level security;
 alter table contract_tenants        disable row level security;

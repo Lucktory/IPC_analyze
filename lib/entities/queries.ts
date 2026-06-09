@@ -24,14 +24,19 @@ export interface LandlordRow {
 export async function listLandlords(): Promise<LandlordRow[]> {
   const supabase = await createSupabaseServer()
 
-  const [landlordsRes, junctionRes, transactionsRes] = await Promise.all([
+  const [landlordsRes, contractJunctionRes, propertyJunctionRes, transactionsRes] = await Promise.all([
     supabase
       .from('landlords')
       .select('id, name, email, phone, dni_or_cuit')
       .order('name'),
+    // Contract-level co-ownership (drives the monthly revenue split + contract count)
     supabase
       .from('contract_landlords')
       .select('contract_id, landlord_id'),
+    // Property-level ownership (drives the property count — INCLUDES vacancies)
+    supabase
+      .from('property_landlords')
+      .select('property_id, landlord_id'),
     supabase
       .from('transactions')
       .select(`
@@ -45,15 +50,15 @@ export async function listLandlords(): Promise<LandlordRow[]> {
 
   // Build a contract_id → landlord_ids map (a contract may have multiple co-owners)
   const contractToLandlords = new Map<string, string[]>()
-  for (const j of (junctionRes.data ?? []) as { contract_id: string; landlord_id: string }[]) {
+  for (const j of (contractJunctionRes.data ?? []) as { contract_id: string; landlord_id: string }[]) {
     const arr = contractToLandlords.get(j.contract_id) ?? []
     arr.push(j.landlord_id)
     contractToLandlords.set(j.contract_id, arr)
   }
 
-  // Per-landlord: count contracts + sum monthly revenue (split across co-owners)
+  // Per-landlord contract count + monthly revenue (split across co-owners)
   const stats = new Map<string, { contracts: Set<string>; revenue: number }>()
-  for (const j of (junctionRes.data ?? []) as { contract_id: string; landlord_id: string }[]) {
+  for (const j of (contractJunctionRes.data ?? []) as { contract_id: string; landlord_id: string }[]) {
     const entry = stats.get(j.landlord_id) ?? { contracts: new Set<string>(), revenue: 0 }
     entry.contracts.add(j.contract_id)
     stats.set(j.landlord_id, entry)
@@ -67,11 +72,11 @@ export async function listLandlords(): Promise<LandlordRow[]> {
     }
   }
 
-  // Property count per landlord — we count via contract_landlords (vacant
-  // properties don't have a landlord_id column on properties, only via address).
+  // Property count per landlord — via the direct property_landlords junction.
+  // This INCLUDES vacant properties (which contract_landlords doesn't).
   const propCount = new Map<string, number>()
-  for (const [, landlordIds] of contractToLandlords) {
-    for (const lid of landlordIds) propCount.set(lid, (propCount.get(lid) ?? 0) + 1)
+  for (const j of (propertyJunctionRes.data ?? []) as { property_id: string; landlord_id: string }[]) {
+    propCount.set(j.landlord_id, (propCount.get(j.landlord_id) ?? 0) + 1)
   }
 
   return (landlordsRes.data ?? []).map(l => {
@@ -286,19 +291,21 @@ export async function listProperties(): Promise<PropertyRow[]> {
   const [propsRes, contractsRes] = await Promise.all([
     supabase
       .from('properties')
-      .select('id, address, property_type')
+      .select(`
+        id, address, property_type,
+        property_landlords(ownership_pct, landlords(name))
+      `)
       .order('address'),
     supabase
       .from('contracts')
       .select(`
         id, property_id, current_rent, status,
-        contract_tenants(is_primary, tenants(name)),
-        contract_landlords(ownership_pct, landlords(name))
+        contract_tenants(is_primary, tenants(name))
       `)
       .neq('status', 'rescinded'),
   ])
 
-  // Map property_id → contract details
+  // Map property_id → contract details (for active contract info)
   const contractByProp = new Map<string, any>()
   for (const c of (contractsRes.data ?? []) as any[]) {
     contractByProp.set(c.property_id, c)
@@ -310,21 +317,19 @@ export async function listProperties(): Promise<PropertyRow[]> {
     const contract          = contractByProp.get(p.id)
     const isVacant          = isVacantByAddress || !contract
 
+    // Top landlord via the direct property_landlords junction (works for
+    // vacancies too)
+    const topOwner = (p.property_landlords ?? [])
+      .slice()
+      .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
+    const landlord = topOwner?.landlords?.name ?? null
+
     let tenant: string | null = null
-    let landlord: string | null = null
     let rent = 0
     if (contract) {
-      const primary  = contract.contract_tenants?.find((ct: any) => ct.is_primary) ?? contract.contract_tenants?.[0]
-      const topOwner = (contract.contract_landlords ?? [])
-        .slice()
-        .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
-      tenant   = primary?.tenants?.name ?? null
-      landlord = topOwner?.landlords?.name ?? null
-      rent     = Number(contract.current_rent)
-    } else {
-      // Vacant — try to extract landlord from address text "Propiedad de X"
-      const m = addr.match(/^Propiedad de (.+?)( \(vacante\))?$/i)
-      if (m) landlord = m[1]
+      const primary = contract.contract_tenants?.find((ct: any) => ct.is_primary) ?? contract.contract_tenants?.[0]
+      tenant = primary?.tenants?.name ?? null
+      rent   = Number(contract.current_rent)
     }
 
     return {
