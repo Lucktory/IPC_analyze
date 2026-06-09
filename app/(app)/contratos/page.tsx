@@ -3,6 +3,7 @@ import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { StickyHeader } from '@/components/ui/StickyHeader'
+import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { listContracts, type ContractListFilters } from '@/lib/entities/queries'
 
@@ -112,55 +113,39 @@ export default async function ContratosPage({ searchParams }: PageProps) {
 
   return (
     <>
-      <StickyHeader
-        condensed={
-          <div className="flex items-center justify-between gap-3 py-1">
-            <div className="flex items-baseline gap-2 min-w-0">
-              <strong className="text-ink text-[13px] font-medium shrink-0">Contratos</strong>
-              <span className="text-[11px] text-slate truncate">
-                {rows.length === counts.todos ? `${counts.todos}` : `${rows.length}/${counts.todos}`}
-                {activeSummary && ` · ${activeSummary}`}
-              </span>
-            </div>
-            <div className="w-40 sm:w-72 shrink-0">
-              <AutoSearchInput
-                initialValue={filters.q ?? ''}
-                placeholder="Buscar…"
-              />
-            </div>
-          </div>
-        }
-      >
-        <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-          <p className="text-[13px] text-slate-dark">
-            <strong className="text-ink font-medium">Contratos</strong> ·{' '}
+      {/* STICKY 1: title row with always-visible search */}
+      <StickyHeader>
+        <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+          <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
+            <strong className="text-ink font-medium">Contratos</strong>
+            {' · '}
             {rows.length === counts.todos
-              ? `${counts.todos} en total`
-              : `${rows.length} de ${counts.todos} filtrados`}
+              ? `${counts.todos}`
+              : `${rows.length} de ${counts.todos}`}
+            {activeSummary && <span className="text-slate"> · {activeSummary}</span>}
           </p>
-          <p className="label-cap text-slate">Datos en vivo · Mayo 2026</p>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {kpis.map((k) => (
-            <KPICard key={k.label} {...k} deltaTone={k.tone} />
-          ))}
-        </div>
-
-        {/* Search — always visible in the sticky header */}
-        <div className="mt-3 max-w-2xl">
-          <AutoSearchInput
-            initialValue={filters.q ?? ''}
-            placeholder="Buscar por inquilino o propietario… (se aplica al instante)"
-          />
+          <div className="w-full sm:w-72 shrink-0 order-3 sm:order-none">
+            <AutoSearchInput
+              initialValue={filters.q ?? ''}
+              placeholder="Buscar por inquilino o propietario…"
+            />
+          </div>
         </div>
       </StickyHeader>
 
-      {/* FILTER STRIP — only the pill rows now; search lives in the header */}
+      {/* STICKY 2: KPI strip — sticks under the title bar */}
+      <StickyKPIStrip cols={4}>
+        {kpis.map((k) => (
+          <StickyKPIStripItem key={k.label}>
+            <KPICard {...k} deltaTone={k.tone} />
+          </StickyKPIStripItem>
+        ))}
+      </StickyKPIStrip>
+
+      {/* FILTER STRIP — pill rows scroll naturally with the page */}
       <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
-        {/* Rescindidos — only state without a KPI card, surfaced as a small pill row */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="label-cap text-slate mr-1">Estado</span>
+        <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
+          <span className="label-cap text-slate mr-1 shrink-0">Estado</span>
           <FilterPill
             href={buildHref({ estado: 'rescindido' })}
             clearHref={clearEstadoHref}
@@ -170,9 +155,8 @@ export default async function ContratosPage({ searchParams }: PageProps) {
           />
         </div>
 
-        {/* Cadencia pills */}
-        <div className="mt-3 flex items-center gap-2 flex-wrap">
-          <span className="label-cap text-slate mr-1">Cadencia</span>
+        <div className="mt-3 flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
+          <span className="label-cap text-slate mr-1 shrink-0">Cadencia</span>
           <FilterPill href={buildHref({ cadencia: 'todas' })} label="Todas" active={!filters.cadencia || filters.cadencia === 'todas'} />
           {CADENCES.map(c => (
             <FilterPill

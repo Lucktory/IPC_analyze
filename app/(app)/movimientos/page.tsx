@@ -1,6 +1,7 @@
 import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
 import { StickyHeader } from '@/components/ui/StickyHeader'
+import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import Link from 'next/link'
@@ -152,51 +153,33 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
 
   return (
     <>
-      <StickyHeader
-        condensed={
-          <div className="flex items-center justify-between gap-3 py-1">
-            <div className="flex items-baseline gap-2 min-w-0">
-              <strong className="text-ink text-[13px] font-medium shrink-0">Movimientos</strong>
-              <span className="text-[11px] text-slate truncate">
-                {filtered.length === all.length ? `${all.length}` : `${filtered.length}/${all.length}`}
-                {activeSummary && ` · ${activeSummary}`}
-              </span>
-            </div>
-            <div className="w-40 sm:w-72 shrink-0">
-              <AutoSearchInput initialValue={q} placeholder="Buscar…" resetParams={['page']} />
-            </div>
-          </div>
-        }
-      >
-        <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-          <p className="text-[13px] text-slate-dark">
-            <strong className="text-ink font-medium">Movimientos</strong> ·{' '}
+      <StickyHeader>
+        <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+          <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
+            <strong className="text-ink font-medium">Movimientos</strong>
+            {' · '}
             {period ? PERIOD_LABEL(period) : 'todos los períodos'}
-            {filtered.length !== all.length && ` · ${filtered.length} filtrados`}
+            {filtered.length !== all.length && ` · ${filtered.length} de ${all.length}`}
+            {activeSummary && <span className="text-slate"> · {activeSummary}</span>}
           </p>
-          <p className="label-cap text-slate">Datos en vivo</p>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {kpis.map((k) => (
-            <KPICard key={k.label} {...k} deltaTone={k.tone} />
-          ))}
-        </div>
-
-        <div className="mt-3 max-w-2xl">
-          <AutoSearchInput
-            initialValue={q}
-            placeholder="Buscar por inquilino, descripción o tipo… (se aplica al instante)"
-            resetParams={['page']}
-          />
+          <div className="w-full sm:w-72 shrink-0 order-3 sm:order-none">
+            <AutoSearchInput initialValue={q} placeholder="Buscar por inquilino, descripción o tipo…" resetParams={['page']} />
+          </div>
         </div>
       </StickyHeader>
 
-      {/* FILTER STRIP — categoría + período pill rows; search lives in the header */}
+      <StickyKPIStrip cols={4}>
+        {kpis.map((k) => (
+          <StickyKPIStripItem key={k.label}>
+            <KPICard {...k} deltaTone={k.tone} />
+          </StickyKPIStripItem>
+        ))}
+      </StickyKPIStrip>
+
       <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
         {/* Categoría pills */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="label-cap text-slate mr-1">Categoría</span>
+        <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
+          <span className="label-cap text-slate mr-1 shrink-0">Categoría</span>
           <FilterPill href={buildHref({ category: 'todas', page: 1 })} label="Todas" active={category === 'todas'} />
           {CATEGORIES.map(c => (
             <FilterPill
@@ -210,8 +193,8 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
         </div>
 
         {/* Período pills */}
-        <div className="mt-3 flex items-center gap-2 flex-wrap">
-          <span className="label-cap text-slate mr-1">Período</span>
+        <div className="mt-3 flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
+          <span className="label-cap text-slate mr-1 shrink-0">Período</span>
           <PeriodPill label="Todos" href={buildHref({ period: undefined, page: 1 })} active={!period} />
           {periods.map(p => (
             <PeriodPill
