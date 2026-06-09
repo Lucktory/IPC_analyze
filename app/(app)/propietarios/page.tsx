@@ -8,7 +8,7 @@ export const revalidate = 0
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
-type Tipo = 'todos' | 'con_contrato' | 'solo_vacancias' | 'sin_cuit'
+type Tipo = 'todos' | 'con_contrato' | 'solo_vacancias' | 'sin_cuit' | 'sin_email'
 
 interface PageProps {
   searchParams: Promise<{
@@ -30,6 +30,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
       case 'con_contrato':   return l.contractCount > 0
       case 'solo_vacancias': return l.contractCount === 0
       case 'sin_cuit':       return !l.dniOrCuit
+      case 'sin_email':      return !l.email
       default:               return true
     }
   }
@@ -39,6 +40,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
     con_contrato:   all.filter(l => match(l, 'con_contrato')).length,
     solo_vacancias: all.filter(l => match(l, 'solo_vacancias')).length,
     sin_cuit:       all.filter(l => match(l, 'sin_cuit')).length,
+    sin_email:      all.filter(l => match(l, 'sin_email')).length,
   }
 
   let rows = all.filter(l => match(l, tipo))
@@ -99,6 +101,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
           <FilterPill href={buildHref({ tipo: 'con_contrato' })}   label="Con contrato"    count={counts.con_contrato}   active={tipo === 'con_contrato'} />
           <FilterPill href={buildHref({ tipo: 'solo_vacancias' })} label="Solo vacancias"  count={counts.solo_vacancias} active={tipo === 'solo_vacancias'} />
           <FilterPill href={buildHref({ tipo: 'sin_cuit' })}       label="Sin CUIT"        count={counts.sin_cuit}       active={tipo === 'sin_cuit'} />
+          <FilterPill href={buildHref({ tipo: 'sin_email' })}      label="Sin email"       count={counts.sin_email}      active={tipo === 'sin_email'} />
         </div>
 
         <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
@@ -143,12 +146,13 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
         </div>
         <div className="overflow-x-auto">
           {rows.length > 0 ? (
-            <table className="w-full text-[13px] min-w-[720px] border-collapse">
+            <table className="w-full text-[13px] min-w-[860px] border-collapse">
               <thead className="bg-cream-2/60">
                 <tr className="border-b border-line">
                   <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Propietario</th>
                   <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">CUIT / DNI</th>
                   <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Teléfono</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Email</th>
                   <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Contratos</th>
                   <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Propiedades</th>
                   <th className="text-right px-4 py-1.5 label-cap font-medium">Ingresos mayo</th>
@@ -164,6 +168,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
                     </td>
                     <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{l.dniOrCuit ?? <span className="text-slate/50">—</span>}</td>
                     <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{l.phone ?? <span className="text-slate/50">—</span>}</td>
+                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{l.email ?? <span className="text-slate/50">—</span>}</td>
                     <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{l.contractCount}</td>
                     <td className="px-4 py-1.5 text-right tabular-nums text-slate-dark border-r border-line/30">{l.propertyCount}</td>
                     <td className="px-4 py-1.5 text-right tabular-nums text-ink">{l.monthlyRevenue > 0 ? fmt(l.monthlyRevenue) : <span className="text-slate/50">—</span>}</td>
