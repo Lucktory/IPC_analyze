@@ -104,10 +104,33 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
     },
   ]
 
+  // Active filter summary for the condensed header
+  const activeBits: string[] = []
+  if (tipo === 'con_contrato')   activeBits.push('Con contrato')
+  if (tipo === 'solo_vacancias') activeBits.push('Solo vacancias')
+  if (tipo === 'sin_cuit')       activeBits.push('Sin CUIT')
+  if (tipo === 'sin_email')      activeBits.push('Sin email')
+  const activeSummary = activeBits.join(' · ')
+
   return (
     <>
-      <StickyHeader>
-        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+      <StickyHeader
+        condensed={
+          <div className="flex items-center justify-between gap-3 py-1">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <strong className="text-ink text-[13px] font-medium shrink-0">Propietarios</strong>
+              <span className="text-[11px] text-slate truncate">
+                {rows.length === counts.todos ? `${counts.todos}` : `${rows.length}/${counts.todos}`}
+                {activeSummary && ` · ${activeSummary}`}
+              </span>
+            </div>
+            <div className="w-40 sm:w-72 shrink-0">
+              <AutoSearchInput initialValue={q} placeholder="Buscar…" />
+            </div>
+          </div>
+        }
+      >
+        <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <p className="text-[13px] text-slate-dark">
             <strong className="text-ink font-medium">Propietarios</strong> ·{' '}
             {rows.length === counts.todos
@@ -118,27 +141,26 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
           <p className="label-cap text-slate">Datos en vivo · Mayo 2026</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {kpis.map((k) => (
             <KPICard key={k.label} {...k} deltaTone={k.tone} />
           ))}
         </div>
-      </StickyHeader>
 
-      {/* FILTER STRIP — pills for secondary states, auto-applying search */}
-      <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="label-cap text-slate mr-1">Filtros extra</span>
-          <FilterPill href={buildHref({ tipo: 'solo_vacancias' })} clearHref={clearTipoHref} label="Solo vacancias" count={counts.solo_vacancias} active={tipo === 'solo_vacancias'} />
-          <FilterPill href={buildHref({ tipo: 'sin_email' })}      clearHref={clearTipoHref} label="Sin email"      count={counts.sin_email}      active={tipo === 'sin_email'} />
-        </div>
-
-        <div className="mt-4 flex flex-col gap-1.5 max-w-xl">
-          <span className="label-cap">Búsqueda</span>
+        <div className="mt-3 max-w-2xl">
           <AutoSearchInput
             initialValue={q}
             placeholder="Buscar por nombre o CUIT… (se aplica al instante)"
           />
+        </div>
+      </StickyHeader>
+
+      {/* FILTER STRIP — only the secondary pill row */}
+      <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="label-cap text-slate mr-1">Filtros extra</span>
+          <FilterPill href={buildHref({ tipo: 'solo_vacancias' })} clearHref={clearTipoHref} label="Solo vacancias" count={counts.solo_vacancias} active={tipo === 'solo_vacancias'} />
+          <FilterPill href={buildHref({ tipo: 'sin_email' })}      clearHref={clearTipoHref} label="Sin email"      count={counts.sin_email}      active={tipo === 'sin_email'} />
         </div>
 
         {q && (

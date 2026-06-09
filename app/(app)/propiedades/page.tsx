@@ -119,10 +119,31 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
     },
   ]
 
+  const activeBits: string[] = []
+  if (estado === 'ocupadas') activeBits.push('Ocupadas')
+  if (estado === 'vacantes') activeBits.push('Vacantes')
+  if (tipo !== 'todos')      activeBits.push(TYPE_LABEL[tipo] ?? tipo)
+  const activeSummary = activeBits.join(' · ')
+
   return (
     <>
-      <StickyHeader>
-        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+      <StickyHeader
+        condensed={
+          <div className="flex items-center justify-between gap-3 py-1">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <strong className="text-ink text-[13px] font-medium shrink-0">Propiedades</strong>
+              <span className="text-[11px] text-slate truncate">
+                {sortedRows.length === counts.todos ? `${counts.todos}` : `${sortedRows.length}/${counts.todos}`}
+                {activeSummary && ` · ${activeSummary}`}
+              </span>
+            </div>
+            <div className="w-40 sm:w-72 shrink-0">
+              <AutoSearchInput initialValue={q} placeholder="Buscar…" />
+            </div>
+          </div>
+        }
+      >
+        <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <p className="text-[13px] text-slate-dark">
             <strong className="text-ink font-medium">Propiedades</strong> ·{' '}
             {sortedRows.length === counts.todos
@@ -132,29 +153,28 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
           <p className="label-cap text-slate">Datos en vivo</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {kpis.map((k) => (
             <KPICard key={k.label} {...k} deltaTone={k.tone} />
           ))}
         </div>
+
+        <div className="mt-3 max-w-2xl">
+          <AutoSearchInput
+            initialValue={q}
+            placeholder="Buscar por dirección, propietario o inquilino… (se aplica al instante)"
+          />
+        </div>
       </StickyHeader>
 
-      {/* FILTER STRIP — pills replace dropdowns, search auto-applies */}
-      <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
+      {/* FILTER STRIP — only the tipo pill row */}
+      <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="label-cap text-slate mr-1">Tipo</span>
           <FilterPill href={buildHref({ tipo: 'todos' })} label="Todos" active={!tipo || tipo === 'todos'} />
           {TYPES.map(t => (
             <FilterPill key={t} href={buildHref({ tipo: t })} clearHref={clearTipoHref} label={TYPE_LABEL[t]} active={tipo === t} />
           ))}
-        </div>
-
-        <div className="mt-4 flex flex-col gap-1.5 max-w-xl">
-          <span className="label-cap">Búsqueda</span>
-          <AutoSearchInput
-            initialValue={q}
-            placeholder="Buscar por dirección, propietario o inquilino… (se aplica al instante)"
-          />
         </div>
 
         {(q || tipo !== 'todos') && (
