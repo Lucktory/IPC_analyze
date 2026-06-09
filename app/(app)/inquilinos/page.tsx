@@ -114,7 +114,7 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
   return (
     <>
       <StickyHeader>
-        <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+        <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap mb-2">
           <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
             <strong className="text-ink font-medium">Inquilinos</strong>
             {' · '}
@@ -125,15 +125,15 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
             <AutoSearchInput initialValue={q} placeholder="Buscar por nombre, DNI o teléfono…" />
           </div>
         </div>
-      </StickyHeader>
 
-      <StickyKPIStrip cols={4}>
-        {kpis.map((k) => (
-          <StickyKPIStripItem key={k.label}>
-            <KPICard {...k} deltaTone={k.tone} />
-          </StickyKPIStripItem>
-        ))}
-      </StickyKPIStrip>
+        <StickyKPIStrip cols={4}>
+          {kpis.map((k) => (
+            <StickyKPIStripItem key={k.label}>
+              <KPICard {...k} deltaTone={k.tone} />
+            </StickyKPIStripItem>
+          ))}
+        </StickyKPIStrip>
+      </StickyHeader>
 
       <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
         <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
