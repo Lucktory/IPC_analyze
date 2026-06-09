@@ -3,6 +3,7 @@ import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { FilterPill } from '@/components/ui/FilterPill'
+import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { listProperties, type PropertyRow } from '@/lib/entities/queries'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
@@ -67,13 +68,6 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
   const byType = new Map<string, number>()
   for (const p of all) byType.set(p.propertyType, (byType.get(p.propertyType) ?? 0) + 1)
 
-  const kpis = [
-    { label: 'Total propiedades', value: counts.todos.toString(),    delta: 'en cartera',                    tone: 'neutral'  as const },
-    { label: 'Ocupadas',          value: counts.ocupadas.toString(), delta: counts.todos > 0 ? `${Math.round((counts.ocupadas / counts.todos) * 100)}% ocupación` : 'sin datos', tone: 'positive' as const },
-    { label: 'Vacantes',          value: counts.vacantes.toString(), delta: 'requieren ocupar',              tone: counts.vacantes > 0 ? 'negative' as const : 'neutral' as const },
-    { label: 'Locales / oficinas', value: ((byType.get('local') ?? 0) + (byType.get('oficina') ?? 0)).toString(), delta: 'comerciales', tone: 'neutral' as const },
-  ]
-
   const buildHref = (overrides: Partial<{ estado: Estado; tipo: string; q: string }>) => {
     const params = new URLSearchParams()
     const merged = { estado, tipo, q, ...overrides }
@@ -83,6 +77,41 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
     const qs = params.toString()
     return qs ? `/propiedades?${qs}` : '/propiedades'
   }
+
+  const kpis = [
+    {
+      label: 'Total propiedades',
+      value: counts.todos.toString(),
+      delta: 'en cartera',
+      tone:  'neutral' as const,
+      href:  buildHref({ estado: 'todos' }),
+      active: estado === 'todos',
+    },
+    {
+      label: 'Ocupadas',
+      value: counts.ocupadas.toString(),
+      delta: counts.todos > 0 ? `${Math.round((counts.ocupadas / counts.todos) * 100)}% ocupación` : 'sin datos',
+      tone:  'positive' as const,
+      href:  buildHref({ estado: 'ocupadas' }),
+      active: estado === 'ocupadas',
+    },
+    {
+      label: 'Vacantes',
+      value: counts.vacantes.toString(),
+      delta: 'requieren ocupar',
+      tone:  counts.vacantes > 0 ? 'negative' as const : 'neutral' as const,
+      href:  buildHref({ estado: 'vacantes' }),
+      active: estado === 'vacantes',
+    },
+    {
+      label: 'Locales',
+      value: (byType.get('local') ?? 0).toString(),
+      delta: 'comerciales',
+      tone:  'neutral' as const,
+      href:  buildHref({ tipo: 'local' }),
+      active: tipo === 'local',
+    },
+  ]
 
   return (
     <>
@@ -99,62 +128,39 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map((k) => (
-            <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
+            <KPICard key={k.label} {...k} deltaTone={k.tone} />
           ))}
         </div>
       </StickyHeader>
 
-      {/* FILTER STRIP */}
+      {/* FILTER STRIP — pills replace dropdowns, search auto-applies */}
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="label-cap text-slate mr-1">Estado</span>
-          <FilterPill href={buildHref({ estado: 'todos' })}    label="Todas"    count={counts.todos}    active={estado === 'todos'} />
-          <FilterPill href={buildHref({ estado: 'ocupadas' })} label="Ocupadas" count={counts.ocupadas} active={estado === 'ocupadas'} />
-          <FilterPill href={buildHref({ estado: 'vacantes' })} label="Vacantes" count={counts.vacantes} active={estado === 'vacantes'} />
+          <span className="label-cap text-slate mr-1">Tipo</span>
+          <FilterPill href={buildHref({ tipo: 'todos' })} label="Todos" active={!tipo || tipo === 'todos'} />
+          {TYPES.map(t => (
+            <FilterPill key={t} href={buildHref({ tipo: t })} label={TYPE_LABEL[t]} active={tipo === t} />
+          ))}
         </div>
 
-        <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
-          {estado && estado !== 'todos' && <input type="hidden" name="estado" value={estado} />}
+        <div className="mt-4 flex flex-col gap-1.5 max-w-xl">
+          <span className="label-cap">Búsqueda</span>
+          <AutoSearchInput
+            initialValue={q}
+            placeholder="Buscar por dirección, propietario o inquilino… (se aplica al instante)"
+          />
+        </div>
 
-          <label className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-            <span className="label-cap">Búsqueda</span>
-            <input
-              type="text"
-              name="q"
-              defaultValue={q}
-              placeholder="Buscar por dirección, propietario o inquilino…"
-              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="label-cap">Tipo</span>
-            <select
-              name="tipo"
-              defaultValue={tipo}
-              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
-            >
-              <option value="todos">Todos</option>
-              {TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
-            </select>
-          </label>
-
-          <button
-            type="submit"
-            className="h-9 px-4 bg-ink text-paper rounded text-[12px] font-medium hover:opacity-90 transition-opacity"
-          >
-            Filtrar
-          </button>
-
-          {(q || tipo !== 'todos') && (
+        {(q || tipo !== 'todos') && (
+          <div className="mt-3">
             <Link
               href={buildHref({ q: '', tipo: 'todos' })}
-              className="h-9 inline-flex items-center px-3 text-[12px] text-slate hover:text-ink transition-colors"
+              className="inline-flex items-center px-3 h-8 text-[12px] text-slate hover:text-ink transition-colors"
             >
-              Limpiar
+              ↺ Limpiar búsqueda y tipo
             </Link>
-          )}
-        </form>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { FilterPill } from '@/components/ui/FilterPill'
+import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { listBanks, listBankAccounts, type BankAccountRow } from '@/lib/entities/queries'
 
 type Categoria = 'todas' | 'admin' | 'administrator' | 'landlord'
@@ -48,13 +49,6 @@ export default async function BancosPage({ searchParams }: PageProps) {
   const adminAccounts    = counts.admin
   const landlordAccounts = counts.landlord
 
-  const kpis = [
-    { label: 'Bancos disponibles',   value: totalBanks.toString(),       delta: 'lista maestra',          tone: 'neutral'  as const },
-    { label: 'Cuentas registradas',  value: totalAccounts.toString(),    delta: 'todas las cuentas',      tone: 'neutral'  as const },
-    { label: 'De la administración', value: adminAccounts.toString(),    delta: 'cuentas operativas',     tone: 'positive' as const },
-    { label: 'De propietarios',      value: landlordAccounts.toString(), delta: 'CBUs para transferir',   tone: 'neutral'  as const },
-  ]
-
   const buildHref = (overrides: Partial<{ categoria: Categoria; q: string }>) => {
     const params = new URLSearchParams()
     const merged = { categoria, q, ...overrides }
@@ -63,6 +57,40 @@ export default async function BancosPage({ searchParams }: PageProps) {
     const qs = params.toString()
     return qs ? `/bancos?${qs}` : '/bancos'
   }
+
+  const kpis = [
+    {
+      label: 'Bancos disponibles',
+      value: totalBanks.toString(),
+      delta: 'lista maestra',
+      tone:  'neutral' as const,
+      // Not a filter — informational
+    },
+    {
+      label: 'Cuentas registradas',
+      value: totalAccounts.toString(),
+      delta: 'todas las cuentas',
+      tone:  'neutral' as const,
+      href:  buildHref({ categoria: 'todas' }),
+      active: categoria === 'todas',
+    },
+    {
+      label: 'De la administración',
+      value: adminAccounts.toString(),
+      delta: 'cuentas operativas',
+      tone:  'positive' as const,
+      href:  buildHref({ categoria: 'admin' }),
+      active: categoria === 'admin',
+    },
+    {
+      label: 'De propietarios',
+      value: landlordAccounts.toString(),
+      delta: 'CBUs para transferir',
+      tone:  'neutral' as const,
+      href:  buildHref({ categoria: 'landlord' }),
+      active: categoria === 'landlord',
+    },
+  ]
 
   return (
     <>
@@ -79,51 +107,36 @@ export default async function BancosPage({ searchParams }: PageProps) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map((k) => (
-            <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
+            <KPICard key={k.label} {...k} deltaTone={k.tone} />
           ))}
         </div>
       </StickyHeader>
 
-      {/* FILTER STRIP */}
+      {/* FILTER STRIP — only Socios needs a dedicated pill (admin / landlord are KPIs) */}
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="label-cap text-slate mr-1">Categoría</span>
-          <FilterPill href={buildHref({ categoria: 'todas' })}         label="Todas"          count={counts.todas}         active={categoria === 'todas'} />
-          <FilterPill href={buildHref({ categoria: 'admin' })}         label="Administración" count={counts.admin}         active={categoria === 'admin'} />
-          <FilterPill href={buildHref({ categoria: 'administrator' })} label="Socios"         count={counts.administrator} active={categoria === 'administrator'} />
-          <FilterPill href={buildHref({ categoria: 'landlord' })}      label="Propietarios"   count={counts.landlord}      active={categoria === 'landlord'} />
+          <span className="label-cap text-slate mr-1">Filtros extra</span>
+          <FilterPill href={buildHref({ categoria: 'administrator' })} label="Socios" count={counts.administrator} active={categoria === 'administrator'} />
         </div>
 
-        <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
-          {categoria && categoria !== 'todas' && <input type="hidden" name="categoria" value={categoria} />}
+        <div className="mt-4 flex flex-col gap-1.5 max-w-xl">
+          <span className="label-cap">Búsqueda</span>
+          <AutoSearchInput
+            initialValue={q}
+            placeholder="Buscar por alias, banco, titular o CBU… (se aplica al instante)"
+          />
+        </div>
 
-          <label className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-            <span className="label-cap">Búsqueda</span>
-            <input
-              type="text"
-              name="q"
-              defaultValue={q}
-              placeholder="Buscar por alias, banco, titular o CBU…"
-              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
-            />
-          </label>
-
-          <button
-            type="submit"
-            className="h-9 px-4 bg-ink text-paper rounded text-[12px] font-medium hover:opacity-90 transition-opacity"
-          >
-            Filtrar
-          </button>
-
-          {q && (
+        {q && (
+          <div className="mt-3">
             <Link
               href={buildHref({ q: '' })}
-              className="h-9 inline-flex items-center px-3 text-[12px] text-slate hover:text-ink transition-colors"
+              className="inline-flex items-center px-3 h-8 text-[12px] text-slate hover:text-ink transition-colors"
             >
-              Limpiar
+              ↺ Limpiar búsqueda
             </Link>
-          )}
-        </form>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">

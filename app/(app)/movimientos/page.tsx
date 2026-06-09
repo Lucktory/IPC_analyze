@@ -2,6 +2,7 @@ import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { FilterPill } from '@/components/ui/FilterPill'
+import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import Link from 'next/link'
 import { listTransactions, listTransactionPeriods, type TransactionRow } from '@/lib/entities/queries'
 
@@ -91,13 +92,6 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
   const inTotal  = filtered.filter(t => t.direction === 'IN').reduce((s, t) => s + t.amount, 0)
   const outTotal = filtered.filter(t => t.direction === 'OUT').reduce((s, t) => s + t.amount, 0)
 
-  const kpis = [
-    { label: 'Movimientos',  value: filtered.length.toString(),                       delta: filtered.length === all.length ? 'sin filtros' : `de ${all.length} totales`, tone: 'neutral'  as const },
-    { label: 'Ingresos',     value: '$' + (inTotal / 1_000_000).toFixed(2) + ' M',    delta: 'cobros del rango filtrado',   tone: 'positive' as const },
-    { label: 'Egresos',      value: '$' + (outTotal / 1_000_000).toFixed(2) + ' M',   delta: 'comisión + gastos',          tone: 'negative' as const },
-    { label: 'Neto',         value: '$' + ((inTotal - outTotal) / 1_000_000).toFixed(2) + ' M', delta: 'a transferir',  tone: 'neutral'   as const },
-  ]
-
   const buildHref = (overrides: Partial<{ period: string; dir: Dir; category: string; q: string; page: number }>) => {
     const params = new URLSearchParams()
     const merged = { period, dir, category, q, page, ...overrides }
@@ -109,6 +103,40 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
     const qs = params.toString()
     return qs ? `/movimientos?${qs}` : '/movimientos'
   }
+
+  const kpis = [
+    {
+      label: 'Movimientos',
+      value: filtered.length.toString(),
+      delta: filtered.length === all.length ? 'sin filtros' : `de ${all.length} totales`,
+      tone:  'neutral' as const,
+      href:  buildHref({ dir: 'todos', page: 1 }),
+      active: dir === 'todos',
+    },
+    {
+      label: 'Ingresos',
+      value: '$' + (inTotal / 1_000_000).toFixed(2) + ' M',
+      delta: 'cobros del rango filtrado',
+      tone:  'positive' as const,
+      href:  buildHref({ dir: 'in', page: 1 }),
+      active: dir === 'in',
+    },
+    {
+      label: 'Egresos',
+      value: '$' + (outTotal / 1_000_000).toFixed(2) + ' M',
+      delta: 'comisión + gastos',
+      tone:  'negative' as const,
+      href:  buildHref({ dir: 'out', page: 1 }),
+      active: dir === 'out',
+    },
+    {
+      label: 'Neto',
+      value: '$' + ((inTotal - outTotal) / 1_000_000).toFixed(2) + ' M',
+      delta: 'a transferir',
+      tone:  'neutral' as const,
+      // Not a filter — it's the difference, leave as info-only
+    },
+  ]
 
   return (
     <>
@@ -124,67 +152,23 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map((k) => (
-            <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
+            <KPICard key={k.label} {...k} deltaTone={k.tone} />
           ))}
         </div>
       </StickyHeader>
 
-      {/* FILTER STRIP */}
+      {/* FILTER STRIP — pills replace the category dropdown, search auto-applies */}
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
-        {/* Row 1: direction pills */}
+        {/* Categoría pills (the dropdown that was here) */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="label-cap text-slate mr-1">Dirección</span>
-          <FilterPill href={buildHref({ dir: 'todos', page: 1 })} label="Todos"     count={counts.todos} active={dir === 'todos'} />
-          <FilterPill href={buildHref({ dir: 'in',    page: 1 })} label="Ingresos"  count={counts.in}    active={dir === 'in'} />
-          <FilterPill href={buildHref({ dir: 'out',   page: 1 })} label="Egresos"   count={counts.out}   active={dir === 'out'} />
+          <span className="label-cap text-slate mr-1">Categoría</span>
+          <FilterPill href={buildHref({ category: 'todas', page: 1 })} label="Todas" active={category === 'todas'} />
+          {CATEGORIES.map(c => (
+            <FilterPill key={c} href={buildHref({ category: c, page: 1 })} label={CATEGORY_LABEL[c]} active={category === c} />
+          ))}
         </div>
 
-        {/* Row 2: search + category + period */}
-        <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
-          {dir      && dir      !== 'todos' && <input type="hidden" name="dir"      value={dir} />}
-          {period                            && <input type="hidden" name="period"   value={period} />}
-
-          <label className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-            <span className="label-cap">Búsqueda</span>
-            <input
-              type="text"
-              name="q"
-              defaultValue={q}
-              placeholder="Buscar por inquilino, descripción, tipo…"
-              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
-            />
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="label-cap">Categoría</span>
-            <select
-              name="category"
-              defaultValue={category}
-              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
-            >
-              <option value="todas">Todas</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
-            </select>
-          </label>
-
-          <button
-            type="submit"
-            className="h-9 px-4 bg-ink text-paper rounded text-[12px] font-medium hover:opacity-90 transition-opacity"
-          >
-            Filtrar
-          </button>
-
-          {(q || category !== 'todas') && (
-            <Link
-              href={buildHref({ q: '', category: 'todas', page: 1 })}
-              className="h-9 inline-flex items-center px-3 text-[12px] text-slate hover:text-ink transition-colors"
-            >
-              Limpiar
-            </Link>
-          )}
-        </form>
-
-        {/* Row 3: period pills */}
+        {/* Período pills */}
         <div className="mt-4 flex items-center gap-2 flex-wrap">
           <span className="label-cap text-slate mr-1">Período</span>
           <PeriodPill label="Todos" href={buildHref({ period: undefined, page: 1 })} active={!period} />
@@ -192,6 +176,27 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
             <PeriodPill key={p} label={PERIOD_LABEL(p)} href={buildHref({ period: p, page: 1 })} active={period === p} />
           ))}
         </div>
+
+        {/* Auto-applying search */}
+        <div className="mt-4 flex flex-col gap-1.5 max-w-xl">
+          <span className="label-cap">Búsqueda</span>
+          <AutoSearchInput
+            initialValue={q}
+            placeholder="Buscar por inquilino, descripción o tipo… (se aplica al instante)"
+            resetParams={['page']}
+          />
+        </div>
+
+        {(q || category !== 'todas') && (
+          <div className="mt-3">
+            <Link
+              href={buildHref({ q: '', category: 'todas', page: 1 })}
+              className="inline-flex items-center px-3 h-8 text-[12px] text-slate hover:text-ink transition-colors"
+            >
+              ↺ Limpiar búsqueda y categoría
+            </Link>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">

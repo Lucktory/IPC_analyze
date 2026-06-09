@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { FilterPill } from '@/components/ui/FilterPill'
+import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { listTenants, type TenantRow } from '@/lib/entities/queries'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
@@ -53,13 +54,6 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
   const totalRent      = all.reduce((s, t) => s + t.monthlyRent, 0)
   const withPhone      = counts.todos - counts.sin_telefono
 
-  const kpis = [
-    { label: 'Total inquilinos', value: counts.todos.toString(),             delta: 'en cartera',                      tone: 'neutral'  as const },
-    { label: 'Con contrato',     value: counts.con_contrato.toString(),       delta: `${counts.sin_contrato} sin contrato actual`, tone: 'neutral' as const },
-    { label: 'Con teléfono',     value: `${withPhone} / ${counts.todos}`,     delta: 'datos de contacto',             tone: 'neutral'  as const },
-    { label: 'Alquiler total',   value: '$' + (totalRent / 1_000_000).toFixed(1) + ' M', delta: 'suma de alquileres activos', tone: 'positive' as const },
-  ]
-
   const buildHref = (overrides: Partial<{ tipo: Tipo; q: string }>) => {
     const params = new URLSearchParams()
     const merged = { tipo, q, ...overrides }
@@ -68,6 +62,41 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
     const qs = params.toString()
     return qs ? `/inquilinos?${qs}` : '/inquilinos'
   }
+
+  const kpis = [
+    {
+      label: 'Total inquilinos',
+      value: counts.todos.toString(),
+      delta: 'en cartera',
+      tone:  'neutral' as const,
+      href:  buildHref({ tipo: 'todos' }),
+      active: tipo === 'todos',
+    },
+    {
+      label: 'Con contrato',
+      value: counts.con_contrato.toString(),
+      delta: `${counts.sin_contrato} sin contrato actual`,
+      tone:  'neutral' as const,
+      href:  buildHref({ tipo: 'con_contrato' }),
+      active: tipo === 'con_contrato',
+    },
+    {
+      label: 'Con teléfono',
+      value: `${withPhone} / ${counts.todos}`,
+      delta: counts.sin_telefono > 0 ? `${counts.sin_telefono} sin teléfono — tocá para revisar` : 'todos cargados',
+      tone:  counts.sin_telefono > 0 ? 'negative' as const : 'positive' as const,
+      href:  buildHref({ tipo: 'sin_telefono' }),
+      active: tipo === 'sin_telefono',
+    },
+    {
+      label: 'Alquiler total',
+      value: '$' + (totalRent / 1_000_000).toFixed(1) + ' M',
+      delta: 'suma de alquileres activos',
+      tone:  'positive' as const,
+      href:  buildHref({ tipo: 'con_contrato' }),
+      active: tipo === 'con_contrato',
+    },
+  ]
 
   return (
     <>
@@ -84,52 +113,37 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map((k) => (
-            <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
+            <KPICard key={k.label} {...k} deltaTone={k.tone} />
           ))}
         </div>
       </StickyHeader>
 
-      {/* FILTER STRIP */}
+      {/* FILTER STRIP — pills for secondary states, auto-applying search */}
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="label-cap text-slate mr-1">Tipo</span>
-          <FilterPill href={buildHref({ tipo: 'todos' })}        label="Todos"        count={counts.todos}        active={tipo === 'todos'} />
-          <FilterPill href={buildHref({ tipo: 'con_contrato' })} label="Con contrato" count={counts.con_contrato} active={tipo === 'con_contrato'} />
+          <span className="label-cap text-slate mr-1">Filtros extra</span>
           <FilterPill href={buildHref({ tipo: 'sin_contrato' })} label="Sin contrato" count={counts.sin_contrato} active={tipo === 'sin_contrato'} />
-          <FilterPill href={buildHref({ tipo: 'sin_telefono' })} label="Sin teléfono" count={counts.sin_telefono} active={tipo === 'sin_telefono'} />
           <FilterPill href={buildHref({ tipo: 'sin_email' })}    label="Sin email"    count={counts.sin_email}    active={tipo === 'sin_email'} />
         </div>
 
-        <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
-          {tipo && tipo !== 'todos' && <input type="hidden" name="tipo" value={tipo} />}
+        <div className="mt-4 flex flex-col gap-1.5 max-w-xl">
+          <span className="label-cap">Búsqueda</span>
+          <AutoSearchInput
+            initialValue={q}
+            placeholder="Buscar por nombre, DNI o teléfono… (se aplica al instante)"
+          />
+        </div>
 
-          <label className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-            <span className="label-cap">Búsqueda</span>
-            <input
-              type="text"
-              name="q"
-              defaultValue={q}
-              placeholder="Buscar por nombre, DNI o teléfono…"
-              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
-            />
-          </label>
-
-          <button
-            type="submit"
-            className="h-9 px-4 bg-ink text-paper rounded text-[12px] font-medium hover:opacity-90 transition-opacity"
-          >
-            Filtrar
-          </button>
-
-          {q && (
+        {q && (
+          <div className="mt-3">
             <Link
               href={buildHref({ q: '' })}
-              className="h-9 inline-flex items-center px-3 text-[12px] text-slate hover:text-ink transition-colors"
+              className="inline-flex items-center px-3 h-8 text-[12px] text-slate hover:text-ink transition-colors"
             >
-              Limpiar
+              ↺ Limpiar búsqueda
             </Link>
-          )}
-        </form>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
