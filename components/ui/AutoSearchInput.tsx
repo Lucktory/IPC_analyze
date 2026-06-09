@@ -55,7 +55,9 @@ export function AutoSearchInput({
 
   return (
     <input
-      type="text"
+      type="search"
+      name={paramName}
+      autoComplete="off"
       value={value}
       onChange={(e) => setValue(e.target.value)}
       placeholder={placeholder}

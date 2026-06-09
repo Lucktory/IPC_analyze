@@ -38,7 +38,9 @@ export function TopBar({
           strokeWidth={1.5}
         />
         <input
-          type="text"
+          type="search"
+          name="global-search"
+          autoComplete="off"
           placeholder="Buscar contratos, inquilinos, propietarios..."
           className="w-full h-9 pl-9 pr-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
         />
