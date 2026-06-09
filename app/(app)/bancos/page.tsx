@@ -58,6 +58,8 @@ export default async function BancosPage({ searchParams }: PageProps) {
     return qs ? `/bancos?${qs}` : '/bancos'
   }
 
+  const clearCategoriaHref = buildHref({ categoria: 'todas' })
+
   const kpis = [
     {
       label: 'Bancos disponibles',
@@ -80,6 +82,7 @@ export default async function BancosPage({ searchParams }: PageProps) {
       delta: 'cuentas operativas',
       tone:  'positive' as const,
       href:  buildHref({ categoria: 'admin' }),
+      clearHref: clearCategoriaHref,
       active: categoria === 'admin',
     },
     {
@@ -88,6 +91,7 @@ export default async function BancosPage({ searchParams }: PageProps) {
       delta: 'CBUs para transferir',
       tone:  'neutral' as const,
       href:  buildHref({ categoria: 'landlord' }),
+      clearHref: clearCategoriaHref,
       active: categoria === 'landlord',
     },
   ]
@@ -116,7 +120,7 @@ export default async function BancosPage({ searchParams }: PageProps) {
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="label-cap text-slate mr-1">Filtros extra</span>
-          <FilterPill href={buildHref({ categoria: 'administrator' })} label="Socios" count={counts.administrator} active={categoria === 'administrator'} />
+          <FilterPill href={buildHref({ categoria: 'administrator' })} clearHref={clearCategoriaHref} label="Socios" count={counts.administrator} active={categoria === 'administrator'} />
         </div>
 
         <div className="mt-4 flex flex-col gap-1.5 max-w-xl">

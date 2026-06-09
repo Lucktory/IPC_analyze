@@ -78,6 +78,9 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
     return qs ? `/propiedades?${qs}` : '/propiedades'
   }
 
+  const clearEstadoHref = buildHref({ estado: 'todos' })
+  const clearTipoHref   = buildHref({ tipo:   'todos' })
+
   const kpis = [
     {
       label: 'Total propiedades',
@@ -93,6 +96,7 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
       delta: counts.todos > 0 ? `${Math.round((counts.ocupadas / counts.todos) * 100)}% ocupación` : 'sin datos',
       tone:  'positive' as const,
       href:  buildHref({ estado: 'ocupadas' }),
+      clearHref: clearEstadoHref,
       active: estado === 'ocupadas',
     },
     {
@@ -101,6 +105,7 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
       delta: 'requieren ocupar',
       tone:  counts.vacantes > 0 ? 'negative' as const : 'neutral' as const,
       href:  buildHref({ estado: 'vacantes' }),
+      clearHref: clearEstadoHref,
       active: estado === 'vacantes',
     },
     {
@@ -109,6 +114,7 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
       delta: 'comerciales',
       tone:  'neutral' as const,
       href:  buildHref({ tipo: 'local' }),
+      clearHref: clearTipoHref,
       active: tipo === 'local',
     },
   ]
@@ -139,7 +145,7 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
           <span className="label-cap text-slate mr-1">Tipo</span>
           <FilterPill href={buildHref({ tipo: 'todos' })} label="Todos" active={!tipo || tipo === 'todos'} />
           {TYPES.map(t => (
-            <FilterPill key={t} href={buildHref({ tipo: t })} label={TYPE_LABEL[t]} active={tipo === t} />
+            <FilterPill key={t} href={buildHref({ tipo: t })} clearHref={clearTipoHref} label={TYPE_LABEL[t]} active={tipo === t} />
           ))}
         </div>
 

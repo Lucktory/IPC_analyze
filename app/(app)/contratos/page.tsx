@@ -57,7 +57,10 @@ export default async function ContratosPage({ searchParams }: PageProps) {
     return qs ? `/contratos?${qs}` : '/contratos'
   }
 
-  // KPIs become clickable filter chips (active state mirrors the current ?estado)
+  // Toggle-off URL for any estado-related card or pill
+  const clearEstadoHref = buildHref({ estado: 'todos' })
+
+  // KPIs become clickable filter chips; click an active one to toggle off
   const kpis = [
     {
       label: 'Total contratos',
@@ -66,6 +69,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       tone:  'neutral' as const,
       href:  buildHref({ estado: 'todos' }),
       active: filters.estado === 'todos' || !filters.estado,
+      // No clearHref — "Total contratos" IS the cleared state
     },
     {
       label: 'Activos',
@@ -73,6 +77,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       delta: `${counts.rescindido} rescindidos`,
       tone:  'positive' as const,
       href:  buildHref({ estado: 'activo' }),
+      clearHref: clearEstadoHref,
       active: filters.estado === 'activo',
     },
     {
@@ -81,6 +86,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       delta: 'en próximos 60 días',
       tone:  counts.por_vencer > 0 ? 'negative' as const : 'neutral' as const,
       href:  buildHref({ estado: 'por_vencer' }),
+      clearHref: clearEstadoHref,
       active: filters.estado === 'por_vencer',
     },
     {
@@ -89,6 +95,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       delta: 'suma alquileres',
       tone:  'positive' as const,
       href:  buildHref({ estado: 'activo' }),
+      clearHref: clearEstadoHref,
       active: filters.estado === 'activo',
     },
   ]
@@ -120,7 +127,13 @@ export default async function ContratosPage({ searchParams }: PageProps) {
         {/* Rescindidos — only state without a KPI card, surfaced as a small pill row */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="label-cap text-slate mr-1">Estado</span>
-          <FilterPill href={buildHref({ estado: 'rescindido' })} label="Rescindidos" count={counts.rescindido} active={filters.estado === 'rescindido'} />
+          <FilterPill
+            href={buildHref({ estado: 'rescindido' })}
+            clearHref={clearEstadoHref}
+            label="Rescindidos"
+            count={counts.rescindido}
+            active={filters.estado === 'rescindido'}
+          />
           <span className="text-[11px] text-slate ml-1">— el resto se elige tocando una tarjeta arriba</span>
         </div>
 
@@ -129,7 +142,13 @@ export default async function ContratosPage({ searchParams }: PageProps) {
           <span className="label-cap text-slate mr-1">Cadencia</span>
           <FilterPill href={buildHref({ cadencia: 'todas' })} label="Todas" active={!filters.cadencia || filters.cadencia === 'todas'} />
           {CADENCES.map(c => (
-            <FilterPill key={c} href={buildHref({ cadencia: c })} label={cap(c)} active={filters.cadencia === c} />
+            <FilterPill
+              key={c}
+              href={buildHref({ cadencia: c })}
+              clearHref={buildHref({ cadencia: 'todas' })}
+              label={cap(c)}
+              active={filters.cadencia === c}
+            />
           ))}
         </div>
 

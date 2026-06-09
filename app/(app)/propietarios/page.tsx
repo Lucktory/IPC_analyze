@@ -64,6 +64,8 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
     return qs ? `/propietarios?${qs}` : '/propietarios'
   }
 
+  const clearTipoHref = buildHref({ tipo: 'todos' })
+
   const kpis = [
     {
       label: 'Total propietarios',
@@ -79,6 +81,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
       delta: 'propietarios con contrato',
       tone:  'neutral' as const,
       href:  buildHref({ tipo: 'con_contrato' }),
+      clearHref: clearTipoHref,
       active: tipo === 'con_contrato',
     },
     {
@@ -87,6 +90,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
       delta: 'alquileres mayo',
       tone:  'positive' as const,
       href:  buildHref({ tipo: 'con_contrato' }),
+      clearHref: clearTipoHref,
       active: tipo === 'con_contrato',
     },
     {
@@ -95,6 +99,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
       delta: counts.sin_cuit > 0 ? `${counts.sin_cuit} sin CUIT — tocá para revisar` : 'todos cargados',
       tone:  counts.sin_cuit > 0 ? 'negative' as const : 'positive' as const,
       href:  buildHref({ tipo: 'sin_cuit' }),
+      clearHref: clearTipoHref,
       active: tipo === 'sin_cuit',
     },
   ]
@@ -124,8 +129,8 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="label-cap text-slate mr-1">Filtros extra</span>
-          <FilterPill href={buildHref({ tipo: 'solo_vacancias' })} label="Solo vacancias" count={counts.solo_vacancias} active={tipo === 'solo_vacancias'} />
-          <FilterPill href={buildHref({ tipo: 'sin_email' })}      label="Sin email"      count={counts.sin_email}      active={tipo === 'sin_email'} />
+          <FilterPill href={buildHref({ tipo: 'solo_vacancias' })} clearHref={clearTipoHref} label="Solo vacancias" count={counts.solo_vacancias} active={tipo === 'solo_vacancias'} />
+          <FilterPill href={buildHref({ tipo: 'sin_email' })}      clearHref={clearTipoHref} label="Sin email"      count={counts.sin_email}      active={tipo === 'sin_email'} />
         </div>
 
         <div className="mt-4 flex flex-col gap-1.5 max-w-xl">

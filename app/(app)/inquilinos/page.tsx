@@ -63,6 +63,8 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
     return qs ? `/inquilinos?${qs}` : '/inquilinos'
   }
 
+  const clearTipoHref = buildHref({ tipo: 'todos' })
+
   const kpis = [
     {
       label: 'Total inquilinos',
@@ -78,6 +80,7 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
       delta: `${counts.sin_contrato} sin contrato actual`,
       tone:  'neutral' as const,
       href:  buildHref({ tipo: 'con_contrato' }),
+      clearHref: clearTipoHref,
       active: tipo === 'con_contrato',
     },
     {
@@ -86,6 +89,7 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
       delta: counts.sin_telefono > 0 ? `${counts.sin_telefono} sin teléfono — tocá para revisar` : 'todos cargados',
       tone:  counts.sin_telefono > 0 ? 'negative' as const : 'positive' as const,
       href:  buildHref({ tipo: 'sin_telefono' }),
+      clearHref: clearTipoHref,
       active: tipo === 'sin_telefono',
     },
     {
@@ -94,6 +98,7 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
       delta: 'suma de alquileres activos',
       tone:  'positive' as const,
       href:  buildHref({ tipo: 'con_contrato' }),
+      clearHref: clearTipoHref,
       active: tipo === 'con_contrato',
     },
   ]
@@ -122,8 +127,8 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="label-cap text-slate mr-1">Filtros extra</span>
-          <FilterPill href={buildHref({ tipo: 'sin_contrato' })} label="Sin contrato" count={counts.sin_contrato} active={tipo === 'sin_contrato'} />
-          <FilterPill href={buildHref({ tipo: 'sin_email' })}    label="Sin email"    count={counts.sin_email}    active={tipo === 'sin_email'} />
+          <FilterPill href={buildHref({ tipo: 'sin_contrato' })} clearHref={clearTipoHref} label="Sin contrato" count={counts.sin_contrato} active={tipo === 'sin_contrato'} />
+          <FilterPill href={buildHref({ tipo: 'sin_email' })}    clearHref={clearTipoHref} label="Sin email"    count={counts.sin_email}    active={tipo === 'sin_email'} />
         </div>
 
         <div className="mt-4 flex flex-col gap-1.5 max-w-xl">

@@ -104,6 +104,9 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
     return qs ? `/movimientos?${qs}` : '/movimientos'
   }
 
+  const clearDirHref      = buildHref({ dir: 'todos',      page: 1 })
+  const clearCategoryHref = buildHref({ category: 'todas', page: 1 })
+
   const kpis = [
     {
       label: 'Movimientos',
@@ -119,6 +122,7 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
       delta: 'cobros del rango filtrado',
       tone:  'positive' as const,
       href:  buildHref({ dir: 'in', page: 1 }),
+      clearHref: clearDirHref,
       active: dir === 'in',
     },
     {
@@ -127,6 +131,7 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
       delta: 'comisión + gastos',
       tone:  'negative' as const,
       href:  buildHref({ dir: 'out', page: 1 }),
+      clearHref: clearDirHref,
       active: dir === 'out',
     },
     {
@@ -164,7 +169,13 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
           <span className="label-cap text-slate mr-1">Categoría</span>
           <FilterPill href={buildHref({ category: 'todas', page: 1 })} label="Todas" active={category === 'todas'} />
           {CATEGORIES.map(c => (
-            <FilterPill key={c} href={buildHref({ category: c, page: 1 })} label={CATEGORY_LABEL[c]} active={category === c} />
+            <FilterPill
+              key={c}
+              href={buildHref({ category: c, page: 1 })}
+              clearHref={clearCategoryHref}
+              label={CATEGORY_LABEL[c]}
+              active={category === c}
+            />
           ))}
         </div>
 
@@ -173,7 +184,13 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
           <span className="label-cap text-slate mr-1">Período</span>
           <PeriodPill label="Todos" href={buildHref({ period: undefined, page: 1 })} active={!period} />
           {periods.map(p => (
-            <PeriodPill key={p} label={PERIOD_LABEL(p)} href={buildHref({ period: p, page: 1 })} active={period === p} />
+            <PeriodPill
+              key={p}
+              label={PERIOD_LABEL(p)}
+              href={buildHref({ period: p, page: 1 })}
+              clearHref={buildHref({ period: undefined, page: 1 })}
+              active={period === p}
+            />
           ))}
         </div>
 
@@ -273,17 +290,24 @@ function TxRow({ t, odd }: { t: TransactionRow; odd: boolean }) {
   )
 }
 
-function PeriodPill({ label, href, active }: { label: string; href: string; active: boolean }) {
+function PeriodPill({ label, href, active, clearHref }: { label: string; href: string; active: boolean; clearHref?: string }) {
+  const target = active && clearHref ? clearHref : href
   return (
     <Link
-      href={href}
+      href={target}
+      title={active && clearHref ? 'Tocá para quitar este filtro' : undefined}
       className={[
-        'inline-flex items-center px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors',
+        'inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors',
         active
-          ? 'bg-ink text-paper border-ink'
+          ? 'bg-cream-2 text-ink border-ink/40 ring-1 ring-success/30 hover:bg-cream'
           : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
       ].join(' ')}
     >
+      {active && (
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-success shrink-0">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      )}
       {label}
     </Link>
   )
