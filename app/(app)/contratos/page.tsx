@@ -171,35 +171,35 @@ export default async function ContratosPage({ searchParams }: PageProps) {
         </div>
         <div className="overflow-x-auto">
           {rows.length > 0 ? (
-            <table className="w-full text-[13px] min-w-[980px]">
-              <thead>
+            <table className="w-full text-[13px] min-w-[980px] border-collapse">
+              <thead className="bg-cream-2/60">
                 <tr className="border-b border-line">
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Inquilino</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Propietario</th>
-                  <th className="text-right px-5 py-2.5 label-cap font-medium">Alquiler</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Cadencia</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Próx. aumento</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Vencimiento</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Estado</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Inquilino</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Propietario</th>
+                  <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Alquiler</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Cadencia</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Próx. aumento</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Vencimiento</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((c, idx) => (
                   <tr
                     key={c.id}
-                    className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${c.status === 'rescinded' ? 'opacity-60' : ''} hover:bg-cream-2 transition-colors`}
+                    className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${c.status === 'rescinded' ? 'opacity-60' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}
                   >
-                    <td className="px-5 py-3 text-ink font-medium">
+                    <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">
                       <Link href={`/contratos/${c.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
                         {c.primaryTenant}
                       </Link>
                     </td>
-                    <td className="px-5 py-3 text-slate-dark">{c.primaryLandlord}</td>
-                    <td className="px-5 py-3 text-right tabular-nums text-ink">{fmt(c.currentRent)}</td>
-                    <td className="px-5 py-3 text-slate-dark capitalize">{c.cadence}</td>
-                    <td className="px-5 py-3"><NextAdjustment date={c.nextAdjustment} /></td>
-                    <td className="px-5 py-3 text-slate-dark tabular-nums">{fmtDate(c.endDate)}</td>
-                    <td className="px-5 py-3"><StatusBadge status={c.status} /></td>
+                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{c.primaryLandlord}</td>
+                    <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{fmt(c.currentRent)}</td>
+                    <td className="px-4 py-1.5 text-slate-dark capitalize border-r border-line/30">{c.cadence}</td>
+                    <td className="px-4 py-1.5 border-r border-line/30"><NextAdjustment date={c.nextAdjustment} /></td>
+                    <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{fmtDate(c.endDate)}</td>
+                    <td className="px-4 py-1.5"><StatusBadge status={c.status} /></td>
                   </tr>
                 ))}
               </tbody>
