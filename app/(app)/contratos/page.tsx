@@ -3,7 +3,8 @@ import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { StickyHeader } from '@/components/ui/StickyHeader'
-import { listContracts, listLandlords, type ContractListFilters } from '@/lib/entities/queries'
+import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { listContracts, type ContractListFilters } from '@/lib/entities/queries'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => {
@@ -11,8 +12,6 @@ const fmtDate = (s: string) => {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-// "Mayo 2026" — matches the manual "PROX. AUMENTO MAYO 2026" notation
-// Alejandro uses on ~50 rows of his ledger.
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const fmtMonthYear = (s: string) => {
   const d = new Date(s)
@@ -25,50 +24,76 @@ const daysUntil = (s: string) => {
 }
 
 const CADENCES = ['mensual', 'bimestral', 'trimestral', 'cuatrimestral', 'semestral', 'anual']
+const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
 interface PageProps {
   searchParams: Promise<{
-    estado?:     string
-    cadencia?:  string
-    propietario?: string
-    q?:         string
+    estado?:    string
+    cadencia?: string
+    q?:        string
   }>
 }
 
 export default async function ContratosPage({ searchParams }: PageProps) {
   const sp = await searchParams
   const filters: ContractListFilters = {
-    estado:     (sp.estado as any) ?? 'todos',
-    cadencia:   sp.cadencia ?? 'todas',
-    landlordId: sp.propietario ?? 'todos',
-    q:          sp.q ?? '',
+    estado:    (sp.estado as any) ?? 'todos',
+    cadencia:  sp.cadencia ?? 'todas',
+    q:         sp.q ?? '',
   }
 
-  const [{ rows, counts }, landlords] = await Promise.all([
-    listContracts(filters),
-    listLandlords(),
-  ])
+  const { rows, counts } = await listContracts(filters)
 
   const totalRent = rows.filter(c => c.status === 'active').reduce((s, c) => s + c.currentRent, 0)
 
-  const kpis = [
-    { label: 'Total contratos',  value: counts.todos.toString(),       delta: 'todos los estados',         tone: 'neutral'  as const },
-    { label: 'Activos',          value: counts.activo.toString(),      delta: `${counts.rescindido} rescindidos`, tone: 'positive' as const },
-    { label: 'Por vencer',       value: counts.por_vencer.toString(),  delta: 'en próximos 60 días',       tone: counts.por_vencer > 0 ? 'negative' as const : 'neutral' as const },
-    { label: 'Alquiler activos', value: '$' + (totalRent / 1_000_000).toFixed(1) + ' M', delta: 'suma alquileres', tone: 'positive' as const },
-  ]
-
-  // Build href helpers that preserve other filters when one changes
+  // Build href preserving other filters; one helper so KPIs / pills share logic
   const buildHref = (overrides: Partial<Record<string, string>>) => {
     const params = new URLSearchParams()
     const merged = { ...filters, ...overrides }
-    if (merged.estado     && merged.estado     !== 'todos') params.set('estado',      merged.estado)
-    if (merged.cadencia   && merged.cadencia   !== 'todas') params.set('cadencia',    merged.cadencia)
-    if (merged.landlordId && merged.landlordId !== 'todos') params.set('propietario', merged.landlordId)
-    if (merged.q)                                            params.set('q',          merged.q)
+    if (merged.estado   && merged.estado   !== 'todos') params.set('estado',   merged.estado)
+    if (merged.cadencia && merged.cadencia !== 'todas') params.set('cadencia', merged.cadencia)
+    if (merged.q)                                       params.set('q',        merged.q)
     const qs = params.toString()
     return qs ? `/contratos?${qs}` : '/contratos'
   }
+
+  // KPIs become clickable filter chips (active state mirrors the current ?estado)
+  const kpis = [
+    {
+      label: 'Total contratos',
+      value: counts.todos.toString(),
+      delta: 'todos los estados',
+      tone:  'neutral' as const,
+      href:  buildHref({ estado: 'todos' }),
+      active: filters.estado === 'todos' || !filters.estado,
+    },
+    {
+      label: 'Activos',
+      value: counts.activo.toString(),
+      delta: `${counts.rescindido} rescindidos`,
+      tone:  'positive' as const,
+      href:  buildHref({ estado: 'activo' }),
+      active: filters.estado === 'activo',
+    },
+    {
+      label: 'Por vencer',
+      value: counts.por_vencer.toString(),
+      delta: 'en próximos 60 días',
+      tone:  counts.por_vencer > 0 ? 'negative' as const : 'neutral' as const,
+      href:  buildHref({ estado: 'por_vencer' }),
+      active: filters.estado === 'por_vencer',
+    },
+    {
+      label: 'Alquiler activos',
+      value: '$' + (totalRent / 1_000_000).toFixed(1) + ' M',
+      delta: 'suma alquileres',
+      tone:  'positive' as const,
+      href:  buildHref({ estado: 'activo' }),
+      active: filters.estado === 'activo',
+    },
+  ]
+
+  const hasSecondaryFilter = filters.q || (filters.cadencia && filters.cadencia !== 'todas')
 
   return (
     <>
@@ -85,78 +110,48 @@ export default async function ContratosPage({ searchParams }: PageProps) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map((k) => (
-            <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
+            <KPICard key={k.label} {...k} deltaTone={k.tone} />
           ))}
         </div>
       </StickyHeader>
 
-      {/* FILTER STRIP */}
+      {/* FILTER STRIP — pills (no dropdowns) + auto-applying search */}
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
-        {/* Row 1: status pills */}
+        {/* Rescindidos — only state without a KPI card, surfaced as a small pill row */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="label-cap text-slate mr-1">Estado</span>
-          <FilterPill href={buildHref({ estado: 'todos' })}      label="Todos"       count={counts.todos}      active={filters.estado === 'todos'      || !filters.estado} />
-          <FilterPill href={buildHref({ estado: 'activo' })}     label="Activos"     count={counts.activo}     active={filters.estado === 'activo'} />
-          <FilterPill href={buildHref({ estado: 'por_vencer' })} label="Por vencer"  count={counts.por_vencer} active={filters.estado === 'por_vencer'} />
           <FilterPill href={buildHref({ estado: 'rescindido' })} label="Rescindidos" count={counts.rescindido} active={filters.estado === 'rescindido'} />
+          <span className="text-[11px] text-slate ml-1">— el resto se elige tocando una tarjeta arriba</span>
         </div>
 
-        {/* Row 2: search + secondary filters */}
-        <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
-          {/* Preserve other filters across form submit */}
-          {filters.estado     && filters.estado     !== 'todos' && <input type="hidden" name="estado"      value={filters.estado} />}
+        {/* Cadencia pills — replaces the dropdown */}
+        <div className="mt-4 flex items-center gap-2 flex-wrap">
+          <span className="label-cap text-slate mr-1">Cadencia</span>
+          <FilterPill href={buildHref({ cadencia: 'todas' })} label="Todas" active={!filters.cadencia || filters.cadencia === 'todas'} />
+          {CADENCES.map(c => (
+            <FilterPill key={c} href={buildHref({ cadencia: c })} label={cap(c)} active={filters.cadencia === c} />
+          ))}
+        </div>
 
-          <label className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-            <span className="label-cap">Búsqueda</span>
-            <input
-              type="text"
-              name="q"
-              defaultValue={filters.q ?? ''}
-              placeholder="Buscar por inquilino o propietario…"
-              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
-            />
-          </label>
+        {/* Search — auto-applies as you type (300ms debounce) */}
+        <div className="mt-4 flex flex-col gap-1.5 max-w-xl">
+          <span className="label-cap">Búsqueda</span>
+          <AutoSearchInput
+            initialValue={filters.q ?? ''}
+            placeholder="Buscar por inquilino o propietario… (se aplica al instante)"
+          />
+        </div>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="label-cap">Cadencia</span>
-            <select
-              name="cadencia"
-              defaultValue={filters.cadencia ?? 'todas'}
-              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors capitalize"
-            >
-              <option value="todas">Todas</option>
-              {CADENCES.map(c => <option key={c} value={c} className="capitalize">{c[0].toUpperCase() + c.slice(1)}</option>)}
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="label-cap">Propietario</span>
-            <select
-              name="propietario"
-              defaultValue={filters.landlordId ?? 'todos'}
-              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors max-w-[220px]"
-            >
-              <option value="todos">Todos</option>
-              {landlords.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
-          </label>
-
-          <button
-            type="submit"
-            className="h-9 px-4 bg-ink text-paper rounded text-[12px] font-medium hover:opacity-90 transition-opacity"
-          >
-            Filtrar
-          </button>
-
-          {(filters.q || (filters.cadencia && filters.cadencia !== 'todas') || (filters.landlordId && filters.landlordId !== 'todos')) && (
+        {hasSecondaryFilter && (
+          <div className="mt-3">
             <Link
-              href={buildHref({ q: '', cadencia: 'todas', propietario: 'todos' })}
-              className="h-9 inline-flex items-center px-3 text-[12px] text-slate hover:text-ink transition-colors"
+              href={buildHref({ q: '', cadencia: 'todas' })}
+              className="inline-flex items-center px-3 h-8 text-[12px] text-slate hover:text-ink transition-colors"
             >
-              Limpiar
+              ↺ Limpiar búsqueda y cadencia
             </Link>
-          )}
-        </form>
+          </div>
+        )}
       </section>
 
       <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
@@ -222,13 +217,9 @@ function StatusBadge({ status }: { status: string }) {
   }
 }
 
-// "Próx. aumento" cell. Surfaces what Alejandro tracks manually as
-// "PROX. AUMENTO MAYO 2026" in the spreadsheet. Visual emphasis grows as the
-// adjustment date approaches.
 function NextAdjustment({ date }: { date: string | null }) {
   if (!date) return <span className="text-slate/50">—</span>
   const d = daysUntil(date)
-  // ≤ 30 days → ink + soft cream-2 pill (eye magnet for Alejandro's reminder)
   if (d <= 30) {
     return (
       <span className="inline-flex items-center px-2 py-0.5 rounded bg-cream-2 border border-line text-ink font-medium tabular-nums">
@@ -236,6 +227,5 @@ function NextAdjustment({ date }: { date: string | null }) {
       </span>
     )
   }
-  // > 30 days → muted, no emphasis
   return <span className="text-slate-dark tabular-nums">{fmtMonthYear(date)}</span>
 }
