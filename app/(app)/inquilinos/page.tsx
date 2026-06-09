@@ -47,26 +47,26 @@ export default async function InquilinosPage() {
           <p className="text-[12px] text-slate">{total} inquilinos</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px] min-w-[720px]">
-            <thead>
+          <table className="w-full text-[13px] min-w-[720px] border-collapse">
+            <thead className="bg-cream-2/60">
               <tr className="border-b border-line">
-                <th className="text-left  px-5 py-2.5 label-cap font-medium">Inquilino</th>
-                <th className="text-left  px-5 py-2.5 label-cap font-medium">Teléfono</th>
-                <th className="text-left  px-5 py-2.5 label-cap font-medium">Email</th>
-                <th className="text-left  px-5 py-2.5 label-cap font-medium">DNI</th>
-                <th className="text-right px-5 py-2.5 label-cap font-medium">Contratos</th>
-                <th className="text-right px-5 py-2.5 label-cap font-medium">Alquiler mensual</th>
+                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Inquilino</th>
+                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Teléfono</th>
+                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Email</th>
+                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">DNI</th>
+                <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Contratos</th>
+                <th className="text-right px-4 py-1.5 label-cap font-medium">Alquiler mensual</th>
               </tr>
             </thead>
             <tbody>
               {tenants.map((t, idx) => (
-                <tr key={t.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors`}>
-                  <td className="px-5 py-3 text-ink font-medium">{t.name}</td>
-                  <td className="px-5 py-3 text-slate-dark tabular-nums">{t.phone ?? <span className="text-slate/50">—</span>}</td>
-                  <td className="px-5 py-3 text-slate-dark">{t.email ?? <span className="text-slate/50">—</span>}</td>
-                  <td className="px-5 py-3 text-slate-dark tabular-nums">{t.dni ?? <span className="text-slate/50">—</span>}</td>
-                  <td className="px-5 py-3 text-right tabular-nums text-ink">{t.contractCount}</td>
-                  <td className="px-5 py-3 text-right tabular-nums text-ink">{t.monthlyRent > 0 ? fmt(t.monthlyRent) : <span className="text-slate/50">—</span>}</td>
+                <tr key={t.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}>
+                  <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">{t.name}</td>
+                  <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{t.phone ?? <span className="text-slate/50">—</span>}</td>
+                  <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{t.email ?? <span className="text-slate/50">—</span>}</td>
+                  <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{t.dni ?? <span className="text-slate/50">—</span>}</td>
+                  <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{t.contractCount}</td>
+                  <td className="px-4 py-1.5 text-right tabular-nums text-ink">{t.monthlyRent > 0 ? fmt(t.monthlyRent) : <span className="text-slate/50">—</span>}</td>
                 </tr>
               ))}
             </tbody>

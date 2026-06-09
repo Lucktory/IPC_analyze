@@ -62,31 +62,31 @@ export default async function PropiedadesPage() {
           <p className="text-[12px] text-slate mt-0.5">Propiedades ocupadas primero, luego vacantes</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px] min-w-[860px]">
-            <thead>
+          <table className="w-full text-[13px] min-w-[860px] border-collapse">
+            <thead className="bg-cream-2/60">
               <tr className="border-b border-line">
-                <th className="text-left  px-5 py-2.5 label-cap font-medium">Dirección</th>
-                <th className="text-left  px-5 py-2.5 label-cap font-medium">Tipo</th>
-                <th className="text-left  px-5 py-2.5 label-cap font-medium">Propietario</th>
-                <th className="text-left  px-5 py-2.5 label-cap font-medium">Inquilino</th>
-                <th className="text-right px-5 py-2.5 label-cap font-medium">Alquiler</th>
-                <th className="text-left  px-5 py-2.5 label-cap font-medium">Estado</th>
+                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Dirección</th>
+                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Tipo</th>
+                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Propietario</th>
+                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Inquilino</th>
+                <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Alquiler</th>
+                <th className="text-left  px-4 py-1.5 label-cap font-medium">Estado</th>
               </tr>
             </thead>
             <tbody>
               {sortedProps.map((p, idx) => (
                 <tr
                   key={p.id}
-                  className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${p.isVacant ? 'opacity-65' : ''} hover:bg-cream-2 transition-colors`}
+                  className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${p.isVacant ? 'opacity-65' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}
                 >
-                  <td className="px-5 py-3 text-ink font-medium">{cleanAddress(p.address)}</td>
-                  <td className="px-5 py-3 text-slate-dark">{TYPE_LABEL[p.propertyType] ?? p.propertyType}</td>
-                  <td className="px-5 py-3 text-slate-dark">{p.landlord ?? <span className="text-slate/50">—</span>}</td>
-                  <td className="px-5 py-3 text-slate-dark">{p.tenant ?? <span className="text-slate/50">—</span>}</td>
-                  <td className="px-5 py-3 text-right tabular-nums text-ink">
+                  <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">{cleanAddress(p.address)}</td>
+                  <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{TYPE_LABEL[p.propertyType] ?? p.propertyType}</td>
+                  <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{p.landlord ?? <span className="text-slate/50">—</span>}</td>
+                  <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{p.tenant ?? <span className="text-slate/50">—</span>}</td>
+                  <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">
                     {p.currentRent > 0 ? fmt(p.currentRent) : <span className="text-slate/50">—</span>}
                   </td>
-                  <td className="px-5 py-3">
+                  <td className="px-4 py-1.5">
                     {p.isVacant
                       ? <Badge tone="danger">Vacante</Badge>
                       : <Badge tone="success">Ocupada</Badge>}
