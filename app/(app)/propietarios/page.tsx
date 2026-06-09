@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { listLandlords } from '@/lib/entities/queries'
 
@@ -58,7 +59,11 @@ export default async function PropietariosPage() {
             <tbody>
               {landlords.map((l, idx) => (
                 <tr key={l.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors`}>
-                  <td className="px-5 py-3 text-ink font-medium">{l.name}</td>
+                  <td className="px-5 py-3 text-ink font-medium">
+                    <Link href={`/propietarios/${l.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
+                      {l.name}
+                    </Link>
+                  </td>
                   <td className="px-5 py-3 text-slate-dark tabular-nums">{l.dniOrCuit ?? <span className="text-slate/50">—</span>}</td>
                   <td className="px-5 py-3 text-slate-dark tabular-nums">{l.phone ?? <span className="text-slate/50">—</span>}</td>
                   <td className="px-5 py-3 text-right tabular-nums text-ink">{l.contractCount}</td>
