@@ -12,6 +12,27 @@ export const revalidate = 0
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
 
+// Próximo aumento: same logic as in the contracts list — keeps both views consistent.
+const CADENCE_MONTHS: Record<string, number> = {
+  mensual: 1, bimestral: 2, trimestral: 3, cuatrimestral: 4, semestral: 6, anual: 12,
+}
+function computeNextAdjustment(startDate: string, cadence: string, status: string): string | null {
+  if (status !== 'active') return null
+  const months = CADENCE_MONTHS[cadence]
+  if (!months) return null
+  const today = new Date()
+  const next  = new Date(startDate)
+  let safety  = 1000
+  while (next <= today && safety-- > 0) next.setMonth(next.getMonth() + months)
+  return safety > 0 ? next.toISOString().slice(0, 10) : null
+}
+const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+const fmtMonthYear = (s: string) => {
+  const d = new Date(s)
+  return `${MONTHS_ES[d.getMonth()]} ${d.getFullYear()}`
+}
+const daysUntil = (s: string) => Math.round((new Date(s).getTime() - Date.now()) / 86400000)
+
 const PERIOD_LABEL = (s: string) => {
   const [y, m] = s.split('-')
   const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -41,6 +62,7 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
 
   const primaryTenant   = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
   const topLandlord     = contract.landlords.slice().sort((a, b) => b.ownershipPct - a.ownershipPct)[0]
+  const nextAdjustment  = computeNextAdjustment(contract.startDate, contract.cadence, contract.status)
 
   // Commission percentage applied (for display)
   const commissionPct = embudo.totalIn > 0 ? (embudo.commissionTotal / embudo.totalIn) * 100 : 0
@@ -77,6 +99,10 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
           <Meta label="Día pago" value={contract.paymentDay.toString()} />
         </div>
       </section>
+
+      {/* Próximo aumento callout — matches the "PROX. AUMENTO MAYO 2026"
+         reminders Alejandro stuffs into the INQUILINOS cell of his ledger. */}
+      {nextAdjustment && <NextAdjustmentCallout date={nextAdjustment} cadence={contract.cadence} />}
 
       {/* Period filter */}
       {periods.length > 1 && (
@@ -257,3 +283,27 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function cap(s: string) { return s ? s[0].toUpperCase() + s.slice(1) : s }
+
+function NextAdjustmentCallout({ date, cadence }: { date: string; cadence: string }) {
+  const days = daysUntil(date)
+  const soon = days <= 30
+  return (
+    <section
+      className={[
+        'mt-6 rounded border shadow-card p-4 flex items-center justify-between gap-4 flex-wrap',
+        soon ? 'bg-cream-2 border-ink/30' : 'bg-paper border-line',
+      ].join(' ')}
+    >
+      <div className="flex items-baseline gap-3">
+        <span className="label-cap">Próximo aumento</span>
+        <span className={`font-display text-[18px] ${soon ? 'text-ink font-medium' : 'text-slate-dark'} tabular-nums`}>
+          {fmtMonthYear(date)}
+        </span>
+        <span className="text-[12px] text-slate">
+          ({days <= 0 ? 'vencido' : days === 1 ? 'mañana' : `en ${days} días`})
+        </span>
+      </div>
+      <span className="text-[11px] text-slate capitalize">según cadencia {cadence}</span>
+    </section>
+  )
+}
