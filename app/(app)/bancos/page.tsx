@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { listBanks, listBankAccounts } from '@/lib/entities/queries'
@@ -59,7 +60,11 @@ export default async function BancosPage() {
               <tbody>
                 {accounts.map((a, idx) => (
                   <tr key={a.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors`}>
-                    <td className="px-5 py-3 text-ink font-medium">{a.alias}</td>
+                    <td className="px-5 py-3 text-ink font-medium">
+                      <Link href={`/bancos/${a.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
+                        {a.alias}
+                      </Link>
+                    </td>
                     <td className="px-5 py-3 text-slate-dark">{a.bankName}</td>
                     <td className="px-5 py-3 text-slate-dark">{a.accountType}</td>
                     <td className="px-5 py-3 text-slate-dark tabular-nums">{a.cbu ?? <span className="text-slate/50">—</span>}</td>
