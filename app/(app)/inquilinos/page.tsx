@@ -1,32 +1,83 @@
+import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
-import { listTenants } from '@/lib/entities/queries'
+import { FilterPill } from '@/components/ui/FilterPill'
+import { listTenants, type TenantRow } from '@/lib/entities/queries'
 
 export const revalidate = 0
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
-export default async function InquilinosPage() {
-  const tenants = await listTenants()
+type Tipo = 'todos' | 'con_contrato' | 'sin_contrato' | 'sin_telefono'
 
-  const total           = tenants.length
-  const withContract    = tenants.filter(t => t.contractCount > 0).length
-  const withPhone       = tenants.filter(t => t.phone).length
-  const totalRent       = tenants.reduce((s, t) => s + t.monthlyRent, 0)
+interface PageProps {
+  searchParams: Promise<{
+    tipo?: string
+    q?:    string
+  }>
+}
+
+export default async function InquilinosPage({ searchParams }: PageProps) {
+  const sp   = await searchParams
+  const tipo = (sp.tipo as Tipo) ?? 'todos'
+  const q    = sp.q?.trim() ?? ''
+
+  const all  = await listTenants()
+
+  const match = (t: TenantRow, kind: Tipo) => {
+    switch (kind) {
+      case 'con_contrato':  return t.contractCount > 0
+      case 'sin_contrato':  return t.contractCount === 0
+      case 'sin_telefono':  return !t.phone
+      default:              return true
+    }
+  }
+
+  const counts = {
+    todos:         all.length,
+    con_contrato:  all.filter(t => match(t, 'con_contrato')).length,
+    sin_contrato:  all.filter(t => match(t, 'sin_contrato')).length,
+    sin_telefono:  all.filter(t => match(t, 'sin_telefono')).length,
+  }
+
+  let rows = all.filter(t => match(t, tipo))
+  if (q) {
+    const ql = q.toLowerCase()
+    rows = rows.filter(t =>
+      t.name.toLowerCase().includes(ql) ||
+      (t.dni?.toLowerCase().includes(ql) ?? false) ||
+      (t.phone?.toLowerCase().includes(ql) ?? false),
+    )
+  }
+
+  const totalRent      = all.reduce((s, t) => s + t.monthlyRent, 0)
+  const withPhone      = counts.todos - counts.sin_telefono
 
   const kpis = [
-    { label: 'Total inquilinos', value: total.toString(),         delta: 'en cartera',                        tone: 'neutral'  as const },
-    { label: 'Con contrato',     value: withContract.toString(),  delta: `${total - withContract} sin contrato actual`, tone: 'neutral' as const },
-    { label: 'Con teléfono',     value: `${withPhone} / ${total}`, delta: 'datos de contacto',                tone: 'neutral'  as const },
+    { label: 'Total inquilinos', value: counts.todos.toString(),             delta: 'en cartera',                      tone: 'neutral'  as const },
+    { label: 'Con contrato',     value: counts.con_contrato.toString(),       delta: `${counts.sin_contrato} sin contrato actual`, tone: 'neutral' as const },
+    { label: 'Con teléfono',     value: `${withPhone} / ${counts.todos}`,     delta: 'datos de contacto',             tone: 'neutral'  as const },
     { label: 'Alquiler total',   value: '$' + (totalRent / 1_000_000).toFixed(1) + ' M', delta: 'suma de alquileres activos', tone: 'positive' as const },
   ]
+
+  const buildHref = (overrides: Partial<{ tipo: Tipo; q: string }>) => {
+    const params = new URLSearchParams()
+    const merged = { tipo, q, ...overrides }
+    if (merged.tipo && merged.tipo !== 'todos') params.set('tipo', merged.tipo)
+    if (merged.q)                                params.set('q',    merged.q)
+    const qs = params.toString()
+    return qs ? `/inquilinos?${qs}` : '/inquilinos'
+  }
 
   return (
     <>
       <StickyHeader>
         <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
           <p className="text-[13px] text-slate-dark">
-            <strong className="text-ink font-medium">Inquilinos</strong> · {total} en cartera
+            <strong className="text-ink font-medium">Inquilinos</strong> ·{' '}
+            {rows.length === counts.todos
+              ? `${counts.todos} en cartera`
+              : `${rows.length} de ${counts.todos} filtrados`}
           </p>
           <p className="label-cap text-slate">Datos en vivo · Mayo 2026</p>
         </div>
@@ -38,39 +89,87 @@ export default async function InquilinosPage() {
         </div>
       </StickyHeader>
 
+      {/* FILTER STRIP */}
+      <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="label-cap text-slate mr-1">Tipo</span>
+          <FilterPill href={buildHref({ tipo: 'todos' })}        label="Todos"        count={counts.todos}        active={tipo === 'todos'} />
+          <FilterPill href={buildHref({ tipo: 'con_contrato' })} label="Con contrato" count={counts.con_contrato} active={tipo === 'con_contrato'} />
+          <FilterPill href={buildHref({ tipo: 'sin_contrato' })} label="Sin contrato" count={counts.sin_contrato} active={tipo === 'sin_contrato'} />
+          <FilterPill href={buildHref({ tipo: 'sin_telefono' })} label="Sin teléfono" count={counts.sin_telefono} active={tipo === 'sin_telefono'} />
+        </div>
+
+        <form className="mt-4 flex flex-wrap items-end gap-3" method="get">
+          {tipo && tipo !== 'todos' && <input type="hidden" name="tipo" value={tipo} />}
+
+          <label className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+            <span className="label-cap">Búsqueda</span>
+            <input
+              type="text"
+              name="q"
+              defaultValue={q}
+              placeholder="Buscar por nombre, DNI o teléfono…"
+              className="h-9 px-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
+            />
+          </label>
+
+          <button
+            type="submit"
+            className="h-9 px-4 bg-ink text-paper rounded text-[12px] font-medium hover:opacity-90 transition-opacity"
+          >
+            Filtrar
+          </button>
+
+          {q && (
+            <Link
+              href={buildHref({ q: '' })}
+              className="h-9 inline-flex items-center px-3 text-[12px] text-slate hover:text-ink transition-colors"
+            >
+              Limpiar
+            </Link>
+          )}
+        </form>
+      </section>
+
       <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
         <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h2 className="font-display text-[15px] font-medium text-ink">Listado completo</h2>
+            <h2 className="font-display text-[15px] font-medium text-ink">Listado</h2>
             <p className="text-[12px] text-slate mt-0.5">Datos de contacto y contratos vigentes</p>
           </div>
-          <p className="text-[12px] text-slate">{total} inquilinos</p>
+          <p className="text-[12px] text-slate tabular-nums">{rows.length} resultado{rows.length === 1 ? '' : 's'}</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px] min-w-[720px] border-collapse">
-            <thead className="bg-cream-2/60">
-              <tr className="border-b border-line">
-                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Inquilino</th>
-                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Teléfono</th>
-                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Email</th>
-                <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">DNI</th>
-                <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Contratos</th>
-                <th className="text-right px-4 py-1.5 label-cap font-medium">Alquiler mensual</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tenants.map((t, idx) => (
-                <tr key={t.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}>
-                  <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">{t.name}</td>
-                  <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{t.phone ?? <span className="text-slate/50">—</span>}</td>
-                  <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{t.email ?? <span className="text-slate/50">—</span>}</td>
-                  <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{t.dni ?? <span className="text-slate/50">—</span>}</td>
-                  <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{t.contractCount}</td>
-                  <td className="px-4 py-1.5 text-right tabular-nums text-ink">{t.monthlyRent > 0 ? fmt(t.monthlyRent) : <span className="text-slate/50">—</span>}</td>
+          {rows.length > 0 ? (
+            <table className="w-full text-[13px] min-w-[720px] border-collapse">
+              <thead className="bg-cream-2/60">
+                <tr className="border-b border-line">
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Inquilino</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Teléfono</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Email</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">DNI</th>
+                  <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Contratos</th>
+                  <th className="text-right px-4 py-1.5 label-cap font-medium">Alquiler mensual</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((t, idx) => (
+                  <tr key={t.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}>
+                    <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">{t.name}</td>
+                    <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{t.phone ?? <span className="text-slate/50">—</span>}</td>
+                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{t.email ?? <span className="text-slate/50">—</span>}</td>
+                    <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{t.dni ?? <span className="text-slate/50">—</span>}</td>
+                    <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{t.contractCount}</td>
+                    <td className="px-4 py-1.5 text-right tabular-nums text-ink">{t.monthlyRent > 0 ? fmt(t.monthlyRent) : <span className="text-slate/50">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-10 text-center">
+              <p className="text-[14px] text-slate">Ningún inquilino coincide con los filtros aplicados</p>
+            </div>
+          )}
         </div>
       </section>
     </>
