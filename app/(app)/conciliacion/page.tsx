@@ -1,11 +1,15 @@
 import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
+import { PrintButton } from '@/components/ui/PrintButton'
 import { listTransactionPeriods } from '@/lib/entities/queries'
 import {
   getReconciliationByDestination,
   type ReconciliationBucket,
 } from '@/lib/reconciliation/queries'
+
+// Slugify a bucket code into an anchor id (hyphens, lowercase, safe chars)
+const anchor = (code: string) => 'b-' + code.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
 export const revalidate = 0
 
@@ -60,7 +64,10 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
           <p className="text-[13px] text-slate-dark">
             <strong className="text-ink font-medium">Conciliación bancaria</strong> · {PERIOD_LABEL(period)}
           </p>
-          <p className="label-cap text-slate">Vista para conciliar contra extracto</p>
+          <div className="flex items-center gap-3">
+            <p className="label-cap text-slate hidden sm:block">Vista para conciliar contra extracto</p>
+            <PrintButton label="Imprimir" />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -68,6 +75,29 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
             <KPICard key={k.label} label={k.label} value={k.value} delta={k.delta} deltaTone={k.tone} />
           ))}
         </div>
+
+        {/* Quick-jump nav — only shown when there are buckets */}
+        {buckets.length > 0 && (
+          <div className="mt-4 flex items-center gap-2 flex-wrap print:hidden">
+            <span className="label-cap text-slate mr-1">Saltar a</span>
+            {buckets.map(b => (
+              <a
+                key={b.code}
+                href={`#${anchor(b.code)}`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-line bg-cream-2 text-slate-dark hover:bg-cream hover:border-slate/30 text-[11px] font-medium transition-colors"
+              >
+                {b.label}
+                <span className="text-slate tabular-nums">{b.count}</span>
+              </a>
+            ))}
+            <a
+              href="#resumen"
+              className="inline-flex items-center px-2.5 py-1 rounded-full border border-ink bg-ink text-paper hover:opacity-90 text-[11px] font-medium transition-opacity"
+            >
+              Resumen ↓
+            </a>
+          </div>
+        )}
       </StickyHeader>
 
       {/* Period filter */}
@@ -105,12 +135,12 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
         </section>
       ) : (
         <div className="mt-6 space-y-6">
-          {buckets.map(b => <BucketSection key={b.code} b={b} />)}
+          {buckets.map(b => <BucketSection key={b.code} b={b} anchorId={anchor(b.code)} />)}
         </div>
       )}
 
       {buckets.length > 0 && (
-        <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
+        <section id="resumen" className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden scroll-mt-32">
           <div className="px-5 py-4 border-b border-line">
             <h2 className="font-display text-[15px] font-medium text-ink">Resumen general</h2>
             <p className="text-[12px] text-slate mt-0.5">
@@ -139,9 +169,9 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   )
 }
 
-function BucketSection({ b }: { b: ReconciliationBucket }) {
+function BucketSection({ b, anchorId }: { b: ReconciliationBucket; anchorId: string }) {
   return (
-    <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
+    <section id={anchorId} className="bg-paper border border-line rounded shadow-card overflow-hidden scroll-mt-32 print:break-inside-avoid">
       <div className="px-5 py-4 border-b border-line flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-display text-[15px] font-medium text-ink">{b.label}</h2>

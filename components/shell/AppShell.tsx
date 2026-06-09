@@ -34,7 +34,7 @@ export function AppShell({ children, userEmail }: AppShellProps) {
       {/* Sidebar: relative position on lg+, fixed drawer below. */}
       <aside
         className={[
-          'fixed lg:relative inset-y-0 left-0 z-50',
+          'fixed lg:relative inset-y-0 left-0 z-50 print:hidden',
           'w-[240px] shrink-0 bg-ink text-paper flex flex-col',
           'transition-transform duration-200 ease-out',
           open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
@@ -54,9 +54,11 @@ export function AppShell({ children, userEmail }: AppShellProps) {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar pendientes={3} onMenuClick={() => setOpen(true)} />
-        <main className="flex-1 overflow-auto bg-watermark">
-          <div className="max-w-shell mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8">
+        <div className="print:hidden">
+          <TopBar pendientes={3} onMenuClick={() => setOpen(true)} />
+        </div>
+        <main className="flex-1 overflow-auto bg-watermark print:overflow-visible print:bg-paper">
+          <div className="max-w-shell mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8 print:max-w-none print:px-0 print:py-0">
             {children}
           </div>
         </main>

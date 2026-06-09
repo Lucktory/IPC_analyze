@@ -72,3 +72,16 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   background-image: url('/watermark.svg');
   background-repeat: repeat;
 }
+
+/* Print mode — strip background, watermark, and animations; force a paper
+   look for hard-copy reconciliation handoffs. */
+@media print {
+  @page { margin: 12mm; }
+  body { background: var(--paper); font-size: 11px; }
+  .bg-watermark { background-image: none; }
+  .shadow-card { box-shadow: none !important; }
+  /* Avoid splitting tables across page breaks where avoidable */
+  table { page-break-inside: auto; }
+  tr    { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+}
