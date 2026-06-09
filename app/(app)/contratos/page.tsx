@@ -102,10 +102,36 @@ export default async function ContratosPage({ searchParams }: PageProps) {
 
   const hasSecondaryFilter = filters.q || (filters.cadencia && filters.cadencia !== 'todas')
 
+  // Short summary of currently active filters — shown in the condensed header
+  const activeBits: string[] = []
+  if (filters.estado === 'activo')     activeBits.push('Activos')
+  if (filters.estado === 'por_vencer') activeBits.push('Por vencer')
+  if (filters.estado === 'rescindido') activeBits.push('Rescindidos')
+  if (filters.cadencia && filters.cadencia !== 'todas') activeBits.push(cap(filters.cadencia))
+  const activeSummary = activeBits.join(' · ')
+
   return (
     <>
-      <StickyHeader>
-        <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
+      <StickyHeader
+        condensed={
+          <div className="flex items-center justify-between gap-3 py-1">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <strong className="text-ink text-[13px] font-medium shrink-0">Contratos</strong>
+              <span className="text-[11px] text-slate truncate">
+                {rows.length === counts.todos ? `${counts.todos}` : `${rows.length}/${counts.todos}`}
+                {activeSummary && ` · ${activeSummary}`}
+              </span>
+            </div>
+            <div className="w-40 sm:w-72 shrink-0">
+              <AutoSearchInput
+                initialValue={filters.q ?? ''}
+                placeholder="Buscar…"
+              />
+            </div>
+          </div>
+        }
+      >
+        <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <p className="text-[13px] text-slate-dark">
             <strong className="text-ink font-medium">Contratos</strong> ·{' '}
             {rows.length === counts.todos
@@ -115,15 +141,23 @@ export default async function ContratosPage({ searchParams }: PageProps) {
           <p className="label-cap text-slate">Datos en vivo · Mayo 2026</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {kpis.map((k) => (
             <KPICard key={k.label} {...k} deltaTone={k.tone} />
           ))}
         </div>
+
+        {/* Search — always visible in the sticky header */}
+        <div className="mt-3 max-w-2xl">
+          <AutoSearchInput
+            initialValue={filters.q ?? ''}
+            placeholder="Buscar por inquilino o propietario… (se aplica al instante)"
+          />
+        </div>
       </StickyHeader>
 
-      {/* FILTER STRIP — pills (no dropdowns) + auto-applying search */}
-      <section className="mt-6 bg-paper border border-line rounded shadow-card p-4 sm:p-5">
+      {/* FILTER STRIP — only the pill rows now; search lives in the header */}
+      <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
         {/* Rescindidos — only state without a KPI card, surfaced as a small pill row */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="label-cap text-slate mr-1">Estado</span>
@@ -134,11 +168,10 @@ export default async function ContratosPage({ searchParams }: PageProps) {
             count={counts.rescindido}
             active={filters.estado === 'rescindido'}
           />
-          <span className="text-[11px] text-slate ml-1">— el resto se elige tocando una tarjeta arriba</span>
         </div>
 
-        {/* Cadencia pills — replaces the dropdown */}
-        <div className="mt-4 flex items-center gap-2 flex-wrap">
+        {/* Cadencia pills */}
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
           <span className="label-cap text-slate mr-1">Cadencia</span>
           <FilterPill href={buildHref({ cadencia: 'todas' })} label="Todas" active={!filters.cadencia || filters.cadencia === 'todas'} />
           {CADENCES.map(c => (
@@ -150,15 +183,6 @@ export default async function ContratosPage({ searchParams }: PageProps) {
               active={filters.cadencia === c}
             />
           ))}
-        </div>
-
-        {/* Search — auto-applies as you type (300ms debounce) */}
-        <div className="mt-4 flex flex-col gap-1.5 max-w-xl">
-          <span className="label-cap">Búsqueda</span>
-          <AutoSearchInput
-            initialValue={filters.q ?? ''}
-            placeholder="Buscar por inquilino o propietario… (se aplica al instante)"
-          />
         </div>
 
         {hasSecondaryFilter && (

@@ -22,7 +22,7 @@ export function KPICard({ label, value, delta, deltaTone = 'neutral', href, clea
   const target = active && clearHref ? clearHref : href
 
   const baseClass = [
-    'relative bg-paper border rounded p-5 shadow-card transition-all duration-200',
+    'relative bg-paper border rounded p-3 sm:p-4 shadow-card transition-all duration-200',
     active
       ? 'border-ink ring-1 ring-success/30'
       : target
@@ -33,18 +33,18 @@ export function KPICard({ label, value, delta, deltaTone = 'neutral', href, clea
   const content = (
     <>
       {active && (
-        <span className="absolute top-3 right-3 inline-flex items-center justify-center w-5 h-5 rounded-full bg-success/15">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-success">
+        <span className="absolute top-2 right-2 inline-flex items-center justify-center w-4 h-4 rounded-full bg-success/15">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-success">
             <polyline points="20 6 9 17 4 12" />
           </svg>
         </span>
       )}
-      <p className="label-cap">{label}</p>
-      <p className="font-display text-[32px] leading-none font-semibold text-ink mt-3 tabular-nums tracking-tight">
+      <p className="label-cap pr-5">{label}</p>
+      <p className="font-display text-[22px] sm:text-[24px] leading-none font-semibold text-ink mt-2 tabular-nums tracking-tight">
         {value}
       </p>
       {delta && (
-        <p className={`text-[12px] mt-3 font-medium ${toneClass[deltaTone]}`}>{delta}</p>
+        <p className={`text-[11px] mt-2 font-medium ${toneClass[deltaTone]}`}>{delta}</p>
       )}
     </>
   )
