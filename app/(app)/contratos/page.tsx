@@ -6,38 +6,8 @@ import { StickyHeader } from '@/components/ui/StickyHeader'
 import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { ClickableRow } from '@/components/ui/ClickableRow'
-import { listContracts, type ContractListFilters, type UrgencyTier, type ContractRow } from '@/lib/entities/queries'
-
-// Urgency styling table — keeps the per-row class strings in one place
-// rather than scattered through the JSX. Tints doubled (5% → 10%) per
-// client feedback that the previous values were too faint to scan.
-const URGENCY_STYLES: Record<UrgencyTier, { row: string; borderLeft: string; cellTint: string }> = {
-  critical: {
-    row:        'bg-danger/[0.10] hover:bg-danger/[0.20]',
-    borderLeft: 'border-l-danger',
-    cellTint:   'bg-danger/[0.20]',
-  },
-  warning:  {
-    row:        'bg-warn/[0.10] hover:bg-warn/[0.18]',
-    borderLeft: 'border-l-warn',
-    cellTint:   'bg-warn/[0.18]',
-  },
-  recent:   {
-    row:        'bg-info/[0.08] hover:bg-info/[0.16]',
-    borderLeft: 'border-l-info',
-    cellTint:   '',
-  },
-  upcoming: {
-    row:        'bg-violet-500/[0.10] hover:bg-violet-500/[0.18]',
-    borderLeft: 'border-l-violet-600',
-    cellTint:   '',
-  },
-  ok: {
-    row:        '',
-    borderLeft: 'border-l-transparent',
-    cellTint:   '',
-  },
-}
+import { listContracts, type ContractListFilters, type ContractRow } from '@/lib/entities/queries'
+import { URGENCY_STYLES } from '@/lib/contract/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => {
@@ -280,7 +250,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
                         'hover:bg-cream-2 transition-colors border-b border-line/30',
                       ].join(' ')}
                     >
-                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[3px] ${u.borderLeft} border-r border-line/30`}>
+                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>
                         {c.primaryTenant}
                       </td>
                       <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{c.primaryLandlord}</td>

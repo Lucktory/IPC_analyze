@@ -230,7 +230,8 @@ export async function listBanks(): Promise<BankRow[]> {
 // ---------------------------------------------------------------------------
 // CONTRACTS  (the spine of the business)
 // ---------------------------------------------------------------------------
-export type UrgencyTier = 'critical' | 'warning' | 'recent' | 'upcoming' | 'ok'
+import { computeUrgency, URGENCY_RANK, type UrgencyTier } from '@/lib/contract/urgency'
+export type { UrgencyTier }
 
 export interface ContractRow {
   id:              string
@@ -278,60 +279,6 @@ function computeNextAdjustment(startDate: string, cadence: string, status: strin
   return next.toISOString().slice(0, 10)
 }
 
-// ---------------------------------------------------------------------------
-// Urgency audit — what the encargada's eye should be pulled to
-// ---------------------------------------------------------------------------
-interface UrgencyInputs {
-  status:            string
-  endDate:           string
-  hasRentThisMonth:  boolean
-  hasNoteThisMonth:  boolean
-  recentlyTouched:   boolean
-  nextAdjustment:    string | null
-  today:             Date
-  in30days:          Date
-  in60days:          Date
-}
-
-function computeUrgency(i: UrgencyInputs): { urgency: UrgencyTier; urgencyReasons: string[] } {
-  const reasons: string[] = []
-
-  if (i.status !== 'active') {
-    return { urgency: 'ok', urgencyReasons: [] }
-  }
-
-  const end = new Date(i.endDate)
-  const venceSoon30  = end >= i.today && end <= i.in30days
-  const venceSoon60  = end >  i.in30days && end <= i.in60days
-  const noRent       = !i.hasRentThisMonth
-  const noNote       = !i.hasNoteThisMonth
-
-  if (venceSoon30)               reasons.push('vence en ≤30 días')
-  if (venceSoon60)               reasons.push('vence en 31-60 días')
-  if (noRent)                    reasons.push('sin RENT_IN este mes')
-  if (noNote)                    reasons.push('sin nota del período')
-
-  // Tier ladder. Critical wins over warning, etc.
-  if (venceSoon30)        return { urgency: 'critical', urgencyReasons: reasons }
-  if (noRent && noNote)   return { urgency: 'critical', urgencyReasons: reasons }
-  if (venceSoon60)        return { urgency: 'warning',  urgencyReasons: reasons }
-  if (noRent || noNote)   return { urgency: 'warning',  urgencyReasons: reasons }
-
-  if (i.recentlyTouched)  return { urgency: 'recent',   urgencyReasons: ['datos actualizados en las últimas 48 hs'] }
-
-  if (i.nextAdjustment) {
-    const adj = new Date(i.nextAdjustment)
-    if (adj >= i.today && adj <= i.in30days) {
-      return { urgency: 'upcoming', urgencyReasons: ['próximo aumento en ≤30 días'] }
-    }
-  }
-
-  return { urgency: 'ok', urgencyReasons: [] }
-}
-
-const URGENCY_RANK: Record<UrgencyTier, number> = {
-  critical: 0, warning: 1, recent: 2, upcoming: 3, ok: 4,
-}
 
 export interface ContractListFilters {
   estado?:     'todos' | 'activo' | 'por_vencer' | 'rescindido'
@@ -418,14 +365,14 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
     const hasNoteNow     = !!hasNote.get(cId)
     const recentlyTouchedNow = !!recentTxn.get(cId) || !!recentNote.get(cId)
 
-    const { urgency, urgencyReasons } = computeUrgency({
+    const { urgency, reasons: urgencyReasons } = computeUrgency({
       status,
       endDate,
       hasRentThisMonth: hasRentNow,
       hasNoteThisMonth: hasNoteNow,
       recentlyTouched:  recentlyTouchedNow,
       nextAdjustment:   nextAdj,
-      today, in30days, in60days,
+      today,
     })
 
     return {

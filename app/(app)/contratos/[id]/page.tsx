@@ -9,6 +9,7 @@ import {
 import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
+import { computeUrgency, URGENCY_LABEL, type UrgencyTier } from '@/lib/contract/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -71,6 +72,20 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
   // Commission percentage applied (for display)
   const commissionPct = embudo.totalIn > 0 ? (embudo.commissionTotal / embudo.totalIn) * 100 : 0
 
+  // Same audit the list page runs, with the data we already have on this page.
+  // Note: "recently touched" only checks the note's updated_at — we don't have
+  // bank_date per transaction in the embudo result. Good enough for the badge.
+  const noteUpdatedRecently = !!note.updatedAt &&
+    (Date.now() - new Date(note.updatedAt).getTime()) < 48 * 3600000
+  const audit = computeUrgency({
+    status:           contract.status,
+    endDate:          contract.endDate,
+    hasRentThisMonth: embudo.rent > 0,
+    hasNoteThisMonth: !!note.body.trim(),
+    recentlyTouched:  noteUpdatedRecently,
+    nextAdjustment,
+  })
+
   return (
     <>
       <BreadcrumbTitle name={primaryTenant?.name ?? 'Detalle'} />
@@ -91,8 +106,14 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
             {contract.property?.address ?? '(sin dirección)'} · Propietario: {topLandlord?.name ?? '—'}
           </p>
         </div>
-        <StatusBadge status={contract.status} />
+        <RowStatusBadge status={contract.status} urgency={audit.urgency} hasRent={embudo.rent > 0} hasNote={!!note.body.trim()} />
       </div>
+
+      {/* Audit banner — matches what made the row red on the list. Only shown
+         when there's actually something pending. */}
+      {(audit.urgency === 'critical' || audit.urgency === 'warning') && (
+        <AuditBanner urgency={audit.urgency} reasons={audit.reasons} />
+      )}
 
       {/* Contract metadata strip */}
       <section className="bg-paper border border-line rounded shadow-card p-5">
@@ -301,13 +322,62 @@ function Divider() {
   return <div className="my-2 border-t border-line" />
 }
 
-function StatusBadge({ status }: { status: string }) {
-  switch (status) {
-    case 'active':     return <Badge tone="success">Activo</Badge>
-    case 'rescinded':  return <Badge tone="danger">Rescindido</Badge>
-    case 'ended':      return <Badge tone="neutral">Finalizado</Badge>
-    default:           return <Badge tone="neutral">{status}</Badge>
+/**
+ * Detail-page status badge. Same urgency-aware logic as the list — so what
+ * the client saw red on /contratos becomes "Sin pago" / "Vence pronto" /
+ * etc. here instead of a stale "Activo" green.
+ */
+function RowStatusBadge({ status, urgency, hasRent, hasNote }: {
+  status:   string
+  urgency:  UrgencyTier
+  hasRent:  boolean
+  hasNote:  boolean
+}) {
+  if (status === 'rescinded') return <Badge tone="danger">Rescindido</Badge>
+  if (status === 'ended')     return <Badge tone="neutral">Finalizado</Badge>
+
+  switch (urgency) {
+    case 'critical':
+      if (!hasRent) return <Badge tone="danger">Sin pago</Badge>
+      return <Badge tone="danger">Vence pronto</Badge>
+    case 'warning':
+      if (!hasRent) return <Badge tone="warn">Sin pago</Badge>
+      if (!hasNote) return <Badge tone="warn">Sin nota</Badge>
+      return <Badge tone="warn">Por vencer</Badge>
+    case 'recent':
+      return <Badge tone="info">Activo · cambios</Badge>
+    case 'upcoming':
+      return <Badge tone="info">Aumento próximo</Badge>
+    default:
+      return <Badge tone="success">Activo</Badge>
   }
+}
+
+/**
+ * Audit banner — surfaces the urgency reasons on the detail page, mirroring
+ * the row tint from /contratos. Premium feel: subtle tint + thick left
+ * border in deep jewel tone, list of reasons in slate-dark.
+ */
+function AuditBanner({ urgency, reasons }: { urgency: 'critical' | 'warning'; reasons: string[] }) {
+  const palette = urgency === 'critical'
+    ? { border: 'border-l-red-900',    bg: 'bg-red-900/[0.07]',   text: 'text-red-900',    dot: 'bg-red-900',    label: 'Atención requerida' }
+    : { border: 'border-l-amber-800',  bg: 'bg-amber-800/[0.06]', text: 'text-amber-800',  dot: 'bg-amber-800',  label: 'Verificar' }
+
+  return (
+    <section className={`mt-6 ${palette.bg} border border-line border-l-[4px] ${palette.border} rounded shadow-card p-4 sm:p-5`}>
+      <div className="flex items-start gap-3">
+        <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${palette.dot}`} aria-hidden />
+        <div className="flex-1 min-w-0">
+          <p className={`label-cap ${palette.text}`}>{palette.label}</p>
+          <ul className="mt-2 space-y-1">
+            {reasons.map((r, i) => (
+              <li key={i} className="text-[13px] text-slate-dark leading-snug">{r}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 function cap(s: string) { return s ? s[0].toUpperCase() + s.slice(1) : s }
