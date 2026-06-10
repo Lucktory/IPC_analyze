@@ -73,10 +73,10 @@ export function TopBar({
         </div>
       </div>
 
-      <button
-        type="button"
+      <Link
+        href="/pendientes"
         className="relative h-9 px-2 sm:px-3 rounded inline-flex items-center gap-1.5 sm:gap-2 text-slate-dark hover:bg-cream-2 transition-colors group self-center"
-        title={`${pendientes} acciones pendientes`}
+        title={pendientes === 0 ? 'Sin pendientes' : `${pendientes} acciones pendientes`}
       >
         <Bell className="w-[18px] h-[18px]" strokeWidth={1.5} />
         <span className="hidden sm:inline text-[12px] font-medium text-slate-dark group-hover:text-ink transition-colors">
@@ -87,7 +87,7 @@ export function TopBar({
             {pendientes}
           </span>
         )}
-      </button>
+      </Link>
 
       <div className="flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-line self-center">
         <div className="w-8 h-8 rounded-full bg-ink text-paper flex items-center justify-center font-display font-semibold text-[12px]">

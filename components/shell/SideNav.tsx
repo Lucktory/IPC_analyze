@@ -7,11 +7,12 @@ import { getSection } from '@/lib/sections'
 interface NavItem {
   to: string
   label: string
-  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile' | 'sheet'
+  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile' | 'sheet' | 'bell'
 }
 
 const mainItems: NavItem[] = [
   { to: '/dashboard',    label: 'Panel',         icon: 'dashboard'  },
+  { to: '/pendientes',   label: 'Pendientes',    icon: 'bell'       },
   { to: '/contratos',    label: 'Contratos',     icon: 'contracts'  },
   { to: '/propietarios', label: 'Propietarios',  icon: 'owners'     },
   { to: '/inquilinos',   label: 'Inquilinos',    icon: 'tenants'    },
@@ -112,6 +113,13 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
           <path d="M2.5 15 H17.5" />
           <path d="M7 3 V17" />
           <path d="M12 3 V17" />
+        </svg>
+      )
+    case 'bell':
+      return (
+        <svg {...common} strokeLinejoin="round">
+          <path d="M5 9 a5 5 0 0 1 10 0 v3 l1.5 2 H3.5 L5 12 Z" />
+          <path d="M8 15 a2 2 0 0 0 4 0" />
         </svg>
       )
   }

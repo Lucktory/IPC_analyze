@@ -15,6 +15,7 @@ export interface Section {
 
 export const SECTIONS: Section[] = [
   { path: '/dashboard',    label: 'Panel',         color: '#475569' },
+  { path: '/pendientes',   label: 'Pendientes',    color: '#DC2626' },
   { path: '/contratos',    label: 'Contratos',     color: '#0F766E' },
   { path: '/propietarios', label: 'Propietarios',  color: '#7C3AED' },
   { path: '/inquilinos',   label: 'Inquilinos',    color: '#0284C7' },
