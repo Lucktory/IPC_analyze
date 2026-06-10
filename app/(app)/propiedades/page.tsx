@@ -5,6 +5,7 @@ import { StickyHeader } from '@/components/ui/StickyHeader'
 import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listProperties, type PropertyRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/urgency'
 
@@ -199,8 +200,9 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
                   const tinted = !!u.row
                   const zebra  = tinted ? '' : (idx % 2 === 0 ? 'bg-cream/40' : '')
                   return (
-                    <tr
+                    <ClickableRow
                       key={p.id}
+                      href={`/propiedades/${p.id}`}
                       title={p.urgencyReasons.length ? p.urgencyReasons.join(' · ') : undefined}
                       className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
                     >
@@ -216,7 +218,7 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
                           ? <Badge tone="warn">Vacante</Badge>
                           : <Badge tone="success">Ocupada</Badge>}
                       </td>
-                    </tr>
+                    </ClickableRow>
                   )
                 })}
               </tbody>

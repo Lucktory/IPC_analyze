@@ -275,12 +275,29 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
   )
 }
 
+// Magnitude threshold for "noteworthy" amounts — above this, bump weight + slight glow.
+// Chosen ≈ median rent so big-ticket movements (renovations, deposits, large rentals)
+// stand out from the routine traffic.
+const LARGE_AMOUNT_THRESHOLD = 1_000_000
+
 function TxRow({ t, odd }: { t: TransactionRow; odd: boolean }) {
   const u = URGENCY_STYLES[t.urgency]
   const tinted   = !!u.row
   const zebra    = tinted ? '' : (odd ? 'bg-cream/40' : '')
   const cellTint = (t.urgency === 'critical' || t.urgency === 'warning')
   const bankDateMissing = cellTint && !t.bankDate ? u.cellTint : ''
+
+  // ── Monto visual effects ──────────────────────────────────────────────────
+  // Direction: ingreso (green tint + green text) vs egreso (red tint + red).
+  // Magnitude: bold + slightly larger font when above the LARGE_AMOUNT_THRESHOLD
+  // so the encargada's eye locks on big-ticket items.
+  const isIn  = t.direction === 'IN'
+  const isBig = t.amount >= LARGE_AMOUNT_THRESHOLD
+  const amountCellBg   = isIn ? 'bg-green-100' : 'bg-red-100'
+  const amountTextCol  = isIn ? 'text-green-900' : 'text-red-900'
+  const amountWeight   = isBig ? 'font-bold text-[14px]' : 'font-semibold text-[13px]'
+  const amountPrefix   = isIn ? '+ ' : '− '
+
   return (
     <tr
       title={t.urgencyReasons.length ? t.urgencyReasons.join(' · ') : undefined}
@@ -289,11 +306,11 @@ function TxRow({ t, odd }: { t: TransactionRow; odd: boolean }) {
       <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-l-[4px] ${u.borderLeft} border-r border-line/30 ${bankDateMissing}`}>{DATE_LABEL(t.bankDate)}</td>
       <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{PERIOD_LABEL(t.period)}</td>
       <td className="px-4 py-1.5 border-r border-line/30">
-        <Badge tone={t.direction === 'IN' ? 'success' : 'neutral'}>{t.typeLabel}</Badge>
+        <Badge tone={isIn ? 'success' : 'neutral'}>{t.typeLabel}</Badge>
       </td>
       <td className="px-4 py-1.5 text-ink border-r border-line/30">{t.tenantName ?? ''}</td>
-      <td className={`px-4 py-1.5 text-right tabular-nums font-medium border-r border-line/30 ${t.direction === 'IN' ? 'text-ink' : 'text-slate-dark'}`}>
-        {t.direction === 'IN' ? '+ ' : '− '}{fmt(t.amount)}
+      <td className={`px-4 py-1.5 text-right tabular-nums border-r border-line/30 ${amountCellBg} ${amountTextCol} ${amountWeight}`}>
+        {amountPrefix}{fmt(t.amount)}
       </td>
       <td className="px-4 py-1.5 text-slate text-[12px] truncate max-w-[280px]">
         {t.description ?? ''}
