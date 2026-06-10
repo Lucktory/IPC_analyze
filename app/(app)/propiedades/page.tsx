@@ -6,7 +6,7 @@ import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStr
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { listProperties, type PropertyRow } from '@/lib/entities/queries'
-import { URGENCY_STYLES } from '@/lib/urgency'
+import { URGENCY_STYLES, URGENCY_TEXT } from '@/lib/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
@@ -195,18 +195,21 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
               </thead>
               <tbody>
                 {sortedRows.map((p, idx) => {
-                  const u = URGENCY_STYLES[p.urgency]
+                  const u  = URGENCY_STYLES[p.urgency]
+                  const ut = URGENCY_TEXT[p.urgency]
+                  const tinted = !!u.row
+                  const zebra  = tinted ? '' : (idx % 2 === 0 ? 'bg-cream/40' : '')
                   return (
                     <tr
                       key={p.id}
                       title={p.urgencyReasons.length ? p.urgencyReasons.join(' · ') : undefined}
-                      className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${u.row} hover:bg-cream-2 transition-colors border-b border-line/30`}
+                      className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
                     >
-                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>{cleanAddress(p.address)}</td>
-                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{TYPE_LABEL[p.propertyType] ?? p.propertyType}</td>
-                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{p.landlord ?? ''}</td>
-                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{p.tenant ?? ''}</td>
-                      <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">
+                      <td className={`px-4 py-1.5 ${ut.onRow || 'text-ink'} font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>{cleanAddress(p.address)}</td>
+                      <td className={`px-4 py-1.5 border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{TYPE_LABEL[p.propertyType] ?? p.propertyType}</td>
+                      <td className={`px-4 py-1.5 border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{p.landlord ?? ''}</td>
+                      <td className={`px-4 py-1.5 border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{p.tenant ?? ''}</td>
+                      <td className={`px-4 py-1.5 text-right tabular-nums border-r border-line/30 ${ut.onRow || 'text-ink'}`}>
                         {p.currentRent > 0 ? fmt(p.currentRent) : ''}
                       </td>
                       <td className="px-4 py-1.5">

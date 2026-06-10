@@ -5,7 +5,13 @@ import type { Config } from 'tailwindcss'
 // Rationale documented in WORKLOG.md.
 
 export default {
-  content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  content: [
+    './app/**/*.{ts,tsx}',
+    './components/**/*.{ts,tsx}',
+    // lib/ holds the URGENCY_STYLES table — classes there must be scanned too,
+    // otherwise the row tints get stripped from the compiled CSS.
+    './lib/**/*.{ts,tsx}',
+  ],
   theme: {
     extend: {
       colors: {

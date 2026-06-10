@@ -21,24 +21,35 @@ export interface UrgencyStyle {
   cellTint:   string  // background tint for an empty audit cell inside the row
 }
 
+/**
+ * Saturated, high-contrast tints. The encargada's eye must catch these
+ * across the page. Pale -200 backgrounds didn't carry from the cream page
+ * background; jumping to -400/300 levels (orange/yellow Excel-style) gives
+ * the strong contrast the client asked for.
+ *
+ * Text color note: yellow needs DARK text (white fails contrast). Orange
+ * tolerates either; we keep dark for spreadsheet familiarity. The cell
+ * tint (deeper) pushes "sin pago" text to white on critical rows where
+ * red-on-orange would clash.
+ */
 export const URGENCY_STYLES: Record<UrgencyTier, UrgencyStyle> = {
   critical: {
-    row:        'bg-orange-200 hover:bg-orange-300',
-    borderLeft: 'border-l-orange-600',
-    cellTint:   'bg-orange-400',
+    row:        'bg-orange-400 hover:bg-orange-500',
+    borderLeft: 'border-l-orange-700',
+    cellTint:   'bg-orange-600',          // even deeper for the specific empty cell
   },
   warning: {
-    row:        'bg-yellow-200 hover:bg-yellow-300',
+    row:        'bg-yellow-300 hover:bg-yellow-400',
     borderLeft: 'border-l-yellow-600',
-    cellTint:   'bg-yellow-400',
+    cellTint:   'bg-yellow-500',
   },
   recent: {
-    row:        'bg-green-200 hover:bg-green-300',
+    row:        'bg-green-300 hover:bg-green-400',
     borderLeft: 'border-l-green-600',
     cellTint:   '',
   },
   upcoming: {
-    row:        'bg-sky-200 hover:bg-sky-300',
+    row:        'bg-sky-300 hover:bg-sky-400',
     borderLeft: 'border-l-sky-600',
     cellTint:   '',
   },
@@ -47,6 +58,19 @@ export const URGENCY_STYLES: Record<UrgencyTier, UrgencyStyle> = {
     borderLeft: 'border-l-transparent',
     cellTint:   '',
   },
+}
+
+/**
+ * Text-color overrides for content rendered INSIDE a tinted row/cell. Some
+ * combinations (red on orange, neutral red on dark cellTint) lose contrast;
+ * these classes restore it.
+ */
+export const URGENCY_TEXT: Record<UrgencyTier, { onRow: string; onCellTint: string }> = {
+  critical: { onRow: 'text-ink',  onCellTint: 'text-white' },
+  warning:  { onRow: 'text-ink',  onCellTint: 'text-ink'   },
+  recent:   { onRow: 'text-ink',  onCellTint: 'text-ink'   },
+  upcoming: { onRow: 'text-ink',  onCellTint: 'text-ink'   },
+  ok:       { onRow: '',          onCellTint: ''            },
 }
 
 export const URGENCY_RANK: Record<UrgencyTier, number> = {
