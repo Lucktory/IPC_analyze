@@ -1,19 +1,59 @@
 // ============================================================================
-// URGENCY — shared visual language across every list page.
+// URGENCY THEME — SINGLE SOURCE OF TRUTH
 //
-// Colors deliberately mirror what Alejandro's team uses in Excel today:
-//   ORANGE = special / new / immediate attention   (the AGUAISOL row)
-//   YELLOW = money issue / debt / saldo pendiente  (the DEBE SALDO cells)
-//   GREEN  = verified / documented / recently touched
-//   BLUE   = scheduled / upcoming event
-//   none   = routine, recedes
+// EDIT ONLY THIS BLOCK to change urgency colors everywhere.
+// Bump tone levels:
+//   100 → 200 = stronger
+//   100 → 50  = softer
+//   500 → 600 = deeper border (used as the eye-magnet stripe)
 //
-// Saturated -200 backgrounds (full opacity) so the tint reads against
-// cream/white pages. Cell-level tint uses -400 for higher contrast on the
-// specific empty audit fields.
+// Everything below builds from URGENCY_THEME — don't override at call sites.
 // ============================================================================
 
 export type UrgencyTier = 'critical' | 'warning' | 'recent' | 'upcoming' | 'ok'
+
+const URGENCY_THEME = {
+  critical: {
+    rowBg:      'bg-orange-100',        // soft tint for the whole row
+    rowBgHover: 'hover:bg-orange-200',  // deeper on hover
+    cellBg:     'bg-orange-200',        // deeper tint on the specific empty audit cell
+    border:     'border-l-orange-500',  // saturated 4px stripe — carries the signal
+    dot:        'bg-orange-500',
+    text:       'text-orange-900',
+    bannerBg:   'bg-orange-100',        // detail-page banner background
+  },
+  warning: {
+    rowBg:      'bg-yellow-100',
+    rowBgHover: 'hover:bg-yellow-200',
+    cellBg:     'bg-yellow-200',
+    border:     'border-l-yellow-500',
+    dot:        'bg-yellow-500',
+    text:       'text-yellow-900',
+    bannerBg:   'bg-yellow-100',
+  },
+  recent: {
+    rowBg:      'bg-green-100',
+    rowBgHover: 'hover:bg-green-200',
+    cellBg:     '',
+    border:     'border-l-green-500',
+    dot:        'bg-green-500',
+    text:       'text-green-900',
+    bannerBg:   'bg-green-100',
+  },
+  upcoming: {
+    rowBg:      'bg-sky-100',
+    rowBgHover: 'hover:bg-sky-200',
+    cellBg:     '',
+    border:     'border-l-sky-500',
+    dot:        'bg-sky-500',
+    text:       'text-sky-900',
+    bannerBg:   'bg-sky-100',
+  },
+}
+
+// ============================================================================
+// Generated style tables — DON'T edit, edit URGENCY_THEME above.
+// ============================================================================
 
 export interface UrgencyStyle {
   row:        string  // background tint for the <tr>
@@ -21,36 +61,25 @@ export interface UrgencyStyle {
   cellTint:   string  // background tint for an empty audit cell inside the row
 }
 
-/**
- * Saturated, high-contrast tints. The encargada's eye must catch these
- * across the page. Pale -200 backgrounds didn't carry from the cream page
- * background; jumping to -400/300 levels (orange/yellow Excel-style) gives
- * the strong contrast the client asked for.
- *
- * Text color note: yellow needs DARK text (white fails contrast). Orange
- * tolerates either; we keep dark for spreadsheet familiarity. The cell
- * tint (deeper) pushes "sin pago" text to white on critical rows where
- * red-on-orange would clash.
- */
 export const URGENCY_STYLES: Record<UrgencyTier, UrgencyStyle> = {
   critical: {
-    row:        'bg-orange-400 hover:bg-orange-500',
-    borderLeft: 'border-l-orange-700',
-    cellTint:   'bg-orange-600',          // even deeper for the specific empty cell
+    row:        `${URGENCY_THEME.critical.rowBg} ${URGENCY_THEME.critical.rowBgHover}`,
+    borderLeft: URGENCY_THEME.critical.border,
+    cellTint:   URGENCY_THEME.critical.cellBg,
   },
   warning: {
-    row:        'bg-yellow-300 hover:bg-yellow-400',
-    borderLeft: 'border-l-yellow-600',
-    cellTint:   'bg-yellow-500',
+    row:        `${URGENCY_THEME.warning.rowBg} ${URGENCY_THEME.warning.rowBgHover}`,
+    borderLeft: URGENCY_THEME.warning.border,
+    cellTint:   URGENCY_THEME.warning.cellBg,
   },
   recent: {
-    row:        'bg-green-300 hover:bg-green-400',
-    borderLeft: 'border-l-green-600',
+    row:        `${URGENCY_THEME.recent.rowBg} ${URGENCY_THEME.recent.rowBgHover}`,
+    borderLeft: URGENCY_THEME.recent.border,
     cellTint:   '',
   },
   upcoming: {
-    row:        'bg-sky-300 hover:bg-sky-400',
-    borderLeft: 'border-l-sky-600',
+    row:        `${URGENCY_THEME.upcoming.rowBg} ${URGENCY_THEME.upcoming.rowBgHover}`,
+    borderLeft: URGENCY_THEME.upcoming.border,
     cellTint:   '',
   },
   ok: {
@@ -58,19 +87,6 @@ export const URGENCY_STYLES: Record<UrgencyTier, UrgencyStyle> = {
     borderLeft: 'border-l-transparent',
     cellTint:   '',
   },
-}
-
-/**
- * Text-color overrides for content rendered INSIDE a tinted row/cell. Some
- * combinations (red on orange, neutral red on dark cellTint) lose contrast;
- * these classes restore it.
- */
-export const URGENCY_TEXT: Record<UrgencyTier, { onRow: string; onCellTint: string }> = {
-  critical: { onRow: 'text-ink',  onCellTint: 'text-white' },
-  warning:  { onRow: 'text-ink',  onCellTint: 'text-ink'   },
-  recent:   { onRow: 'text-ink',  onCellTint: 'text-ink'   },
-  upcoming: { onRow: 'text-ink',  onCellTint: 'text-ink'   },
-  ok:       { onRow: '',          onCellTint: ''            },
 }
 
 export const URGENCY_RANK: Record<UrgencyTier, number> = {
@@ -85,13 +101,25 @@ export const URGENCY_LABEL: Record<UrgencyTier, string> = {
   ok:       'Al día',
 }
 
-// Banner palette — used on detail pages to mirror the row tint
+// Detail-page banner palette — mirrors row tints (consistency between list and
+// detail when you click into a contract).
 export const URGENCY_BANNER: Record<UrgencyTier, {
   border: string; bg: string; text: string; dot: string;
 }> = {
-  critical: { border: 'border-l-orange-600', bg: 'bg-orange-100', text: 'text-orange-900',  dot: 'bg-orange-600' },
-  warning:  { border: 'border-l-yellow-600', bg: 'bg-yellow-100', text: 'text-yellow-900',  dot: 'bg-yellow-600' },
-  recent:   { border: 'border-l-green-600',  bg: 'bg-green-100',  text: 'text-green-900',   dot: 'bg-green-600'  },
-  upcoming: { border: 'border-l-sky-600',    bg: 'bg-sky-100',    text: 'text-sky-900',     dot: 'bg-sky-600'    },
-  ok:       { border: 'border-l-transparent', bg: '',             text: '',                 dot: ''              },
+  critical: { border: URGENCY_THEME.critical.border, bg: URGENCY_THEME.critical.bannerBg, text: URGENCY_THEME.critical.text, dot: URGENCY_THEME.critical.dot },
+  warning:  { border: URGENCY_THEME.warning.border,  bg: URGENCY_THEME.warning.bannerBg,  text: URGENCY_THEME.warning.text,  dot: URGENCY_THEME.warning.dot  },
+  recent:   { border: URGENCY_THEME.recent.border,   bg: URGENCY_THEME.recent.bannerBg,   text: URGENCY_THEME.recent.text,   dot: URGENCY_THEME.recent.dot   },
+  upcoming: { border: URGENCY_THEME.upcoming.border, bg: URGENCY_THEME.upcoming.bannerBg, text: URGENCY_THEME.upcoming.text, dot: URGENCY_THEME.upcoming.dot },
+  ok:       { border: 'border-l-transparent', bg: '', text: '', dot: '' },
+}
+
+// Soft -100 backgrounds use default dark text (text-ink, text-slate-dark) just
+// fine. Kept as a no-op shape so existing call sites compile; remove later if
+// we don't end up needing per-tier text overrides.
+export const URGENCY_TEXT: Record<UrgencyTier, { onRow: string; onCellTint: string }> = {
+  critical: { onRow: '', onCellTint: '' },
+  warning:  { onRow: '', onCellTint: '' },
+  recent:   { onRow: '', onCellTint: '' },
+  upcoming: { onRow: '', onCellTint: '' },
+  ok:       { onRow: '', onCellTint: '' },
 }

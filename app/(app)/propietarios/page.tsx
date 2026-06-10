@@ -6,7 +6,7 @@ import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listLandlords, type LandlordRow } from '@/lib/entities/queries'
-import { URGENCY_STYLES, URGENCY_TEXT } from '@/lib/urgency'
+import { URGENCY_STYLES } from '@/lib/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
@@ -183,14 +183,13 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
               </thead>
               <tbody>
                 {rows.map((l, idx) => {
-                  const u  = URGENCY_STYLES[l.urgency]
-                  const ut = URGENCY_TEXT[l.urgency]
+                  const u = URGENCY_STYLES[l.urgency]
                   const tinted   = !!u.row
                   const zebra    = tinted ? '' : (idx % 2 === 0 ? 'bg-cream/40' : '')
                   const cellTint = (l.urgency === 'critical' || l.urgency === 'warning')
-                  const cuitMissing  = cellTint && !l.dniOrCuit ? `${u.cellTint} ${ut.onCellTint}` : ''
-                  const phoneMissing = cellTint && !l.phone     ? `${u.cellTint} ${ut.onCellTint}` : ''
-                  const emailMissing = cellTint && !l.email     ? `${u.cellTint} ${ut.onCellTint}` : ''
+                  const cuitMissing  = cellTint && !l.dniOrCuit ? u.cellTint : ''
+                  const phoneMissing = cellTint && !l.phone     ? u.cellTint : ''
+                  const emailMissing = cellTint && !l.email     ? u.cellTint : ''
                   return (
                     <ClickableRow
                       key={l.id}
@@ -198,15 +197,15 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
                       title={l.urgencyReasons.length ? l.urgencyReasons.join(' · ') : undefined}
                       className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
                     >
-                      <td className={`px-4 py-1.5 ${ut.onRow || 'text-ink'} font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>
+                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>
                         {l.name}
                       </td>
-                      <td className={`px-4 py-1.5 tabular-nums border-r border-line/30 ${cuitMissing || ut.onRow || 'text-slate-dark'}`}>{l.dniOrCuit ?? ''}</td>
-                      <td className={`px-4 py-1.5 tabular-nums border-r border-line/30 ${phoneMissing || ut.onRow || 'text-slate-dark'}`}>{l.phone ?? ''}</td>
-                      <td className={`px-4 py-1.5 border-r border-line/30 ${emailMissing || ut.onRow || 'text-slate-dark'}`}>{l.email ?? ''}</td>
-                      <td className={`px-4 py-1.5 text-right tabular-nums border-r border-line/30 ${ut.onRow || 'text-ink'}`}>{l.contractCount}</td>
-                      <td className={`px-4 py-1.5 text-right tabular-nums border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{l.propertyCount}</td>
-                      <td className={`px-4 py-1.5 text-right tabular-nums ${ut.onRow || 'text-ink'}`}>{l.monthlyRevenue > 0 ? fmt(l.monthlyRevenue) : ''}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${cuitMissing}`}>{l.dniOrCuit ?? ''}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${phoneMissing}`}>{l.phone ?? ''}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark border-r border-line/30 ${emailMissing}`}>{l.email ?? ''}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{l.contractCount}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-slate-dark border-r border-line/30">{l.propertyCount}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-ink">{l.monthlyRevenue > 0 ? fmt(l.monthlyRevenue) : ''}</td>
                     </ClickableRow>
                   )
                 })}

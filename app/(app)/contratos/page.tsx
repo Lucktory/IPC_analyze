@@ -7,7 +7,7 @@ import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStr
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listContracts, type ContractListFilters, type ContractRow } from '@/lib/entities/queries'
-import { URGENCY_STYLES, URGENCY_TEXT } from '@/lib/contract/urgency'
+import { URGENCY_STYLES } from '@/lib/contract/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => {
@@ -233,19 +233,12 @@ export default async function ContratosPage({ searchParams }: PageProps) {
               </thead>
               <tbody>
                 {rows.map((c, idx) => {
-                  const u  = URGENCY_STYLES[c.urgency]
-                  const ut = URGENCY_TEXT[c.urgency]
+                  const u = URGENCY_STYLES[c.urgency]
                   const tinted   = !!u.row
-                  // Zebra only when there's no urgency tint — otherwise the cream
-                  // overlay washes out the colored row.
                   const zebra    = tinted ? '' : (idx % 2 === 0 ? 'bg-cream/40' : '')
                   const cellTint = (c.urgency === 'critical' || c.urgency === 'warning')
-                  const rentMissingClass = cellTint && !c.hasRentThisMonth ? `${u.cellTint} ${ut.onCellTint}` : ''
-                  const noteMissingClass = cellTint && !c.hasNoteThisMonth ? `${u.cellTint} ${ut.onCellTint}` : ''
-                  // Sin-pago text color depends on the cell background it sits on
-                  const sinPagoText = cellTint
-                    ? (c.urgency === 'critical' ? 'text-white' : 'text-ink')
-                    : 'text-danger'
+                  const rentMissingClass = cellTint && !c.hasRentThisMonth ? u.cellTint : ''
+                  const noteMissingClass = cellTint && !c.hasNoteThisMonth ? u.cellTint : ''
                   return (
                     <ClickableRow
                       key={c.id}
@@ -259,16 +252,16 @@ export default async function ContratosPage({ searchParams }: PageProps) {
                         'transition-colors border-b border-line/30',
                       ].join(' ')}
                     >
-                      <td className={`px-4 py-1.5 ${ut.onRow || 'text-ink'} font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>
+                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>
                         {c.primaryTenant}
                       </td>
-                      <td className={`px-4 py-1.5 border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{c.primaryLandlord}</td>
-                      <td className={`px-4 py-1.5 text-right tabular-nums border-r border-line/30 ${rentMissingClass || ut.onRow || 'text-ink'}`}>
-                        {c.hasRentThisMonth ? fmt(c.currentRent) : <span className={`${sinPagoText} font-medium`}>sin pago</span>}
+                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{c.primaryLandlord}</td>
+                      <td className={`px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30 ${rentMissingClass}`}>
+                        {c.hasRentThisMonth ? fmt(c.currentRent) : <span className="text-danger font-medium">sin pago</span>}
                       </td>
-                      <td className={`px-4 py-1.5 capitalize border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{c.cadence}</td>
+                      <td className="px-4 py-1.5 text-slate-dark capitalize border-r border-line/30">{c.cadence}</td>
                       <td className="px-4 py-1.5 border-r border-line/30"><NextAdjustment date={c.nextAdjustment} /></td>
-                      <td className={`px-4 py-1.5 tabular-nums border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{fmtDate(c.endDate)}</td>
+                      <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{fmtDate(c.endDate)}</td>
                       <td className={`px-4 py-1.5 ${noteMissingClass}`}>
                         <RowStatusBadge row={c} />
                       </td>
@@ -302,18 +295,14 @@ function RowStatusBadge({ row }: { row: ContractRow }) {
   if (row.status === 'rescinded') return <Badge tone="danger">Rescindido</Badge>
   if (row.status === 'ended')     return <Badge tone="neutral">Finalizado</Badge>
 
-  const contrastClass = row.urgency === 'critical' ? '!text-white'
-                       : row.urgency === 'warning' ? '!text-ink'
-                       : ''
-
   switch (row.urgency) {
     case 'critical':
-      if (!row.hasRentThisMonth) return <Badge tone="danger" className={contrastClass}>Sin pago</Badge>
-      return <Badge tone="danger" className={contrastClass}>Vence pronto</Badge>
+      if (!row.hasRentThisMonth) return <Badge tone="danger">Sin pago</Badge>
+      return <Badge tone="danger">Vence pronto</Badge>
     case 'warning':
-      if (!row.hasRentThisMonth) return <Badge tone="warn" className={contrastClass}>Sin pago</Badge>
-      if (!row.hasNoteThisMonth) return <Badge tone="warn" className={contrastClass}>Sin nota</Badge>
-      return <Badge tone="warn" className={contrastClass}>Por vencer</Badge>
+      if (!row.hasRentThisMonth) return <Badge tone="warn">Sin pago</Badge>
+      if (!row.hasNoteThisMonth) return <Badge tone="warn">Sin nota</Badge>
+      return <Badge tone="warn">Por vencer</Badge>
     case 'recent':
       return <Badge tone="info">Activo · cambios</Badge>
     case 'upcoming':

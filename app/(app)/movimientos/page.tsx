@@ -6,7 +6,7 @@ import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import Link from 'next/link'
 import { listTransactions, listTransactionPeriods, type TransactionRow } from '@/lib/entities/queries'
-import { URGENCY_STYLES, URGENCY_TEXT } from '@/lib/urgency'
+import { URGENCY_STYLES } from '@/lib/urgency'
 
 const PAGE_SIZE = 50
 
@@ -276,27 +276,26 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
 }
 
 function TxRow({ t, odd }: { t: TransactionRow; odd: boolean }) {
-  const u  = URGENCY_STYLES[t.urgency]
-  const ut = URGENCY_TEXT[t.urgency]
+  const u = URGENCY_STYLES[t.urgency]
   const tinted   = !!u.row
   const zebra    = tinted ? '' : (odd ? 'bg-cream/40' : '')
   const cellTint = (t.urgency === 'critical' || t.urgency === 'warning')
-  const bankDateMissing = cellTint && !t.bankDate ? `${u.cellTint} ${ut.onCellTint}` : ''
+  const bankDateMissing = cellTint && !t.bankDate ? u.cellTint : ''
   return (
     <tr
       title={t.urgencyReasons.length ? t.urgencyReasons.join(' · ') : undefined}
       className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
     >
-      <td className={`px-4 py-1.5 tabular-nums border-l-[4px] ${u.borderLeft} border-r border-line/30 ${bankDateMissing || ut.onRow || 'text-slate-dark'}`}>{DATE_LABEL(t.bankDate)}</td>
-      <td className={`px-4 py-1.5 border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{PERIOD_LABEL(t.period)}</td>
+      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-l-[4px] ${u.borderLeft} border-r border-line/30 ${bankDateMissing}`}>{DATE_LABEL(t.bankDate)}</td>
+      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{PERIOD_LABEL(t.period)}</td>
       <td className="px-4 py-1.5 border-r border-line/30">
         <Badge tone={t.direction === 'IN' ? 'success' : 'neutral'}>{t.typeLabel}</Badge>
       </td>
-      <td className={`px-4 py-1.5 border-r border-line/30 ${ut.onRow || 'text-ink'}`}>{t.tenantName ?? ''}</td>
-      <td className={`px-4 py-1.5 text-right tabular-nums font-medium border-r border-line/30 ${ut.onRow || (t.direction === 'IN' ? 'text-ink' : 'text-slate-dark')}`}>
+      <td className="px-4 py-1.5 text-ink border-r border-line/30">{t.tenantName ?? ''}</td>
+      <td className={`px-4 py-1.5 text-right tabular-nums font-medium border-r border-line/30 ${t.direction === 'IN' ? 'text-ink' : 'text-slate-dark'}`}>
         {t.direction === 'IN' ? '+ ' : '− '}{fmt(t.amount)}
       </td>
-      <td className={`px-4 py-1.5 text-[12px] truncate max-w-[280px] ${ut.onRow || 'text-slate'}`}>
+      <td className="px-4 py-1.5 text-slate text-[12px] truncate max-w-[280px]">
         {t.description ?? ''}
       </td>
     </tr>

@@ -91,20 +91,21 @@ export async function listLandlords(): Promise<LandlordRow[]> {
     const cuit      = (l as any).dni_or_cuit as string | null
     const contracts = s.contracts.size
 
-    // Urgency audit for landlords:
-    //   Critical: zero properties AND zero contracts (orphan record)
-    //   Warning:  missing any of CUIT / phone / email (incomplete record)
-    //   OK:       complete
+    // Urgency audit for landlords. Tighter than before — CUIT alone is data
+    // hygiene, not operational urgency. Only flag when the encargada actually
+    // needs to act:
+    //   Critical: orphan record (zero props AND zero contracts)
+    //   Warning:  has active contracts but no way to reach them
+    //             (phone AND email both missing)
+    //   OK:       everything else
     const reasons: string[] = []
     let urgency: UrgencyTier = 'ok'
     if (props === 0 && contracts === 0) {
       urgency = 'critical'
       reasons.push('Sin propiedades ni contratos')
-    } else {
-      if (!cuit)  reasons.push('Sin CUIT')
-      if (!phone) reasons.push('Sin teléfono')
-      if (!email) reasons.push('Sin email')
-      if (reasons.length > 0) urgency = 'warning'
+    } else if (contracts > 0 && !phone && !email) {
+      urgency = 'warning'
+      reasons.push('Sin teléfono ni email para contactar')
     }
 
     return {
@@ -253,19 +254,13 @@ export async function listBankAccounts(): Promise<BankAccountRow[]> {
       ownerType = 'landlord'
       ownerLabel = row.landlords?.name ?? '(propietario)'
     }
-    // Urgency for bank accounts:
-    //   Critical: no CBU (can't transfer money there)
-    //   Warning:  no account_number or unknown owner
-    //   OK:       complete + has CBU
+    // Urgency for bank accounts — only the blocking case (can't transfer).
+    // Missing account_number alone is data hygiene; we don't tint for that.
     const reasons: string[] = []
     let urgency: UrgencyTier = 'ok'
     if (!row.cbu) {
       urgency = 'critical'
       reasons.push('Sin CBU — no se puede transferir')
-    } else if (!row.account_number || ownerType === 'unknown') {
-      urgency = 'warning'
-      if (!row.account_number) reasons.push('Sin número de cuenta')
-      if (ownerType === 'unknown') reasons.push('Sin titular asignado')
     }
 
     return {
@@ -587,17 +582,11 @@ export async function listProperties(): Promise<PropertyRow[]> {
       rent   = Number(contract.current_rent)
     }
 
-    // Urgency for properties: vacante = warning (no income, action needed)
+    // Propiedades intentionally have no urgency tinting — the Estado badge
+    // (Vacante/Ocupada) already conveys this clearly. Tinting on top would
+    // double the same signal.
     const reasons: string[] = []
-    let urgency: UrgencyTier = 'ok'
-    if (isVacant) {
-      urgency = 'warning'
-      reasons.push('Propiedad vacante')
-      if (!landlord) {
-        urgency = 'critical'
-        reasons.push('Sin propietario asignado')
-      }
-    }
+    const urgency: UrgencyTier = 'ok'
 
     return {
       id:           p.id,

@@ -5,7 +5,7 @@ import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStr
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { listTenants, type TenantRow } from '@/lib/entities/queries'
-import { URGENCY_STYLES, URGENCY_TEXT } from '@/lib/urgency'
+import { URGENCY_STYLES } from '@/lib/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
@@ -178,26 +178,25 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
               </thead>
               <tbody>
                 {rows.map((t, idx) => {
-                  const u  = URGENCY_STYLES[t.urgency]
-                  const ut = URGENCY_TEXT[t.urgency]
+                  const u = URGENCY_STYLES[t.urgency]
                   const tinted   = !!u.row
                   const zebra    = tinted ? '' : (idx % 2 === 0 ? 'bg-cream/40' : '')
                   const cellTint = (t.urgency === 'critical' || t.urgency === 'warning')
-                  const phoneMissing = cellTint && !t.phone ? `${u.cellTint} ${ut.onCellTint}` : ''
-                  const emailMissing = cellTint && !t.email ? `${u.cellTint} ${ut.onCellTint}` : ''
-                  const dniMissing   = cellTint && !t.dni   ? `${u.cellTint} ${ut.onCellTint}` : ''
+                  const phoneMissing = cellTint && !t.phone ? u.cellTint : ''
+                  const emailMissing = cellTint && !t.email ? u.cellTint : ''
+                  const dniMissing   = cellTint && !t.dni   ? u.cellTint : ''
                   return (
                     <tr
                       key={t.id}
                       title={t.urgencyReasons.length ? t.urgencyReasons.join(' · ') : undefined}
                       className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
                     >
-                      <td className={`px-4 py-1.5 ${ut.onRow || 'text-ink'} font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>{t.name}</td>
-                      <td className={`px-4 py-1.5 tabular-nums border-r border-line/30 ${phoneMissing || ut.onRow || 'text-slate-dark'}`}>{t.phone ?? ''}</td>
-                      <td className={`px-4 py-1.5 border-r border-line/30 ${emailMissing || ut.onRow || 'text-slate-dark'}`}>{t.email ?? ''}</td>
-                      <td className={`px-4 py-1.5 tabular-nums border-r border-line/30 ${dniMissing || ut.onRow || 'text-slate-dark'}`}>{t.dni ?? ''}</td>
-                      <td className={`px-4 py-1.5 text-right tabular-nums border-r border-line/30 ${ut.onRow || 'text-ink'}`}>{t.contractCount}</td>
-                      <td className={`px-4 py-1.5 text-right tabular-nums ${ut.onRow || 'text-ink'}`}>{t.monthlyRent > 0 ? fmt(t.monthlyRent) : ''}</td>
+                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>{t.name}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${phoneMissing}`}>{t.phone ?? ''}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark border-r border-line/30 ${emailMissing}`}>{t.email ?? ''}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${dniMissing}`}>{t.dni ?? ''}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{t.contractCount}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-ink">{t.monthlyRent > 0 ? fmt(t.monthlyRent) : ''}</td>
                     </tr>
                   )
                 })}

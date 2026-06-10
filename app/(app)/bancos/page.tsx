@@ -6,7 +6,7 @@ import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listBanks, listBankAccounts, type BankAccountRow } from '@/lib/entities/queries'
-import { URGENCY_STYLES, URGENCY_TEXT } from '@/lib/urgency'
+import { URGENCY_STYLES } from '@/lib/urgency'
 
 type Categoria = 'todas' | 'admin' | 'administrator' | 'landlord'
 
@@ -172,12 +172,11 @@ export default async function BancosPage({ searchParams }: PageProps) {
               </thead>
               <tbody>
                 {rows.map((a, idx) => {
-                  const u  = URGENCY_STYLES[a.urgency]
-                  const ut = URGENCY_TEXT[a.urgency]
+                  const u = URGENCY_STYLES[a.urgency]
                   const tinted   = !!u.row
                   const zebra    = tinted ? '' : (idx % 2 === 0 ? 'bg-cream/40' : '')
                   const cellTint = (a.urgency === 'critical' || a.urgency === 'warning')
-                  const cbuMissing = cellTint && !a.cbu ? `${u.cellTint} ${ut.onCellTint}` : ''
+                  const cbuMissing = cellTint && !a.cbu ? u.cellTint : ''
                   return (
                     <ClickableRow
                       key={a.id}
@@ -185,14 +184,14 @@ export default async function BancosPage({ searchParams }: PageProps) {
                       title={a.urgencyReasons.length ? a.urgencyReasons.join(' · ') : undefined}
                       className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
                     >
-                      <td className={`px-4 py-1.5 ${ut.onRow || 'text-ink'} font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>
+                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>
                         {a.alias}
                       </td>
-                      <td className={`px-4 py-1.5 border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{a.bankName}</td>
-                      <td className={`px-4 py-1.5 border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{a.accountType}</td>
-                      <td className={`px-4 py-1.5 tabular-nums border-r border-line/30 ${cbuMissing || ut.onRow || 'text-slate-dark'}`}>{a.cbu ?? ''}</td>
-                      <td className={`px-4 py-1.5 border-r border-line/30 ${ut.onRow || 'text-slate-dark'}`}>{a.ownerLabel}</td>
-                      <td className={`px-4 py-1.5 capitalize ${ut.onRow || 'text-slate-dark'}`}>{categoryLabel(a.ownerType)}</td>
+                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{a.bankName}</td>
+                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{a.accountType}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${cbuMissing}`}>{a.cbu ?? ''}</td>
+                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{a.ownerLabel}</td>
+                      <td className="px-4 py-1.5 text-slate-dark capitalize">{categoryLabel(a.ownerType)}</td>
                     </ClickableRow>
                   )
                 })}
