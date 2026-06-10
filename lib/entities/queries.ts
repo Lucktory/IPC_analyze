@@ -582,11 +582,16 @@ export async function listProperties(): Promise<PropertyRow[]> {
       rent   = Number(contract.current_rent)
     }
 
-    // Propiedades intentionally have no urgency tinting — the Estado badge
-    // (Vacante/Ocupada) already conveys this clearly. Tinting on top would
-    // double the same signal.
+    // Urgency for properties: vacante = critical. Row tints soft orange
+    // and matches the orange Vacante badge — both speak the same color
+    // for the same state. Without this, the badge says "needs attention"
+    // but the row reads as routine.
     const reasons: string[] = []
-    const urgency: UrgencyTier = 'ok'
+    let urgency: UrgencyTier = 'ok'
+    if (isVacant) {
+      urgency = 'critical'
+      reasons.push('Propiedad vacante')
+    }
 
     return {
       id:           p.id,
