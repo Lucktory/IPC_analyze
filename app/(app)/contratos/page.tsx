@@ -5,7 +5,37 @@ import { FilterPill } from '@/components/ui/FilterPill'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
-import { listContracts, type ContractListFilters } from '@/lib/entities/queries'
+import { listContracts, type ContractListFilters, type UrgencyTier } from '@/lib/entities/queries'
+
+// Urgency styling table — keeps the per-row class strings in one place
+// rather than scattered through the JSX.
+const URGENCY_STYLES: Record<UrgencyTier, { row: string; borderLeft: string; cellTint: string }> = {
+  critical: {
+    row:        'bg-danger/[0.05] hover:bg-danger/[0.10]',
+    borderLeft: 'border-l-danger',
+    cellTint:   'bg-danger/[0.10]',
+  },
+  warning:  {
+    row:        'bg-warn/[0.05] hover:bg-warn/[0.10]',
+    borderLeft: 'border-l-warn',
+    cellTint:   'bg-warn/[0.08]',
+  },
+  recent:   {
+    row:        'bg-info/[0.04] hover:bg-info/[0.08]',
+    borderLeft: 'border-l-info',
+    cellTint:   '',
+  },
+  upcoming: {
+    row:        'bg-violet-500/[0.05] hover:bg-violet-500/[0.10]',
+    borderLeft: 'border-l-violet-600',
+    cellTint:   '',
+  },
+  ok: {
+    row:        '',
+    borderLeft: 'border-l-transparent',
+    cellTint:   '',
+  },
+}
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => {
@@ -29,31 +59,45 @@ const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
 interface PageProps {
   searchParams: Promise<{
-    estado?:    string
-    cadencia?: string
-    q?:        string
+    estado?:     string
+    cadencia?:   string
+    q?:          string
+    orden?:      string
+    pendientes?: string
   }>
 }
 
 export default async function ContratosPage({ searchParams }: PageProps) {
   const sp = await searchParams
+  const orden      = sp.orden === 'fecha' ? 'fecha' : 'urgencia'
+  const pendientes = sp.pendientes === '1'
   const filters: ContractListFilters = {
-    estado:    (sp.estado as any) ?? 'todos',
-    cadencia:  sp.cadencia ?? 'todas',
-    q:         sp.q ?? '',
+    estado:     (sp.estado as any) ?? 'todos',
+    cadencia:   sp.cadencia ?? 'todas',
+    q:          sp.q ?? '',
+    orden,
+    pendientes,
   }
 
   const { rows, counts } = await listContracts(filters)
 
   const totalRent = rows.filter(c => c.status === 'active').reduce((s, c) => s + c.currentRent, 0)
+  const pendientesCount = rows.filter(c => c.urgency !== 'ok').length
 
   // Build href preserving other filters; one helper so KPIs / pills share logic
   const buildHref = (overrides: Partial<Record<string, string>>) => {
     const params = new URLSearchParams()
-    const merged = { ...filters, ...overrides }
-    if (merged.estado   && merged.estado   !== 'todos') params.set('estado',   merged.estado)
-    if (merged.cadencia && merged.cadencia !== 'todas') params.set('cadencia', merged.cadencia)
-    if (merged.q)                                       params.set('q',        merged.q)
+    const merged: Record<string, string> = {
+      ...filters,
+      orden,
+      pendientes: pendientes ? '1' : '',
+      ...overrides,
+    } as any
+    if (merged.estado     && merged.estado     !== 'todos')   params.set('estado',     merged.estado)
+    if (merged.cadencia   && merged.cadencia   !== 'todas')   params.set('cadencia',   merged.cadencia)
+    if (merged.q)                                              params.set('q',          merged.q)
+    if (merged.orden      && merged.orden      !== 'urgencia') params.set('orden',      merged.orden)
+    if (merged.pendientes === '1')                             params.set('pendientes', '1')
     const qs = params.toString()
     return qs ? `/contratos?${qs}` : '/contratos'
   }
@@ -167,6 +211,20 @@ export default async function ContratosPage({ searchParams }: PageProps) {
           ))}
         </div>
 
+        {/* Audit row: sort + Solo pendientes — the encargada's controls */}
+        <div className="mt-3 flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
+          <span className="label-cap text-slate mr-1 shrink-0">Orden</span>
+          <FilterPill href={buildHref({ orden: 'urgencia' })} label="Por urgencia" active={orden === 'urgencia'} />
+          <FilterPill href={buildHref({ orden: 'fecha' })}    label="Por vencimiento" active={orden === 'fecha'} />
+          <span className="label-cap text-slate ml-3 mr-1 shrink-0">Vista</span>
+          <FilterPill
+            href={buildHref({ pendientes: pendientes ? '' : '1' })}
+            label="Solo pendientes"
+            count={pendientesCount}
+            active={pendientes}
+          />
+        </div>
+
         {hasSecondaryFilter && (
           <div className="mt-3">
             <Link
@@ -202,24 +260,41 @@ export default async function ContratosPage({ searchParams }: PageProps) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((c, idx) => (
-                  <tr
-                    key={c.id}
-                    className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${c.status === 'rescinded' ? 'opacity-60' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}
-                  >
-                    <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">
-                      <Link href={`/contratos/${c.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
-                        {c.primaryTenant}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{c.primaryLandlord}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{fmt(c.currentRent)}</td>
-                    <td className="px-4 py-1.5 text-slate-dark capitalize border-r border-line/30">{c.cadence}</td>
-                    <td className="px-4 py-1.5 border-r border-line/30"><NextAdjustment date={c.nextAdjustment} /></td>
-                    <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{fmtDate(c.endDate)}</td>
-                    <td className="px-4 py-1.5"><StatusBadge status={c.status} /></td>
-                  </tr>
-                ))}
+                {rows.map((c, idx) => {
+                  const u = URGENCY_STYLES[c.urgency]
+                  // Cell-level tinting for empty audit fields — only on warning/critical
+                  const cellTint = (c.urgency === 'critical' || c.urgency === 'warning')
+                  const rentMissingClass = cellTint && !c.hasRentThisMonth ? u.cellTint : ''
+                  const noteMissingClass = cellTint && !c.hasNoteThisMonth ? u.cellTint : ''
+                  return (
+                    <tr
+                      key={c.id}
+                      title={c.urgencyReasons.length ? c.urgencyReasons.join(' · ') : undefined}
+                      className={[
+                        idx % 2 === 0 ? 'bg-cream/40' : '',
+                        c.status === 'rescinded' ? 'opacity-60' : '',
+                        u.row,
+                        'hover:bg-cream-2 transition-colors border-b border-line/30',
+                      ].join(' ')}
+                    >
+                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[3px] ${u.borderLeft} border-r border-line/30`}>
+                        <Link href={`/contratos/${c.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
+                          {c.primaryTenant}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{c.primaryLandlord}</td>
+                      <td className={`px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30 ${rentMissingClass}`}>
+                        {c.hasRentThisMonth ? fmt(c.currentRent) : <span className="text-danger/70">sin pago</span>}
+                      </td>
+                      <td className="px-4 py-1.5 text-slate-dark capitalize border-r border-line/30">{c.cadence}</td>
+                      <td className="px-4 py-1.5 border-r border-line/30"><NextAdjustment date={c.nextAdjustment} /></td>
+                      <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{fmtDate(c.endDate)}</td>
+                      <td className={`px-4 py-1.5 ${noteMissingClass}`}>
+                        <StatusBadge status={c.status} />
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           ) : (

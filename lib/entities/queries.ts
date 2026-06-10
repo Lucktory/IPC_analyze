@@ -230,6 +230,8 @@ export async function listBanks(): Promise<BankRow[]> {
 // ---------------------------------------------------------------------------
 // CONTRACTS  (the spine of the business)
 // ---------------------------------------------------------------------------
+export type UrgencyTier = 'critical' | 'warning' | 'recent' | 'upcoming' | 'ok'
+
 export interface ContractRow {
   id:              string
   primaryTenant:   string
@@ -240,6 +242,13 @@ export interface ContractRow {
   startDate:       string
   endDate:         string
   nextAdjustment:  string | null   // YYYY-MM-DD — next rent adjustment per cadence
+
+  // Urgency audit signals (used for row tinting + sort)
+  hasRentThisMonth:  boolean
+  hasNoteThisMonth:  boolean
+  recentlyTouched:   boolean       // tx bank_date or note updated_at within last 48h
+  urgency:           UrgencyTier
+  urgencyReasons:    string[]      // human-readable reasons, for the hover tooltip
 }
 
 // Cadence → step in months between adjustments
@@ -269,11 +278,68 @@ function computeNextAdjustment(startDate: string, cadence: string, status: strin
   return next.toISOString().slice(0, 10)
 }
 
+// ---------------------------------------------------------------------------
+// Urgency audit — what the encargada's eye should be pulled to
+// ---------------------------------------------------------------------------
+interface UrgencyInputs {
+  status:            string
+  endDate:           string
+  hasRentThisMonth:  boolean
+  hasNoteThisMonth:  boolean
+  recentlyTouched:   boolean
+  nextAdjustment:    string | null
+  today:             Date
+  in30days:          Date
+  in60days:          Date
+}
+
+function computeUrgency(i: UrgencyInputs): { urgency: UrgencyTier; urgencyReasons: string[] } {
+  const reasons: string[] = []
+
+  if (i.status !== 'active') {
+    return { urgency: 'ok', urgencyReasons: [] }
+  }
+
+  const end = new Date(i.endDate)
+  const venceSoon30  = end >= i.today && end <= i.in30days
+  const venceSoon60  = end >  i.in30days && end <= i.in60days
+  const noRent       = !i.hasRentThisMonth
+  const noNote       = !i.hasNoteThisMonth
+
+  if (venceSoon30)               reasons.push('vence en ≤30 días')
+  if (venceSoon60)               reasons.push('vence en 31-60 días')
+  if (noRent)                    reasons.push('sin RENT_IN este mes')
+  if (noNote)                    reasons.push('sin nota del período')
+
+  // Tier ladder. Critical wins over warning, etc.
+  if (venceSoon30)        return { urgency: 'critical', urgencyReasons: reasons }
+  if (noRent && noNote)   return { urgency: 'critical', urgencyReasons: reasons }
+  if (venceSoon60)        return { urgency: 'warning',  urgencyReasons: reasons }
+  if (noRent || noNote)   return { urgency: 'warning',  urgencyReasons: reasons }
+
+  if (i.recentlyTouched)  return { urgency: 'recent',   urgencyReasons: ['datos actualizados en las últimas 48 hs'] }
+
+  if (i.nextAdjustment) {
+    const adj = new Date(i.nextAdjustment)
+    if (adj >= i.today && adj <= i.in30days) {
+      return { urgency: 'upcoming', urgencyReasons: ['próximo aumento en ≤30 días'] }
+    }
+  }
+
+  return { urgency: 'ok', urgencyReasons: [] }
+}
+
+const URGENCY_RANK: Record<UrgencyTier, number> = {
+  critical: 0, warning: 1, recent: 2, upcoming: 3, ok: 4,
+}
+
 export interface ContractListFilters {
   estado?:     'todos' | 'activo' | 'por_vencer' | 'rescindido'
   cadencia?:   string   // 'trimestral', 'cuatrimestral', etc., or 'todas'
   landlordId?: string   // landlord uuid, or 'todos'
   q?:          string   // free-text search across tenant + landlord names
+  orden?:      'urgencia' | 'fecha'  // sort
+  pendientes?: boolean  // when true, hide urgency='ok' rows
 }
 
 export interface ContractListResult {
@@ -289,35 +355,95 @@ export interface ContractListResult {
 export async function listContracts(filters: ContractListFilters = {}): Promise<ContractListResult> {
   const supabase = await createSupabaseServer()
 
-  const { data } = await supabase
-    .from('contracts')
-    .select(`
-      id, current_rent, cadence, status, start_date, end_date,
-      contract_tenants(is_primary, tenants(name)),
-      contract_landlords(ownership_pct, landlords(id, name))
-    `)
-    .order('start_date', { ascending: false })
+  const [contractsRes, rentTxnsRes, notesRes] = await Promise.all([
+    supabase
+      .from('contracts')
+      .select(`
+        id, current_rent, cadence, status, start_date, end_date,
+        contract_tenants(is_primary, tenants(name)),
+        contract_landlords(ownership_pct, landlords(id, name))
+      `)
+      .order('start_date', { ascending: false }),
+    // Per-contract rent status for the current period — drives the audit
+    supabase
+      .from('transactions')
+      .select(`contract_id, bank_date, transaction_types!inner(code)`)
+      .eq('period', CURRENT_PERIOD)
+      .eq('transaction_types.code', 'RENT_IN'),
+    // Per-contract notes for the current period
+    supabase
+      .from('contract_period_notes')
+      .select('contract_id, body, updated_at')
+      .eq('period', CURRENT_PERIOD),
+  ])
 
-  // Normalise to ContractRow shape
-  const today = new Date()
-  const in60days = new Date(today.getTime() + 60 * 86400000)
+  // 48-hour cutoff for "recently touched"
+  const today        = new Date()
+  const in30days     = new Date(today.getTime() + 30 * 86400000)
+  const in60days     = new Date(today.getTime() + 60 * 86400000)
+  const last48hAgoMs = today.getTime() - 48 * 3600000
 
-  const all: (ContractRow & { landlordId: string })[] = (data ?? []).map((c: any) => {
+  // Roll up audit signals per contract
+  const hasRent     = new Map<string, boolean>()
+  const recentTxn   = new Map<string, boolean>()
+  for (const t of (rentTxnsRes.data ?? []) as any[]) {
+    if (!t.contract_id) continue
+    hasRent.set(t.contract_id, true)
+    if (t.bank_date && new Date(t.bank_date).getTime() > last48hAgoMs) {
+      recentTxn.set(t.contract_id, true)
+    }
+  }
+  const hasNote     = new Map<string, boolean>()
+  const recentNote  = new Map<string, boolean>()
+  for (const n of (notesRes.data ?? []) as any[]) {
+    const body = (n.body ?? '').trim()
+    if (body) hasNote.set(n.contract_id, true)
+    if (n.updated_at && new Date(n.updated_at).getTime() > last48hAgoMs) {
+      recentNote.set(n.contract_id, true)
+    }
+  }
+
+  // Normalise to ContractRow shape + compute urgency
+  const all: (ContractRow & { landlordId: string })[] = (contractsRes.data ?? []).map((c: any) => {
     const primary  = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
     const topOwner = (c.contract_landlords ?? [])
       .slice()
       .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
+
+    const cId            = c.id as string
+    const status         = c.status as string
+    const endDate        = c.end_date as string
+    const nextAdj        = computeNextAdjustment(c.start_date, c.cadence, status, today)
+    const hasRentNow     = !!hasRent.get(cId)
+    const hasNoteNow     = !!hasNote.get(cId)
+    const recentlyTouchedNow = !!recentTxn.get(cId) || !!recentNote.get(cId)
+
+    const { urgency, urgencyReasons } = computeUrgency({
+      status,
+      endDate,
+      hasRentThisMonth: hasRentNow,
+      hasNoteThisMonth: hasNoteNow,
+      recentlyTouched:  recentlyTouchedNow,
+      nextAdjustment:   nextAdj,
+      today, in30days, in60days,
+    })
+
     return {
-      id:              c.id,
-      primaryTenant:   primary?.tenants?.name ?? '(sin inquilino)',
-      primaryLandlord: topOwner?.landlords?.name ?? '(sin propietario)',
-      landlordId:      topOwner?.landlords?.id ?? '',
-      currentRent:     Number(c.current_rent),
-      cadence:         c.cadence,
-      status:          c.status,
-      startDate:       c.start_date,
-      endDate:         c.end_date,
-      nextAdjustment:  computeNextAdjustment(c.start_date, c.cadence, c.status, today),
+      id:                cId,
+      primaryTenant:     primary?.tenants?.name ?? '(sin inquilino)',
+      primaryLandlord:   topOwner?.landlords?.name ?? '(sin propietario)',
+      landlordId:        topOwner?.landlords?.id ?? '',
+      currentRent:       Number(c.current_rent),
+      cadence:           c.cadence,
+      status,
+      startDate:         c.start_date,
+      endDate,
+      nextAdjustment:    nextAdj,
+      hasRentThisMonth:  hasRentNow,
+      hasNoteThisMonth:  hasNoteNow,
+      recentlyTouched:   recentlyTouchedNow,
+      urgency,
+      urgencyReasons,
     }
   })
 
@@ -356,6 +482,22 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
       c.primaryTenant.toLowerCase().includes(q) ||
       c.primaryLandlord.toLowerCase().includes(q),
     )
+  }
+  if (filters.pendientes) {
+    rows = rows.filter(c => c.urgency !== 'ok')
+  }
+
+  // Sort
+  if (filters.orden === 'fecha') {
+    rows = rows.slice().sort((a, b) => a.endDate.localeCompare(b.endDate))
+  } else {
+    // Default: by urgency (critical → ok), then by tenant name
+    rows = rows.slice().sort((a, b) => {
+      const ra = URGENCY_RANK[a.urgency]
+      const rb = URGENCY_RANK[b.urgency]
+      if (ra !== rb) return ra - rb
+      return a.primaryTenant.localeCompare(b.primaryTenant)
+    })
   }
 
   return { rows: rows.map(({ landlordId: _l, ...rest }) => rest), counts }
