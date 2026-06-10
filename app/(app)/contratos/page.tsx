@@ -5,28 +5,30 @@ import { FilterPill } from '@/components/ui/FilterPill'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
-import { listContracts, type ContractListFilters, type UrgencyTier } from '@/lib/entities/queries'
+import { ClickableRow } from '@/components/ui/ClickableRow'
+import { listContracts, type ContractListFilters, type UrgencyTier, type ContractRow } from '@/lib/entities/queries'
 
 // Urgency styling table — keeps the per-row class strings in one place
-// rather than scattered through the JSX.
+// rather than scattered through the JSX. Tints doubled (5% → 10%) per
+// client feedback that the previous values were too faint to scan.
 const URGENCY_STYLES: Record<UrgencyTier, { row: string; borderLeft: string; cellTint: string }> = {
   critical: {
-    row:        'bg-danger/[0.05] hover:bg-danger/[0.10]',
+    row:        'bg-danger/[0.10] hover:bg-danger/[0.20]',
     borderLeft: 'border-l-danger',
-    cellTint:   'bg-danger/[0.10]',
+    cellTint:   'bg-danger/[0.20]',
   },
   warning:  {
-    row:        'bg-warn/[0.05] hover:bg-warn/[0.10]',
+    row:        'bg-warn/[0.10] hover:bg-warn/[0.18]',
     borderLeft: 'border-l-warn',
-    cellTint:   'bg-warn/[0.08]',
+    cellTint:   'bg-warn/[0.18]',
   },
   recent:   {
-    row:        'bg-info/[0.04] hover:bg-info/[0.08]',
+    row:        'bg-info/[0.08] hover:bg-info/[0.16]',
     borderLeft: 'border-l-info',
     cellTint:   '',
   },
   upcoming: {
-    row:        'bg-violet-500/[0.05] hover:bg-violet-500/[0.10]',
+    row:        'bg-violet-500/[0.10] hover:bg-violet-500/[0.18]',
     borderLeft: 'border-l-violet-600',
     cellTint:   '',
   },
@@ -267,8 +269,9 @@ export default async function ContratosPage({ searchParams }: PageProps) {
                   const rentMissingClass = cellTint && !c.hasRentThisMonth ? u.cellTint : ''
                   const noteMissingClass = cellTint && !c.hasNoteThisMonth ? u.cellTint : ''
                   return (
-                    <tr
+                    <ClickableRow
                       key={c.id}
+                      href={`/contratos/${c.id}`}
                       title={c.urgencyReasons.length ? c.urgencyReasons.join(' · ') : undefined}
                       className={[
                         idx % 2 === 0 ? 'bg-cream/40' : '',
@@ -278,21 +281,19 @@ export default async function ContratosPage({ searchParams }: PageProps) {
                       ].join(' ')}
                     >
                       <td className={`px-4 py-1.5 text-ink font-medium border-l-[3px] ${u.borderLeft} border-r border-line/30`}>
-                        <Link href={`/contratos/${c.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
-                          {c.primaryTenant}
-                        </Link>
+                        {c.primaryTenant}
                       </td>
                       <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{c.primaryLandlord}</td>
                       <td className={`px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30 ${rentMissingClass}`}>
-                        {c.hasRentThisMonth ? fmt(c.currentRent) : <span className="text-danger/70">sin pago</span>}
+                        {c.hasRentThisMonth ? fmt(c.currentRent) : <span className="text-danger font-medium">sin pago</span>}
                       </td>
                       <td className="px-4 py-1.5 text-slate-dark capitalize border-r border-line/30">{c.cadence}</td>
                       <td className="px-4 py-1.5 border-r border-line/30"><NextAdjustment date={c.nextAdjustment} /></td>
                       <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{fmtDate(c.endDate)}</td>
                       <td className={`px-4 py-1.5 ${noteMissingClass}`}>
-                        <StatusBadge status={c.status} />
+                        <RowStatusBadge row={c} />
                       </td>
-                    </tr>
+                    </ClickableRow>
                   )
                 })}
               </tbody>
@@ -308,12 +309,36 @@ export default async function ContratosPage({ searchParams }: PageProps) {
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  switch (status) {
-    case 'active':     return <Badge tone="success">Activo</Badge>
-    case 'rescinded':  return <Badge tone="danger">Rescindido</Badge>
-    case 'ended':      return <Badge tone="neutral">Finalizado</Badge>
-    default:           return <Badge tone="neutral">{status}</Badge>
+/**
+ * Status column for a contract row. Was a plain "Activo / Rescindido /
+ * Finalizado" badge — that produced the confusing case the client flagged:
+ * a green "Activo" sitting inside a red row. The contract is genuinely
+ * active in those rows, the row is red because the AUDIT (rent, note,
+ * vencimiento) fails. Both true at once; one badge can only show one.
+ *
+ * Resolution: surface the urgency reason in the badge when there is one,
+ * so the visible badge always matches the row tint. Plain "Activo" only
+ * shows for actually-clean active rows.
+ */
+function RowStatusBadge({ row }: { row: ContractRow }) {
+  if (row.status === 'rescinded') return <Badge tone="danger">Rescindido</Badge>
+  if (row.status === 'ended')     return <Badge tone="neutral">Finalizado</Badge>
+
+  switch (row.urgency) {
+    case 'critical':
+      // Show the most actionable reason
+      if (!row.hasRentThisMonth) return <Badge tone="danger">Sin pago</Badge>
+      return <Badge tone="danger">Vence pronto</Badge>
+    case 'warning':
+      if (!row.hasRentThisMonth) return <Badge tone="warn">Sin pago</Badge>
+      if (!row.hasNoteThisMonth) return <Badge tone="warn">Sin nota</Badge>
+      return <Badge tone="warn">Por vencer</Badge>
+    case 'recent':
+      return <Badge tone="info">Activo · cambios</Badge>
+    case 'upcoming':
+      return <Badge tone="info">Aumento próximo</Badge>
+    default:
+      return <Badge tone="success">Activo</Badge>
   }
 }
 

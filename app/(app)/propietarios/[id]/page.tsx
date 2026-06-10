@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/Badge'
 import { EditLandlordForm } from '@/components/landlord/EditLandlordForm'
 import { getLandlordDetail } from '@/lib/landlord/queries'
+import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -23,6 +24,8 @@ export default async function LandlordDetailPage({ params }: PageProps) {
 
   return (
     <>
+      <BreadcrumbTitle name={landlord.name} />
+
       <div className="mb-6">
         <Link href="/propietarios" className="text-[12px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">
           ← Volver a propietarios

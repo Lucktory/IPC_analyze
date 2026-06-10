@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-type Tone = 'success' | 'danger' | 'neutral'
+type Tone = 'success' | 'danger' | 'neutral' | 'warn' | 'info'
 
 interface BadgeProps {
   tone?: Tone
@@ -10,12 +10,16 @@ interface BadgeProps {
 const dotClass: Record<Tone, string> = {
   success: 'bg-success',
   danger:  'bg-danger',
+  warn:    'bg-warn',
+  info:    'bg-info',
   neutral: 'bg-slate',
 }
 
 const textClass: Record<Tone, string> = {
   success: 'text-success',
   danger:  'text-danger',
+  warn:    'text-warn',
+  info:    'text-info',
   neutral: 'text-slate-dark',
 }
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { SideNav } from './SideNav'
 import { TopBar } from './TopBar'
+import { BreadcrumbProvider } from './BreadcrumbContext'
 
 interface AppShellProps {
   children:   React.ReactNode
@@ -30,6 +31,7 @@ export function AppShell({ children, userEmail }: AppShellProps) {
   }, [open])
 
   return (
+    <BreadcrumbProvider>
     <div className="flex h-screen w-screen overflow-hidden bg-cream">
       {/* Sidebar: relative position on lg+, fixed drawer below. */}
       <aside
@@ -64,5 +66,6 @@ export function AppShell({ children, userEmail }: AppShellProps) {
         </main>
       </div>
     </div>
+    </BreadcrumbProvider>
   )
 }

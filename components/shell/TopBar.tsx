@@ -1,8 +1,10 @@
 'use client'
 
 import { Bell, Menu } from 'lucide-react'
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getSection, getBreadcrumbSuffix } from '@/lib/sections'
+import { useBreadcrumbTitle } from './BreadcrumbContext'
 
 interface TopBarProps {
   pendientes?:  number
@@ -21,7 +23,10 @@ export function TopBar({
 }: TopBarProps) {
   const pathname  = usePathname()
   const section   = getSection(pathname)
-  const subsection = getBreadcrumbSuffix(pathname)
+  const fallbackSuffix = getBreadcrumbSuffix(pathname)
+  const entityName = useBreadcrumbTitle()
+  const subsection = entityName ?? fallbackSuffix
+  const onDetailPage = !!fallbackSuffix
 
   return (
     <header className="h-14 bg-paper border-b border-line flex items-stretch px-3 sm:px-6 gap-2 sm:gap-4">
@@ -37,7 +42,7 @@ export function TopBar({
         </button>
       )}
 
-      {/* Section identifier — left color stripe + title + breadcrumb */}
+      {/* Section identifier — left color stripe + title link + breadcrumb */}
       <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
         {/* 3px color stripe — the "you are here" visual cue */}
         <span
@@ -46,15 +51,23 @@ export function TopBar({
           style={{ backgroundColor: section.color }}
         />
         <div className="flex items-baseline gap-2 min-w-0">
-          <span
-            className="font-display font-semibold uppercase tracking-tight text-[13px] sm:text-[15px] text-ink truncate"
+          {/* Section name is now a link back to the section index */}
+          <Link
+            href={section.path}
+            className={[
+              'font-display font-semibold uppercase tracking-tight text-[13px] sm:text-[15px] truncate transition-colors',
+              onDetailPage
+                ? 'text-slate-dark hover:text-ink'
+                : 'text-ink',
+            ].join(' ')}
+            title={`Ir a ${section.label}`}
           >
             {section.label}
-          </span>
+          </Link>
           {subsection && (
             <>
               <span className="text-slate text-[12px] shrink-0" aria-hidden>›</span>
-              <span className="text-[12px] sm:text-[13px] text-slate-dark truncate">{subsection}</span>
+              <span className="text-[12px] sm:text-[13px] text-ink font-medium truncate">{subsection}</span>
             </>
           )}
         </div>

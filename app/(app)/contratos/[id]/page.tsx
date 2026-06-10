@@ -8,6 +8,7 @@ import {
 } from '@/lib/contract/queries'
 import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
+import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -72,6 +73,8 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
 
   return (
     <>
+      <BreadcrumbTitle name={primaryTenant?.name ?? 'Detalle'} />
+
       <div className="mb-6">
         <Link href="/contratos" className="text-[12px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">
           ← Volver a contratos

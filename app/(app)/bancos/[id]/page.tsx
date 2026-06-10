@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/Badge'
 import { getBankAccountDetail } from '@/lib/bank/queries'
 import { listBanks } from '@/lib/entities/queries'
 import { EditBankAccountForm } from '@/components/bank/EditBankAccountForm'
+import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -27,6 +28,8 @@ export default async function BancoDetailPage({ params }: PageProps) {
 
   return (
     <>
+      <BreadcrumbTitle name={account.alias} />
+
       <div className="mb-6">
         <Link href="/bancos" className="text-[12px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">
           ← Volver a bancos
