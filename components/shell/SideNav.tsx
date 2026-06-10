@@ -6,11 +6,12 @@ import { usePathname } from 'next/navigation'
 interface NavItem {
   to: string
   label: string
-  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile'
+  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile' | 'sheet'
 }
 
 const mainItems: NavItem[] = [
   { to: '/dashboard',    label: 'Panel',         icon: 'dashboard'  },
+  { to: '/plantilla',    label: 'Plantilla',     icon: 'sheet'      },
   { to: '/contratos',    label: 'Contratos',     icon: 'contracts'  },
   { to: '/propietarios', label: 'Propietarios',  icon: 'owners'     },
   { to: '/inquilinos',   label: 'Inquilinos',    icon: 'tenants'    },
@@ -100,6 +101,17 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
         <svg {...common} strokeLinejoin="round">
           <path d="M4 6 H13 L16 9 L13 12 H4" />
           <path d="M16 14 H7 L4 17 L7 20" />
+        </svg>
+      )
+    case 'sheet':
+      return (
+        <svg {...common} strokeLinejoin="round">
+          <rect x="2.5" y="3" width="15" height="14" rx="1" />
+          <path d="M2.5 7 H17.5" />
+          <path d="M2.5 11 H17.5" />
+          <path d="M2.5 15 H17.5" />
+          <path d="M7 3 V17" />
+          <path d="M12 3 V17" />
         </svg>
       )
   }
