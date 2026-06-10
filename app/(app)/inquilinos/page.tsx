@@ -4,6 +4,7 @@ import { StickyHeader } from '@/components/ui/StickyHeader'
 import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listTenants, type TenantRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/urgency'
 
@@ -186,8 +187,9 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
                   const emailMissing = cellTint && !t.email ? u.cellTint : ''
                   const dniMissing   = cellTint && !t.dni   ? u.cellTint : ''
                   return (
-                    <tr
+                    <ClickableRow
                       key={t.id}
+                      href={`/inquilinos/${t.id}`}
                       title={t.urgencyReasons.length ? t.urgencyReasons.join(' · ') : undefined}
                       className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
                     >
@@ -197,7 +199,7 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
                       <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${dniMissing}`}>{t.dni ?? ''}</td>
                       <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{t.contractCount}</td>
                       <td className="px-4 py-1.5 text-right tabular-nums text-ink">{t.monthlyRent > 0 ? fmt(t.monthlyRent) : ''}</td>
-                    </tr>
+                    </ClickableRow>
                   )
                 })}
               </tbody>

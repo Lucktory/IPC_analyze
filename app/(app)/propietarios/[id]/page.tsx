@@ -53,7 +53,7 @@ export default async function LandlordDetailPage({ params }: PageProps) {
           <p className="text-[12px] text-slate mt-0.5">Editables — los cambios se guardan al confirmar</p>
         </div>
         <div className="p-5">
-          <EditLandlordForm landlord={landlord} />
+          <EditLandlordForm landlord={landlord} propertyCount={properties.length} contractCount={contracts.length} />
         </div>
       </section>
 

@@ -12,7 +12,6 @@ interface NavItem {
 
 const mainItems: NavItem[] = [
   { to: '/dashboard',    label: 'Panel',         icon: 'dashboard'  },
-  { to: '/plantilla',    label: 'Plantilla',     icon: 'sheet'      },
   { to: '/contratos',    label: 'Contratos',     icon: 'contracts'  },
   { to: '/propietarios', label: 'Propietarios',  icon: 'owners'     },
   { to: '/inquilinos',   label: 'Inquilinos',    icon: 'tenants'    },

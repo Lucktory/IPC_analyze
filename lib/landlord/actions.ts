@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
 
 export interface UpdateLandlordResult {
@@ -35,4 +36,32 @@ export async function updateLandlord(
   revalidatePath('/propietarios')
   revalidatePath(`/propietarios/${id}`)
   return { ok: true, error: null }
+}
+
+export interface DeleteLandlordResult {
+  ok:    boolean
+  error: string | null
+}
+
+/**
+ * Hard delete a landlord. Two RESTRICT constraints block this if the
+ * landlord has any properties (`property_landlords`) or any contracts
+ * (`contract_landlords`). Both are caught and translated to friendly text.
+ */
+export async function deleteLandlord(id: string): Promise<DeleteLandlordResult> {
+  const supabase  = await createSupabaseServer()
+  const { error } = await supabase.from('landlords').delete().eq('id', id)
+
+  if (error) {
+    if ((error as any).code === '23503' || /foreign key/i.test(error.message)) {
+      return {
+        ok: false,
+        error: 'No se puede eliminar: el propietario tiene propiedades o contratos asociados.',
+      }
+    }
+    return { ok: false, error: error.message }
+  }
+
+  revalidatePath('/propietarios')
+  redirect('/propietarios')
 }
