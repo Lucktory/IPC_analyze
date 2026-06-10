@@ -1,57 +1,68 @@
 'use client'
 
-import { Search, Bell, Menu } from 'lucide-react'
+import { Bell, Menu } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { getSection, getBreadcrumbSuffix } from '@/lib/sections'
 
 interface TopBarProps {
-  pendientes?: number
+  pendientes?:  number
   userInitials?: string
-  userName?: string
-  userRole?: string
+  userName?:    string
+  userRole?:    string
   onMenuClick?: () => void
 }
 
 export function TopBar({
-  pendientes = 0,
+  pendientes   = 0,
   userInitials = 'AH',
-  userName = 'Alejandro H.',
-  userRole = 'Admin',
+  userName     = 'Alejandro H.',
+  userRole     = 'Admin',
   onMenuClick,
 }: TopBarProps) {
+  const pathname  = usePathname()
+  const section   = getSection(pathname)
+  const subsection = getBreadcrumbSuffix(pathname)
+
   return (
-    <header className="h-14 bg-paper border-b border-line flex items-center px-3 sm:px-6 gap-2 sm:gap-4">
+    <header className="h-14 bg-paper border-b border-line flex items-stretch px-3 sm:px-6 gap-2 sm:gap-4">
       {/* Hamburger — mobile only */}
       {onMenuClick && (
         <button
           type="button"
           onClick={onMenuClick}
           aria-label="Abrir menú"
-          className="lg:hidden -ml-1 p-2 rounded text-slate-dark hover:text-ink hover:bg-cream-2 transition-colors"
+          className="lg:hidden -ml-1 my-2 p-2 rounded text-slate-dark hover:text-ink hover:bg-cream-2 transition-colors self-center"
         >
           <Menu className="w-5 h-5" strokeWidth={1.5} />
         </button>
       )}
 
-      {/* Search — hidden under sm */}
-      <div className="hidden sm:block flex-1 max-w-md relative">
-        <Search
-          className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate"
-          strokeWidth={1.5}
+      {/* Section identifier — left color stripe + title + breadcrumb */}
+      <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+        {/* 3px color stripe — the "you are here" visual cue */}
+        <span
+          aria-hidden
+          className="block w-[3px] self-stretch my-3 rounded-full shrink-0"
+          style={{ backgroundColor: section.color }}
         />
-        <input
-          type="search"
-          name="global-search"
-          autoComplete="off"
-          placeholder="Buscar contratos, inquilinos, propietarios..."
-          className="w-full h-9 pl-9 pr-3 rounded border border-line bg-cream text-[13px] outline-none focus:border-ink focus:bg-paper transition-colors"
-        />
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span
+            className="font-display font-semibold uppercase tracking-tight text-[13px] sm:text-[15px] text-ink truncate"
+          >
+            {section.label}
+          </span>
+          {subsection && (
+            <>
+              <span className="text-slate text-[12px] shrink-0" aria-hidden>›</span>
+              <span className="text-[12px] sm:text-[13px] text-slate-dark truncate">{subsection}</span>
+            </>
+          )}
+        </div>
       </div>
-
-      {/* Spacer for mobile to push right-side elements */}
-      <div className="flex-1 sm:hidden" />
 
       <button
         type="button"
-        className="relative h-9 px-2 sm:px-3 rounded inline-flex items-center gap-1.5 sm:gap-2 text-slate-dark hover:bg-cream-2 transition-colors group"
+        className="relative h-9 px-2 sm:px-3 rounded inline-flex items-center gap-1.5 sm:gap-2 text-slate-dark hover:bg-cream-2 transition-colors group self-center"
         title={`${pendientes} acciones pendientes`}
       >
         <Bell className="w-[18px] h-[18px]" strokeWidth={1.5} />
@@ -65,7 +76,7 @@ export function TopBar({
         )}
       </button>
 
-      <div className="flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-line">
+      <div className="flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-line self-center">
         <div className="w-8 h-8 rounded-full bg-ink text-paper flex items-center justify-center font-display font-semibold text-[12px]">
           {userInitials}
         </div>

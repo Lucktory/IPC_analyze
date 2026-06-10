@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { getSection } from '@/lib/sections'
 
 interface NavItem {
   to: string
@@ -152,18 +153,27 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
         <ul className="space-y-0.5">
           {mainItems.map((item) => {
             const active = isActive(item.to)
+            const section = getSection(item.to)
             return (
               <li key={item.to}>
                 <Link
                   href={item.to}
                   onClick={onNavigate}
                   className={[
-                    'flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium transition-colors',
+                    'relative flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium transition-colors',
                     active
                       ? 'bg-paper/[0.08] text-paper'
                       : 'text-paper/60 hover:bg-paper/[0.04] hover:text-paper',
                   ].join(' ')}
                 >
+                  {/* 3px section-color accent on active items — mirrors the TopBar stripe */}
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r"
+                      style={{ backgroundColor: section.color }}
+                    />
+                  )}
                   <span
                     className={[
                       'w-4 h-4 shrink-0 flex items-center justify-center transition-colors',
