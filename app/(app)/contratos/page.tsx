@@ -289,29 +289,31 @@ export default async function ContratosPage({ searchParams }: PageProps) {
 }
 
 /**
- * Status column for a contract row. Was a plain "Activo / Rescindido /
- * Finalizado" badge — that produced the confusing case the client flagged:
- * a green "Activo" sitting inside a red row. The contract is genuinely
- * active in those rows, the row is red because the AUDIT (rent, note,
- * vencimiento) fails. Both true at once; one badge can only show one.
+ * Status column for a contract row. Surfaces the urgency reason in the
+ * badge when there is one so the badge always matches the row tint.
  *
- * Resolution: surface the urgency reason in the badge when there is one,
- * so the visible badge always matches the row tint. Plain "Activo" only
- * shows for actually-clean active rows.
+ * Text color is forced light/dark to keep contrast against the row tint:
+ *   - On a critical (orange-400) row, default text-danger red doesn't read.
+ *     Force WHITE.
+ *   - On a warning (yellow-300) row, default text-warn orange doesn't read.
+ *     Force INK (dark).
  */
 function RowStatusBadge({ row }: { row: ContractRow }) {
   if (row.status === 'rescinded') return <Badge tone="danger">Rescindido</Badge>
   if (row.status === 'ended')     return <Badge tone="neutral">Finalizado</Badge>
 
+  const contrastClass = row.urgency === 'critical' ? '!text-white'
+                       : row.urgency === 'warning' ? '!text-ink'
+                       : ''
+
   switch (row.urgency) {
     case 'critical':
-      // Show the most actionable reason
-      if (!row.hasRentThisMonth) return <Badge tone="danger">Sin pago</Badge>
-      return <Badge tone="danger">Vence pronto</Badge>
+      if (!row.hasRentThisMonth) return <Badge tone="danger" className={contrastClass}>Sin pago</Badge>
+      return <Badge tone="danger" className={contrastClass}>Vence pronto</Badge>
     case 'warning':
-      if (!row.hasRentThisMonth) return <Badge tone="warn">Sin pago</Badge>
-      if (!row.hasNoteThisMonth) return <Badge tone="warn">Sin nota</Badge>
-      return <Badge tone="warn">Por vencer</Badge>
+      if (!row.hasRentThisMonth) return <Badge tone="warn" className={contrastClass}>Sin pago</Badge>
+      if (!row.hasNoteThisMonth) return <Badge tone="warn" className={contrastClass}>Sin nota</Badge>
+      return <Badge tone="warn" className={contrastClass}>Por vencer</Badge>
     case 'recent':
       return <Badge tone="info">Activo · cambios</Badge>
     case 'upcoming':

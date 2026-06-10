@@ -214,7 +214,7 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
                       </td>
                       <td className="px-4 py-1.5">
                         {p.isVacant
-                          ? <Badge tone="warn">Vacante</Badge>
+                          ? <Badge tone="warn" className={p.urgency === 'critical' ? '!text-white' : p.urgency === 'warning' ? '!text-ink' : ''}>Vacante</Badge>
                           : <Badge tone="success">Ocupada</Badge>}
                       </td>
                     </tr>

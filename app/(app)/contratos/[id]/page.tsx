@@ -336,14 +336,18 @@ function RowStatusBadge({ status, urgency, hasRent, hasNote }: {
   if (status === 'rescinded') return <Badge tone="danger">Rescindido</Badge>
   if (status === 'ended')     return <Badge tone="neutral">Finalizado</Badge>
 
+  const contrastClass = urgency === 'critical' ? '!text-white'
+                       : urgency === 'warning' ? '!text-ink'
+                       : ''
+
   switch (urgency) {
     case 'critical':
-      if (!hasRent) return <Badge tone="danger">Sin pago</Badge>
-      return <Badge tone="danger">Vence pronto</Badge>
+      if (!hasRent) return <Badge tone="danger" className={contrastClass}>Sin pago</Badge>
+      return <Badge tone="danger" className={contrastClass}>Vence pronto</Badge>
     case 'warning':
-      if (!hasRent) return <Badge tone="warn">Sin pago</Badge>
-      if (!hasNote) return <Badge tone="warn">Sin nota</Badge>
-      return <Badge tone="warn">Por vencer</Badge>
+      if (!hasRent) return <Badge tone="warn" className={contrastClass}>Sin pago</Badge>
+      if (!hasNote) return <Badge tone="warn" className={contrastClass}>Sin nota</Badge>
+      return <Badge tone="warn" className={contrastClass}>Por vencer</Badge>
     case 'recent':
       return <Badge tone="info">Activo · cambios</Badge>
     case 'upcoming':
