@@ -6,6 +6,7 @@ import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStr
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { listProperties, type PropertyRow } from '@/lib/entities/queries'
+import { URGENCY_STYLES } from '@/lib/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
@@ -193,25 +194,29 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
                 </tr>
               </thead>
               <tbody>
-                {sortedRows.map((p, idx) => (
-                  <tr
-                    key={p.id}
-                    className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${p.isVacant ? 'opacity-65' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}
-                  >
-                    <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">{cleanAddress(p.address)}</td>
-                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{TYPE_LABEL[p.propertyType] ?? p.propertyType}</td>
-                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{p.landlord ?? <span className="text-slate/50">—</span>}</td>
-                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{p.tenant ?? <span className="text-slate/50">—</span>}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">
-                      {p.currentRent > 0 ? fmt(p.currentRent) : <span className="text-slate/50">—</span>}
-                    </td>
-                    <td className="px-4 py-1.5">
-                      {p.isVacant
-                        ? <Badge tone="danger">Vacante</Badge>
-                        : <Badge tone="success">Ocupada</Badge>}
-                    </td>
-                  </tr>
-                ))}
+                {sortedRows.map((p, idx) => {
+                  const u = URGENCY_STYLES[p.urgency]
+                  return (
+                    <tr
+                      key={p.id}
+                      title={p.urgencyReasons.length ? p.urgencyReasons.join(' · ') : undefined}
+                      className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${u.row} hover:bg-cream-2 transition-colors border-b border-line/30`}
+                    >
+                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>{cleanAddress(p.address)}</td>
+                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{TYPE_LABEL[p.propertyType] ?? p.propertyType}</td>
+                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{p.landlord ?? ''}</td>
+                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{p.tenant ?? ''}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">
+                        {p.currentRent > 0 ? fmt(p.currentRent) : ''}
+                      </td>
+                      <td className="px-4 py-1.5">
+                        {p.isVacant
+                          ? <Badge tone="warn">Vacante</Badge>
+                          : <Badge tone="success">Ocupada</Badge>}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           ) : (

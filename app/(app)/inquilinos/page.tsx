@@ -5,6 +5,7 @@ import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStr
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { listTenants, type TenantRow } from '@/lib/entities/queries'
+import { URGENCY_STYLES } from '@/lib/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
@@ -176,16 +177,27 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((t, idx) => (
-                  <tr key={t.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}>
-                    <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">{t.name}</td>
-                    <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{t.phone ?? <span className="text-slate/50">—</span>}</td>
-                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{t.email ?? <span className="text-slate/50">—</span>}</td>
-                    <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{t.dni ?? <span className="text-slate/50">—</span>}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{t.contractCount}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-ink">{t.monthlyRent > 0 ? fmt(t.monthlyRent) : <span className="text-slate/50">—</span>}</td>
-                  </tr>
-                ))}
+                {rows.map((t, idx) => {
+                  const u = URGENCY_STYLES[t.urgency]
+                  const cellTint = (t.urgency === 'critical' || t.urgency === 'warning')
+                  const phoneMissing = cellTint && !t.phone ? u.cellTint : ''
+                  const emailMissing = cellTint && !t.email ? u.cellTint : ''
+                  const dniMissing   = cellTint && !t.dni   ? u.cellTint : ''
+                  return (
+                    <tr
+                      key={t.id}
+                      title={t.urgencyReasons.length ? t.urgencyReasons.join(' · ') : undefined}
+                      className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${u.row} hover:bg-cream-2 transition-colors border-b border-line/30`}
+                    >
+                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>{t.name}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${phoneMissing}`}>{t.phone ?? ''}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark border-r border-line/30 ${emailMissing}`}>{t.email ?? ''}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${dniMissing}`}>{t.dni ?? ''}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{t.contractCount}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-ink">{t.monthlyRent > 0 ? fmt(t.monthlyRent) : ''}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           ) : (

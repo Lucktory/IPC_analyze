@@ -4,7 +4,9 @@ import { StickyHeader } from '@/components/ui/StickyHeader'
 import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listLandlords, type LandlordRow } from '@/lib/entities/queries'
+import { URGENCY_STYLES } from '@/lib/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
@@ -180,21 +182,31 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((l, idx) => (
-                  <tr key={l.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}>
-                    <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">
-                      <Link href={`/propietarios/${l.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
+                {rows.map((l, idx) => {
+                  const u = URGENCY_STYLES[l.urgency]
+                  const cellTint = (l.urgency === 'critical' || l.urgency === 'warning')
+                  const cuitMissing  = cellTint && !l.dniOrCuit  ? u.cellTint : ''
+                  const phoneMissing = cellTint && !l.phone      ? u.cellTint : ''
+                  const emailMissing = cellTint && !l.email      ? u.cellTint : ''
+                  return (
+                    <ClickableRow
+                      key={l.id}
+                      href={`/propietarios/${l.id}`}
+                      title={l.urgencyReasons.length ? l.urgencyReasons.join(' · ') : undefined}
+                      className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${u.row} hover:bg-cream-2 transition-colors border-b border-line/30`}
+                    >
+                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>
                         {l.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{l.dniOrCuit ?? <span className="text-slate/50">—</span>}</td>
-                    <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{l.phone ?? <span className="text-slate/50">—</span>}</td>
-                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{l.email ?? <span className="text-slate/50">—</span>}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{l.contractCount}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-slate-dark border-r border-line/30">{l.propertyCount}</td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-ink">{l.monthlyRevenue > 0 ? fmt(l.monthlyRevenue) : <span className="text-slate/50">—</span>}</td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${cuitMissing}`}>{l.dniOrCuit ?? ''}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${phoneMissing}`}>{l.phone ?? ''}</td>
+                      <td className={`px-4 py-1.5 text-slate-dark border-r border-line/30 ${emailMissing}`}>{l.email ?? ''}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{l.contractCount}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-slate-dark border-r border-line/30">{l.propertyCount}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-ink">{l.monthlyRevenue > 0 ? fmt(l.monthlyRevenue) : ''}</td>
+                    </ClickableRow>
+                  )
+                })}
               </tbody>
             </table>
           ) : (

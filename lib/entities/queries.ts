@@ -19,6 +19,9 @@ export interface LandlordRow {
   propertyCount:   number
   contractCount:   number
   monthlyRevenue:  number   // RENT_IN sum for current period across this landlord's contracts
+  // Audit
+  urgency:         UrgencyTier
+  urgencyReasons:  string[]
 }
 
 export async function listLandlords(): Promise<LandlordRow[]> {
@@ -80,16 +83,41 @@ export async function listLandlords(): Promise<LandlordRow[]> {
   }
 
   return (landlordsRes.data ?? []).map(l => {
-    const s = stats.get((l as any).id) ?? { contracts: new Set(), revenue: 0 }
+    const id        = (l as any).id as string
+    const s         = stats.get(id) ?? { contracts: new Set<string>(), revenue: 0 }
+    const props     = propCount.get(id) ?? 0
+    const email     = (l as any).email as string | null
+    const phone     = (l as any).phone as string | null
+    const cuit      = (l as any).dni_or_cuit as string | null
+    const contracts = s.contracts.size
+
+    // Urgency audit for landlords:
+    //   Critical: zero properties AND zero contracts (orphan record)
+    //   Warning:  missing any of CUIT / phone / email (incomplete record)
+    //   OK:       complete
+    const reasons: string[] = []
+    let urgency: UrgencyTier = 'ok'
+    if (props === 0 && contracts === 0) {
+      urgency = 'critical'
+      reasons.push('Sin propiedades ni contratos')
+    } else {
+      if (!cuit)  reasons.push('Sin CUIT')
+      if (!phone) reasons.push('Sin teléfono')
+      if (!email) reasons.push('Sin email')
+      if (reasons.length > 0) urgency = 'warning'
+    }
+
     return {
-      id:              (l as any).id,
+      id,
       name:            (l as any).name,
-      email:           (l as any).email,
-      phone:           (l as any).phone,
-      dniOrCuit:       (l as any).dni_or_cuit,
-      propertyCount:   propCount.get((l as any).id) ?? 0,
-      contractCount:   s.contracts.size,
+      email,
+      phone,
+      dniOrCuit:       cuit,
+      propertyCount:   props,
+      contractCount:   contracts,
       monthlyRevenue:  s.revenue,
+      urgency,
+      urgencyReasons:  reasons,
     }
   })
 }
@@ -105,6 +133,8 @@ export interface TenantRow {
   dni:           string | null
   contractCount: number
   monthlyRent:   number   // sum of current_rent across the tenant's active contracts
+  urgency:        UrgencyTier
+  urgencyReasons: string[]
 }
 
 export async function listTenants(): Promise<TenantRow[]> {
@@ -139,15 +169,40 @@ export async function listTenants(): Promise<TenantRow[]> {
   }
 
   return (tenantsRes.data ?? []).map(t => {
-    const s = stats.get((t as any).id) ?? { contracts: new Set(), rent: 0 }
+    const id     = (t as any).id as string
+    const s      = stats.get(id) ?? { contracts: new Set<string>(), rent: 0 }
+    const email  = (t as any).email as string | null
+    const phone  = (t as any).phone as string | null
+    const dni    = (t as any).dni as string | null
+    const contracts = s.contracts.size
+
+    // Urgency for tenants:
+    //   Critical: zero contracts (orphan tenant record)
+    //   Warning:  missing phone AND email (can't contact)
+    //   OK:       has contract and at least one contact method
+    const reasons: string[] = []
+    let urgency: UrgencyTier = 'ok'
+    if (contracts === 0) {
+      urgency = 'critical'
+      reasons.push('Sin contratos vigentes')
+    } else if (!phone && !email) {
+      urgency = 'warning'
+      reasons.push('Sin teléfono ni email')
+    } else {
+      if (!phone) reasons.push('Sin teléfono')
+      if (!email) reasons.push('Sin email')
+      if (!dni)   reasons.push('Sin DNI')
+      if (reasons.length > 0) urgency = 'warning'
+    }
+
     return {
-      id:             (t as any).id,
+      id,
       name:           (t as any).name,
-      email:          (t as any).email,
-      phone:          (t as any).phone,
-      dni:            (t as any).dni,
-      contractCount:  s.contracts.size,
+      email, phone, dni,
+      contractCount:  contracts,
       monthlyRent:    s.rent,
+      urgency,
+      urgencyReasons: reasons,
     }
   })
 }
@@ -166,6 +221,8 @@ export interface BankAccountRow {
   ownerType:     'admin' | 'administrator' | 'landlord' | 'unknown'
   ownerLabel:    string
   isActive:      boolean
+  urgency:        UrgencyTier
+  urgencyReasons: string[]
 }
 
 export async function listBankAccounts(): Promise<BankAccountRow[]> {
@@ -196,6 +253,21 @@ export async function listBankAccounts(): Promise<BankAccountRow[]> {
       ownerType = 'landlord'
       ownerLabel = row.landlords?.name ?? '(propietario)'
     }
+    // Urgency for bank accounts:
+    //   Critical: no CBU (can't transfer money there)
+    //   Warning:  no account_number or unknown owner
+    //   OK:       complete + has CBU
+    const reasons: string[] = []
+    let urgency: UrgencyTier = 'ok'
+    if (!row.cbu) {
+      urgency = 'critical'
+      reasons.push('Sin CBU — no se puede transferir')
+    } else if (!row.account_number || ownerType === 'unknown') {
+      urgency = 'warning'
+      if (!row.account_number) reasons.push('Sin número de cuenta')
+      if (ownerType === 'unknown') reasons.push('Sin titular asignado')
+    }
+
     return {
       id:            row.id,
       bankName:      row.banks.name,
@@ -206,6 +278,8 @@ export async function listBankAccounts(): Promise<BankAccountRow[]> {
       ownerType,
       ownerLabel,
       isActive:      row.is_active,
+      urgency,
+      urgencyReasons: reasons,
     }
   })
 }
@@ -462,6 +536,8 @@ export interface PropertyRow {
   tenant:        string | null
   landlord:      string | null // derived from contract (active) or placeholder address
   currentRent:   number
+  urgency:        UrgencyTier
+  urgencyReasons: string[]
 }
 
 export async function listProperties(): Promise<PropertyRow[]> {
@@ -511,6 +587,18 @@ export async function listProperties(): Promise<PropertyRow[]> {
       rent   = Number(contract.current_rent)
     }
 
+    // Urgency for properties: vacante = warning (no income, action needed)
+    const reasons: string[] = []
+    let urgency: UrgencyTier = 'ok'
+    if (isVacant) {
+      urgency = 'warning'
+      reasons.push('Propiedad vacante')
+      if (!landlord) {
+        urgency = 'critical'
+        reasons.push('Sin propietario asignado')
+      }
+    }
+
     return {
       id:           p.id,
       address:      addr,
@@ -520,6 +608,8 @@ export async function listProperties(): Promise<PropertyRow[]> {
       tenant,
       landlord,
       currentRent:  rent,
+      urgency,
+      urgencyReasons: reasons,
     }
   })
 }
@@ -539,6 +629,8 @@ export interface TransactionRow {
   description:   string | null
   contractId:    string | null
   tenantName:    string | null
+  urgency:        UrgencyTier
+  urgencyReasons: string[]
 }
 
 export async function listTransactions(period?: string): Promise<TransactionRow[]> {
@@ -562,9 +654,26 @@ export async function listTransactions(period?: string): Promise<TransactionRow[
 
   return (data ?? []).map((t: any) => {
     const primary = t.contracts?.contract_tenants?.find((ct: any) => ct.is_primary) ?? t.contracts?.contract_tenants?.[0]
+    const code = t.transaction_types.code as string
+
+    // Urgency for transactions:
+    //   Critical: rent-like transaction with no contract link (orphan, can't liquidate)
+    //   Warning:  no bank_date (not yet confirmed by the bank statement)
+    //   OK:       complete
+    const reasons: string[] = []
+    let urgency: UrgencyTier = 'ok'
+    const isRevenueLike = code === 'RENT_IN' || code === 'OTHER_IN' || code === 'EXPENSAS_IN'
+    if (isRevenueLike && !t.contract_id) {
+      urgency = 'critical'
+      reasons.push('Sin contrato asignado — no se puede liquidar')
+    } else if (!t.bank_date) {
+      urgency = 'warning'
+      reasons.push('Sin fecha bancaria confirmada')
+    }
+
     return {
       id:          t.id,
-      typeCode:    t.transaction_types.code,
+      typeCode:    code,
       typeLabel:   t.transaction_types.label,
       category:    t.transaction_types.category,
       direction:   t.transaction_types.direction,
@@ -574,6 +683,8 @@ export async function listTransactions(period?: string): Promise<TransactionRow[
       description: t.description,
       contractId:  t.contract_id,
       tenantName:  primary?.tenants?.name ?? null,
+      urgency,
+      urgencyReasons: reasons,
     }
   })
 }

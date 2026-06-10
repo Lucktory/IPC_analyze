@@ -6,6 +6,7 @@ import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import Link from 'next/link'
 import { listTransactions, listTransactionPeriods, type TransactionRow } from '@/lib/entities/queries'
+import { URGENCY_STYLES } from '@/lib/urgency'
 
 const PAGE_SIZE = 50
 
@@ -275,19 +276,25 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
 }
 
 function TxRow({ t, odd }: { t: TransactionRow; odd: boolean }) {
+  const u = URGENCY_STYLES[t.urgency]
+  const cellTint = (t.urgency === 'critical' || t.urgency === 'warning')
+  const bankDateMissing = cellTint && !t.bankDate ? u.cellTint : ''
   return (
-    <tr className={`${odd ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}>
-      <td className="px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30">{DATE_LABEL(t.bankDate)}</td>
+    <tr
+      title={t.urgencyReasons.length ? t.urgencyReasons.join(' · ') : undefined}
+      className={`${odd ? 'bg-cream/40' : ''} ${u.row} hover:bg-cream-2 transition-colors border-b border-line/30`}
+    >
+      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-l-[4px] ${u.borderLeft} border-r border-line/30 ${bankDateMissing}`}>{DATE_LABEL(t.bankDate)}</td>
       <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{PERIOD_LABEL(t.period)}</td>
       <td className="px-4 py-1.5 border-r border-line/30">
         <Badge tone={t.direction === 'IN' ? 'success' : 'neutral'}>{t.typeLabel}</Badge>
       </td>
-      <td className="px-4 py-1.5 text-ink border-r border-line/30">{t.tenantName ?? <span className="text-slate/50">—</span>}</td>
+      <td className="px-4 py-1.5 text-ink border-r border-line/30">{t.tenantName ?? ''}</td>
       <td className={`px-4 py-1.5 text-right tabular-nums font-medium border-r border-line/30 ${t.direction === 'IN' ? 'text-ink' : 'text-slate-dark'}`}>
         {t.direction === 'IN' ? '+ ' : '− '}{fmt(t.amount)}
       </td>
       <td className="px-4 py-1.5 text-slate text-[12px] truncate max-w-[280px]">
-        {t.description ?? <span className="text-slate/50">—</span>}
+        {t.description ?? ''}
       </td>
     </tr>
   )

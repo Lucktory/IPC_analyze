@@ -1,9 +1,18 @@
 // ============================================================================
-// Contract urgency — single source of truth for the audit signal.
-// Used by /contratos (row tinting + sort) AND /contratos/[id] (detail banner).
+// Contract urgency — contract-specific audit logic (rent / note / vencimiento).
+// Visual styles, tier ranks, labels live in lib/urgency.ts and are re-exported
+// here so existing imports keep working.
 // ============================================================================
 
-export type UrgencyTier = 'critical' | 'warning' | 'recent' | 'upcoming' | 'ok'
+export {
+  URGENCY_STYLES,
+  URGENCY_RANK,
+  URGENCY_LABEL,
+  URGENCY_BANNER,
+  type UrgencyTier,
+  type UrgencyStyle,
+} from '@/lib/urgency'
+import type { UrgencyTier } from '@/lib/urgency'
 
 export interface UrgencyInputs {
   status:            string
@@ -54,56 +63,4 @@ export function computeUrgency(i: UrgencyInputs): UrgencyResult {
   }
 
   return { urgency: 'ok', reasons: [] }
-}
-
-export const URGENCY_RANK: Record<UrgencyTier, number> = {
-  critical: 0, warning: 1, recent: 2, upcoming: 3, ok: 4,
-}
-
-export const URGENCY_LABEL: Record<UrgencyTier, string> = {
-  critical: 'Atención requerida',
-  warning:  'Verificar',
-  recent:   'Cambios recientes',
-  upcoming: 'Aumento próximo',
-  ok:       'Al día',
-}
-
-// ----------------------------------------------------------------------------
-// Visual style table — jewel-tone palette. Premium feel: deeper hues, lower
-// opacity, fewer simultaneous colors. Only critical and warning tint the row;
-// recent/upcoming are surfaced through the status badge instead.
-// ----------------------------------------------------------------------------
-export interface UrgencyStyle {
-  row:        string  // background tint for the <tr>
-  borderLeft: string  // border-l-* class (color only; width is fixed via inline class)
-  cellTint:   string  // background tint for an empty audit cell within the row
-}
-
-export const URGENCY_STYLES: Record<UrgencyTier, UrgencyStyle> = {
-  critical: {
-    row:        'bg-red-900/[0.07] hover:bg-red-900/[0.13]',
-    borderLeft: 'border-l-red-900',
-    cellTint:   'bg-red-900/[0.14]',
-  },
-  warning: {
-    row:        'bg-amber-800/[0.06] hover:bg-amber-800/[0.12]',
-    borderLeft: 'border-l-amber-800',
-    cellTint:   'bg-amber-800/[0.12]',
-  },
-  recent: {
-    // No row tint — surfaced through the status badge only (restraint = premium)
-    row:        '',
-    borderLeft: 'border-l-transparent',
-    cellTint:   '',
-  },
-  upcoming: {
-    row:        '',
-    borderLeft: 'border-l-transparent',
-    cellTint:   '',
-  },
-  ok: {
-    row:        '',
-    borderLeft: 'border-l-transparent',
-    cellTint:   '',
-  },
 }

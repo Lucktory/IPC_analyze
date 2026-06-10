@@ -9,7 +9,7 @@ import {
 import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
-import { computeUrgency, URGENCY_LABEL, type UrgencyTier } from '@/lib/contract/urgency'
+import { computeUrgency, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -355,20 +355,19 @@ function RowStatusBadge({ status, urgency, hasRent, hasNote }: {
 
 /**
  * Audit banner — surfaces the urgency reasons on the detail page, mirroring
- * the row tint from /contratos. Premium feel: subtle tint + thick left
- * border in deep jewel tone, list of reasons in slate-dark.
+ * the row tint from /contratos. Excel-familiar palette (orange/yellow), so
+ * the alert reads instantly to the team.
  */
 function AuditBanner({ urgency, reasons }: { urgency: 'critical' | 'warning'; reasons: string[] }) {
-  const palette = urgency === 'critical'
-    ? { border: 'border-l-red-900',    bg: 'bg-red-900/[0.07]',   text: 'text-red-900',    dot: 'bg-red-900',    label: 'Atención requerida' }
-    : { border: 'border-l-amber-800',  bg: 'bg-amber-800/[0.06]', text: 'text-amber-800',  dot: 'bg-amber-800',  label: 'Verificar' }
+  const p = URGENCY_BANNER[urgency]
+  const label = URGENCY_LABEL[urgency]
 
   return (
-    <section className={`mt-6 ${palette.bg} border border-line border-l-[4px] ${palette.border} rounded shadow-card p-4 sm:p-5`}>
+    <section className={`mt-6 ${p.bg} border border-line border-l-[4px] ${p.border} rounded shadow-card p-4 sm:p-5`}>
       <div className="flex items-start gap-3">
-        <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${palette.dot}`} aria-hidden />
+        <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${p.dot}`} aria-hidden />
         <div className="flex-1 min-w-0">
-          <p className={`label-cap ${palette.text}`}>{palette.label}</p>
+          <p className={`label-cap ${p.text}`}>{label}</p>
           <ul className="mt-2 space-y-1">
             {reasons.map((r, i) => (
               <li key={i} className="text-[13px] text-slate-dark leading-snug">{r}</li>
