@@ -5,20 +5,17 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getSection, getBreadcrumbSuffix } from '@/lib/sections'
 import { useBreadcrumbTitle } from './BreadcrumbContext'
+import { UserMenu } from './UserMenu'
 
 interface TopBarProps {
   pendientes?:  number
-  userInitials?: string
-  userName?:    string
-  userRole?:    string
+  userEmail?:   string | null
   onMenuClick?: () => void
 }
 
 export function TopBar({
   pendientes   = 0,
-  userInitials = 'AH',
-  userName     = 'Alejandro H.',
-  userRole     = 'Admin',
+  userEmail    = null,
   onMenuClick,
 }: TopBarProps) {
   const pathname  = usePathname()
@@ -89,15 +86,7 @@ export function TopBar({
         )}
       </Link>
 
-      <div className="flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-line self-center">
-        <div className="w-8 h-8 rounded-full bg-ink text-paper flex items-center justify-center font-display font-semibold text-[12px]">
-          {userInitials}
-        </div>
-        <div className="hidden md:flex flex-col leading-tight">
-          <span className="text-[13px] font-medium text-ink">{userName}</span>
-          <span className="text-[10px] uppercase tracking-wider text-slate">{userRole}</span>
-        </div>
-      </div>
+      <UserMenu email={userEmail} />
     </header>
   )
 }
