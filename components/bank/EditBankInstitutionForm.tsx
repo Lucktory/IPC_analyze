@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import {
   createBankInstitution,
   updateBankInstitution,
   deleteBankInstitution,
 } from '@/lib/bank/actions'
 import type { BankInstitutionDetail } from '@/lib/bank/queries'
+import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
 
 interface Props {
   /** When editing, pass the institution. When creating, omit. */
@@ -19,7 +20,7 @@ export function EditBankInstitutionForm({ bank, accountCount = 0 }: Props) {
   const [pending, startTransition] = useTransition()
   const [error, setError]          = useState<string | null>(null)
   const [savedAt, setSavedAt]      = useState<Date | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const formRef                    = useRef<HTMLFormElement>(null)
 
   const isCreate = !bank
 
@@ -45,7 +46,6 @@ export function EditBankInstitutionForm({ bank, accountCount = 0 }: Props) {
       const res = await deleteBankInstitution(bank.id)
       if (res && !res.ok) {
         setError(res.error ?? 'Error al eliminar')
-        setConfirmDelete(false)
       }
     })
   }
@@ -53,7 +53,7 @@ export function EditBankInstitutionForm({ bank, accountCount = 0 }: Props) {
   const canDelete = !isCreate && accountCount === 0
 
   return (
-    <form action={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+    <form ref={formRef} action={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
       {/* Identification */}
       <Field name="name"       label="Nombre" required defaultValue={bank?.name ?? ''} wide placeholder="Banco Galicia" />
       <Field name="short_code" label="Código corto" defaultValue={bank?.shortCode ?? ''} placeholder="GAL" />
@@ -92,32 +92,27 @@ export function EditBankInstitutionForm({ bank, accountCount = 0 }: Props) {
         <p className="text-[12px] text-slate">
           {savedAt
             ? <span className="text-success">✓ Guardado {savedAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-            : isCreate ? 'Completá los datos y confirmá.' : 'Los cambios se guardan al confirmar.'}
+            : isCreate ? 'Completá los datos y confirmá. La acción se ejecuta 10s después de confirmar.' : 'Los cambios se guardan 10s después de confirmar. Tenés ese tiempo para cancelar.'}
         </p>
         <div className="flex items-center gap-2">
           {!isCreate && (
-            confirmDelete ? (
-              <>
-                <button type="button" onClick={() => setConfirmDelete(false)} disabled={pending} className="px-3 py-2 text-[12px] text-slate hover:text-ink transition-colors">Cancelar</button>
-                <button type="button" onClick={handleDelete} disabled={pending} className="bg-danger text-paper px-4 py-2 rounded text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-                  {pending ? 'Eliminando…' : 'Confirmar eliminación'}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                disabled={pending || !canDelete}
-                title={canDelete ? 'Eliminar banco' : `Tiene ${accountCount} cuenta(s) asociada(s) — no se puede eliminar`}
-                className="px-3 py-2 text-[12px] text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Eliminar
-              </button>
-            )
+            <DelayedActionButton
+              variant="danger"
+              label="Eliminar"
+              pendingLabel="Eliminando…"
+              onConfirm={handleDelete}
+              pending={pending}
+              disabled={!canDelete}
+              title={canDelete ? 'Eliminar banco' : `Tiene ${accountCount} cuenta(s) asociada(s) — no se puede eliminar`}
+            />
           )}
-          <button type="submit" disabled={pending} className="bg-ink text-paper px-4 py-2 rounded text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-            {pending ? (isCreate ? 'Creando…' : 'Guardando…') : (isCreate ? 'Crear banco' : 'Guardar cambios')}
-          </button>
+          <DelayedActionButton
+            variant="primary"
+            label={isCreate ? 'Crear banco' : 'Guardar cambios'}
+            pendingLabel={isCreate ? 'Creando…' : 'Guardando…'}
+            onConfirm={() => formRef.current?.requestSubmit()}
+            pending={pending}
+          />
         </div>
       </div>
     </form>
