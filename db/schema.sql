@@ -19,6 +19,7 @@
 -- ----------------------------------------------------------------------------
 -- 1. DROP EXISTING (reverse order of create due to FKs)
 -- ----------------------------------------------------------------------------
+drop table if exists pending_actions_sent cascade;
 drop table if exists liquidacion_lines cascade;
 drop table if exists liquidaciones cascade;
 drop table if exists recibos cascade;
@@ -272,6 +273,22 @@ create table contract_period_notes (
   primary key (contract_id, period)
 );
 create index idx_contract_period_notes_period on contract_period_notes(period);
+
+-- ----------------------------------------------------------------------------
+-- 13c. PENDING_ACTIONS_SENT — bell/pendientes snooze tracker.
+--      When the encargada marks an action as "sent" (email dispatched),
+--      it disappears from /pendientes for 7 days. After that it reappears
+--      if the underlying condition (no payment, vencimiento close) still
+--      holds, so she chases again. Categories: cobranza | aumento | renovacion.
+-- ----------------------------------------------------------------------------
+create table pending_actions_sent (
+  contract_id uuid        not null references contracts(id) on delete cascade,
+  category    text        not null check (category in ('cobranza', 'aumento', 'renovacion')),
+  sent_at     timestamptz not null default now(),
+  sent_by     text,
+  primary key (contract_id, category)
+);
+create index idx_pending_actions_sent_sent_at on pending_actions_sent (sent_at);
 
 -- ----------------------------------------------------------------------------
 -- 14. TRANSACTION_TYPES — lookup for every kind of money movement

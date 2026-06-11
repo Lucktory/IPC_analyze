@@ -55,10 +55,15 @@ function nextAdjustmentDate(startDate: string, cadence: string, today: Date): Da
  * pending categories. The same contract can appear in multiple categories
  * (e.g. CAVANNA ROMINA can need both an aviso de aumento AND a renovación).
  */
+/** Snooze window: an action marked as "sent" stays dismissed this long. */
+const SNOOZE_DAYS = 7
+
 export async function listPendingActions(): Promise<PendingResult> {
   const supabase = await createSupabaseServer()
 
-  const [contractsRes, rentTxnsRes] = await Promise.all([
+  const snoozeCutoff = new Date(Date.now() - SNOOZE_DAYS * 86400000).toISOString()
+
+  const [contractsRes, rentTxnsRes, sentRes] = await Promise.all([
     supabase
       .from('contracts')
       .select(`
@@ -72,6 +77,11 @@ export async function listPendingActions(): Promise<PendingResult> {
       .select('contract_id, transaction_types!inner(code)')
       .eq('period', getCurrentPeriod())
       .eq('transaction_types.code', 'RENT_IN'),
+    // Recently-marked-sent rows — these get suppressed from the queue.
+    supabase
+      .from('pending_actions_sent')
+      .select('contract_id, category, sent_at')
+      .gte('sent_at', snoozeCutoff),
   ])
 
   const paidThisPeriod = new Set<string>(
@@ -79,6 +89,13 @@ export async function listPendingActions(): Promise<PendingResult> {
       .map((t: any) => t.contract_id as string | null)
       .filter((id): id is string => !!id),
   )
+
+  // Set of (contractId|category) keys currently snoozed
+  const snoozed = new Set<string>(
+    (sentRes.data ?? []).map((r: any) => `${r.contract_id}|${r.category}`),
+  )
+  const isSnoozed = (contractId: string, category: PendingCategory) =>
+    snoozed.has(`${contractId}|${category}`)
 
   const today    = new Date()
   const in30days = new Date(today.getTime() + 30 * 86400000)
@@ -101,7 +118,7 @@ export async function listPendingActions(): Promise<PendingResult> {
 
     // A. Aviso de aumento — próximo aumento ≤30 días
     const adj = nextAdjustmentDate(c.start_date, c.cadence, today)
-    if (adj && adj >= today && adj <= in30days) {
+    if (adj && adj >= today && adj <= in30days && !isSnoozed(c.id, 'aumento')) {
       const daysUntil = Math.round((adj.getTime() - today.getTime()) / 86400000)
       rows.push({
         contractId: c.id, category: 'aumento',
@@ -114,7 +131,7 @@ export async function listPendingActions(): Promise<PendingResult> {
 
     // B. Renovación — vencimiento ≤30 días
     const end = new Date(c.end_date)
-    if (end >= today && end <= in30days) {
+    if (end >= today && end <= in30days && !isSnoozed(c.id, 'renovacion')) {
       const daysUntil = Math.round((end.getTime() - today.getTime()) / 86400000)
       rows.push({
         contractId: c.id, category: 'renovacion',
@@ -129,7 +146,7 @@ export async function listPendingActions(): Promise<PendingResult> {
     const dueDay  = c.payment_day ?? 5
     const dueDate = new Date(today.getFullYear(), today.getMonth(), dueDay)
     const overdueMs = today.getTime() - dueDate.getTime()
-    if (overdueMs >= 3 * 86400000 && !paidThisPeriod.has(c.id)) {
+    if (overdueMs >= 3 * 86400000 && !paidThisPeriod.has(c.id) && !isSnoozed(c.id, 'cobranza')) {
       const daysOverdue = Math.round(overdueMs / 86400000)
       rows.push({
         contractId: c.id, category: 'cobranza',

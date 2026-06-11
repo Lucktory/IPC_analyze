@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { Badge } from '@/components/ui/Badge'
 import { StickyHeader } from '@/components/ui/StickyHeader'
+import { MarkAsSentButton } from '@/components/pending/MarkAsSentButton'
 import {
   listPendingActions,
   CATEGORY_LABEL,
@@ -70,7 +71,7 @@ export default async function PendientesPage({ searchParams }: PageProps) {
 
         <div className="overflow-x-auto">
           {filtered.length > 0 ? (
-            <table className="w-full text-[13px] min-w-[920px] border-collapse">
+            <table className="w-full text-[13px] min-w-[1040px] border-collapse">
               <thead className="bg-cream-2/60">
                 <tr className="border-b border-line">
                   <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Tipo</th>
@@ -78,7 +79,8 @@ export default async function PendientesPage({ searchParams }: PageProps) {
                   <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Propietario</th>
                   <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Alquiler</th>
                   <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Plazo</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium">Email disponible</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Email disponible</th>
+                  <th className="text-right px-4 py-1.5 label-cap font-medium">Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -132,7 +134,7 @@ function Row({ r, odd }: { r: PendingRow; odd: boolean }) {
         {r.currentRent > 0 ? fmt(r.currentRent) : ''}
       </td>
       <td className={`px-4 py-1.5 border-r border-line/30 ${plazoClass}`}>{plazoTxt}</td>
-      <td className="px-4 py-1.5">
+      <td className="px-4 py-1.5 border-r border-line/30">
         {missing.length === 0 ? (
           <span className="text-success text-[12px]">✓ disponible</span>
         ) : (
@@ -140,6 +142,9 @@ function Row({ r, odd }: { r: PendingRow; odd: boolean }) {
             falta email de {missing.join(' y ')}
           </span>
         )}
+      </td>
+      <td className="px-4 py-1.5 text-right">
+        <MarkAsSentButton contractId={r.contractId} category={r.category} />
       </td>
     </ClickableRow>
   )
