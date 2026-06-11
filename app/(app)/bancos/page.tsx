@@ -217,20 +217,6 @@ export default async function BancosPage({ searchParams }: PageProps) {
         </div>
       </section>
 
-      <section className="mt-6 bg-paper border border-line rounded shadow-card p-5 flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="font-display text-[14px] font-medium text-ink">Lista maestra de bancos</h2>
-          <p className="text-[12px] text-slate mt-0.5">
-            {banks.length} bancos disponibles. Gestioná comisiones, contactos y notas operativas en la pestaña Instituciones.
-          </p>
-        </div>
-        <Link
-          href="/bancos?tab=instituciones"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-line bg-cream-2 text-[12px] font-medium text-ink hover:bg-cream transition-colors"
-        >
-          Administrar instituciones →
-        </Link>
-      </section>
     </>
   )
 }
