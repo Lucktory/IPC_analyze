@@ -92,7 +92,7 @@ export function EditBankInstitutionForm({ bank, accountCount = 0 }: Props) {
         <p className="text-[12px] text-slate">
           {savedAt
             ? <span className="text-success">✓ Guardado {savedAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-            : isCreate ? 'Completá los datos y confirmá. La acción se ejecuta 10s después de confirmar.' : 'Los cambios se guardan 10s después de confirmar. Tenés ese tiempo para cancelar.'}
+            : isCreate ? 'Completá los datos y confirmá. La acción se ejecuta 10s después. Tocá el botón armado para cancelar.' : 'Los cambios se ejecutan 10s después de confirmar. Tocá el botón armado para cancelar.'}
         </p>
         <div className="flex items-center gap-2">
           {!isCreate && (

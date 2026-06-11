@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { saveContractPeriodNote } from '@/lib/contract/actions'
+import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
 
 interface PeriodNotesEditorProps {
   contractId: string
@@ -28,6 +29,7 @@ export function PeriodNotesEditor({
     by: initialUpdatedBy,
   })
   const [dirty, setDirty]          = useState(false)
+  const formRef                    = useRef<HTMLFormElement>(null)
 
   function handleSubmit(formData: FormData) {
     setError(null)
@@ -50,7 +52,7 @@ export function PeriodNotesEditor({
     : 'Sin notas guardadas para este período.'
 
   return (
-    <form action={handleSubmit}>
+    <form ref={formRef} action={handleSubmit}>
       <textarea
         name="body"
         value={body}
@@ -71,15 +73,16 @@ export function PeriodNotesEditor({
 
       <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-[11px] text-slate">
-          {dirty ? <span className="text-ink">Cambios sin guardar</span> : fmtMeta}
+          {dirty ? <span className="text-ink">Cambios sin guardar · se guardan 10s después de confirmar</span> : fmtMeta}
         </p>
-        <button
-          type="submit"
-          disabled={pending || !dirty}
-          className="bg-ink text-paper px-4 py-2 rounded text-[12px] font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {pending ? 'Guardando…' : 'Guardar notas'}
-        </button>
+        <DelayedActionButton
+          variant="primary"
+          label="Guardar notas"
+          pendingLabel="Guardando…"
+          onConfirm={() => formRef.current?.requestSubmit()}
+          pending={pending}
+          disabled={!dirty}
+        />
       </div>
     </form>
   )

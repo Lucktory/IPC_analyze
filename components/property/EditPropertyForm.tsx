@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { updateProperty, deleteProperty } from '@/lib/property/actions'
 import type { PropertyDetail } from '@/lib/property/queries'
+import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
 
 const TYPE_OPTIONS = [
   { value: 'vivienda', label: 'Vivienda' },
@@ -21,7 +22,7 @@ export function EditPropertyForm({ property, contractCount }: EditPropertyFormPr
   const [pending, startTransition] = useTransition()
   const [error, setError]          = useState<string | null>(null)
   const [savedAt, setSavedAt]      = useState<Date | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const formRef                    = useRef<HTMLFormElement>(null)
 
   function handleSubmit(formData: FormData) {
     setError(null)
@@ -39,17 +40,14 @@ export function EditPropertyForm({ property, contractCount }: EditPropertyFormPr
     setError(null)
     startTransition(async () => {
       const res = await deleteProperty(property.id)
-      if (res && !res.ok) {
-        setError(res.error ?? 'Error al eliminar')
-        setConfirmDelete(false)
-      }
+      if (res && !res.ok) setError(res.error ?? 'Error al eliminar')
     })
   }
 
   const canDelete = contractCount === 0
 
   return (
-    <form action={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+    <form ref={formRef} action={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
       <label className="flex flex-col gap-1.5 sm:col-span-2">
         <span className="label-cap">Dirección<span className="text-danger ml-0.5">*</span></span>
         <input
@@ -82,30 +80,25 @@ export function EditPropertyForm({ property, contractCount }: EditPropertyFormPr
         <p className="text-[12px] text-slate">
           {savedAt
             ? <span className="text-success">✓ Guardado {savedAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-            : 'Los cambios se guardan al confirmar.'}
+            : 'Los cambios se ejecutan 10s después de confirmar. Tocá el botón armado para cancelar.'}
         </p>
         <div className="flex items-center gap-2">
-          {confirmDelete ? (
-            <>
-              <button type="button" onClick={() => setConfirmDelete(false)} disabled={pending} className="px-3 py-2 text-[12px] text-slate hover:text-ink transition-colors">Cancelar</button>
-              <button type="button" onClick={handleDelete} disabled={pending} className="bg-danger text-paper px-4 py-2 rounded text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-                {pending ? 'Eliminando…' : 'Confirmar eliminación'}
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-              disabled={pending || !canDelete}
-              title={canDelete ? 'Eliminar propiedad' : `Tiene ${contractCount} contrato(s) asociado(s) — no se puede eliminar`}
-              className="px-3 py-2 text-[12px] text-danger hover:bg-danger/10 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Eliminar
-            </button>
-          )}
-          <button type="submit" disabled={pending} className="bg-ink text-paper px-4 py-2 rounded text-[13px] font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
-            {pending ? 'Guardando…' : 'Guardar cambios'}
-          </button>
+          <DelayedActionButton
+            variant="danger"
+            label="Eliminar"
+            pendingLabel="Eliminando…"
+            onConfirm={handleDelete}
+            pending={pending}
+            disabled={!canDelete}
+            title={canDelete ? 'Eliminar propiedad' : `Tiene ${contractCount} contrato(s) asociado(s) — no se puede eliminar`}
+          />
+          <DelayedActionButton
+            variant="primary"
+            label="Guardar cambios"
+            pendingLabel="Guardando…"
+            onConfirm={() => formRef.current?.requestSubmit()}
+            pending={pending}
+          />
         </div>
       </div>
     </form>
