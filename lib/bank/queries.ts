@@ -67,3 +67,57 @@ export async function getBankAccountDetail(id: string): Promise<BankAccountDetai
     landlordId:       row.landlord_id,
   }
 }
+
+// ============================================================================
+// Bank-institution detail (single bank brand, for /bancos/institucion/[id])
+// ============================================================================
+
+export interface BankInstitutionDetail {
+  id:               string
+  name:             string
+  shortCode:        string | null
+  monthlyFee:       number | null
+  transferFeePct:   number | null
+  transferFeeFixed: number | null
+  contactName:      string | null
+  contactPhone:     string | null
+  contactEmail:     string | null
+  notes:            string | null
+  accountCount:     number
+}
+
+export async function getBankInstitution(id: string): Promise<BankInstitutionDetail | null> {
+  const supabase = await createSupabaseServer()
+  const [bankRes, accountsRes] = await Promise.all([
+    supabase
+      .from('banks')
+      .select(`
+        id, name, short_code,
+        monthly_fee, transfer_fee_pct, transfer_fee_fixed,
+        contact_name, contact_phone, contact_email, notes
+      `)
+      .eq('id', id)
+      .maybeSingle(),
+    supabase
+      .from('bank_accounts')
+      .select('id', { count: 'exact', head: true })
+      .eq('bank_id', id),
+  ])
+
+  if (!bankRes.data) return null
+  const row = bankRes.data as any
+
+  return {
+    id:               row.id,
+    name:             row.name,
+    shortCode:        row.short_code,
+    monthlyFee:       row.monthly_fee       != null ? Number(row.monthly_fee)       : null,
+    transferFeePct:   row.transfer_fee_pct  != null ? Number(row.transfer_fee_pct)  : null,
+    transferFeeFixed: row.transfer_fee_fixed != null ? Number(row.transfer_fee_fixed) : null,
+    contactName:      row.contact_name,
+    contactPhone:     row.contact_phone,
+    contactEmail:     row.contact_email,
+    notes:            row.notes,
+    accountCount:     accountsRes.count ?? 0,
+  }
+}

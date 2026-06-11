@@ -109,6 +109,14 @@ create table banks (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
   short_code text,
+  -- Operational fields (added 2026-06-11 — per-bank fees + contact info)
+  monthly_fee        numeric(12,2),
+  transfer_fee_pct   numeric(5,2),
+  transfer_fee_fixed numeric(12,2),
+  contact_name       text,
+  contact_phone      text,
+  contact_email      text,
+  notes              text,
   created_at timestamptz default now()
 );
 

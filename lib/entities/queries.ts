@@ -278,7 +278,8 @@ export async function listBankAccounts(): Promise<BankAccountRow[]> {
   })
 }
 
-// Also expose the master list of bank brands (15 seeded Argentine banks)
+// Also expose the master list of bank brands (15 seeded Argentine banks).
+// Used by the EditBankAccountForm dropdown — only needs id+name+short_code.
 export interface BankRow {
   id:        string
   name:      string
@@ -293,6 +294,61 @@ export async function listBanks(): Promise<BankRow[]> {
     name:      (b as any).name,
     shortCode: (b as any).short_code,
   }))
+}
+
+// Richer view for the Instituciones tab on /bancos — includes the per-bank
+// operational fields + an account count rolled up from bank_accounts.
+export interface BankInstitutionRow {
+  id:               string
+  name:             string
+  shortCode:        string | null
+  monthlyFee:       number | null
+  transferFeePct:   number | null
+  transferFeeFixed: number | null
+  contactName:      string | null
+  contactPhone:     string | null
+  contactEmail:     string | null
+  notes:            string | null
+  accountCount:     number
+}
+
+export async function listBankInstitutions(): Promise<BankInstitutionRow[]> {
+  const supabase = await createSupabaseServer()
+  const [banksRes, accountsRes] = await Promise.all([
+    supabase
+      .from('banks')
+      .select(`
+        id, name, short_code,
+        monthly_fee, transfer_fee_pct, transfer_fee_fixed,
+        contact_name, contact_phone, contact_email, notes
+      `)
+      .order('name'),
+    supabase
+      .from('bank_accounts')
+      .select('bank_id'),
+  ])
+
+  const countByBank = new Map<string, number>()
+  for (const a of (accountsRes.data ?? []) as any[]) {
+    countByBank.set(a.bank_id, (countByBank.get(a.bank_id) ?? 0) + 1)
+  }
+
+  return (banksRes.data ?? []).map(b => {
+    const row = b as any
+    return {
+      id:               row.id,
+      name:             row.name,
+      shortCode:        row.short_code,
+      monthlyFee:       row.monthly_fee       != null ? Number(row.monthly_fee)       : null,
+      transferFeePct:   row.transfer_fee_pct  != null ? Number(row.transfer_fee_pct)  : null,
+      transferFeeFixed: row.transfer_fee_fixed != null ? Number(row.transfer_fee_fixed) : null,
+      contactName:      row.contact_name,
+      contactPhone:     row.contact_phone,
+      contactEmail:     row.contact_email,
+      notes:            row.notes,
+      accountCount:     countByBank.get(row.id) ?? 0,
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------
