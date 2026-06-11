@@ -10,7 +10,7 @@ import { URGENCY_STYLES } from '@/lib/urgency'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
-type Tipo = 'todos' | 'con_contrato' | 'solo_vacancias' | 'sin_cuit' | 'sin_email'
+type Tipo = 'todos' | 'con_contrato' | 'sin_contratos' | 'sin_cuit' | 'sin_email'
 
 interface PageProps {
   searchParams: Promise<{
@@ -30,7 +30,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
   const match = (l: LandlordRow, t: Tipo) => {
     switch (t) {
       case 'con_contrato':   return l.contractCount > 0
-      case 'solo_vacancias': return l.contractCount === 0
+      case 'sin_contratos': return l.contractCount === 0
       case 'sin_cuit':       return !l.dniOrCuit
       case 'sin_email':      return !l.email
       default:               return true
@@ -40,7 +40,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
   const counts = {
     todos:          all.length,
     con_contrato:   all.filter(l => match(l, 'con_contrato')).length,
-    solo_vacancias: all.filter(l => match(l, 'solo_vacancias')).length,
+    sin_contratos: all.filter(l => match(l, 'sin_contratos')).length,
     sin_cuit:       all.filter(l => match(l, 'sin_cuit')).length,
     sin_email:      all.filter(l => match(l, 'sin_email')).length,
   }
@@ -110,7 +110,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
   // Active filter summary for the condensed header
   const activeBits: string[] = []
   if (tipo === 'con_contrato')   activeBits.push('Con contrato')
-  if (tipo === 'solo_vacancias') activeBits.push('Solo vacancias')
+  if (tipo === 'sin_contratos') activeBits.push('Sin contratos')
   if (tipo === 'sin_cuit')       activeBits.push('Sin CUIT')
   if (tipo === 'sin_email')      activeBits.push('Sin email')
   const activeSummary = activeBits.join(' · ')
@@ -143,7 +143,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
       <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
         <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
           <span className="label-cap text-slate mr-1 shrink-0">Filtros extra</span>
-          <FilterPill href={buildHref({ tipo: 'solo_vacancias' })} clearHref={clearTipoHref} label="Solo vacancias" count={counts.solo_vacancias} active={tipo === 'solo_vacancias'} />
+          <FilterPill href={buildHref({ tipo: 'sin_contratos' })} clearHref={clearTipoHref} label="Sin contratos" count={counts.sin_contratos} active={tipo === 'sin_contratos'} />
           <FilterPill href={buildHref({ tipo: 'sin_email' })}      clearHref={clearTipoHref} label="Sin email"      count={counts.sin_email}      active={tipo === 'sin_email'} />
         </div>
 

@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { getCurrentPeriod } from '@/lib/period'
 
 export type PendingCategory = 'aumento' | 'renovacion' | 'cobranza'
 
@@ -47,7 +48,7 @@ function nextAdjustmentDate(startDate: string, cadence: string, today: Date): Da
   return safety > 0 ? next : null
 }
 
-const CURRENT_PERIOD = '2026-06-01'   // keep in sync with lib/entities/queries.ts
+// Period is derived on every call via getCurrentPeriod() — no hardcoding.
 
 /**
  * One pass through every active contract, classifying it into 0, 1, or many
@@ -69,7 +70,7 @@ export async function listPendingActions(): Promise<PendingResult> {
     supabase
       .from('transactions')
       .select('contract_id, transaction_types!inner(code)')
-      .eq('period', CURRENT_PERIOD)
+      .eq('period', getCurrentPeriod())
       .eq('transaction_types.code', 'RENT_IN'),
   ])
 

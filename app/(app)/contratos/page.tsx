@@ -98,13 +98,15 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       active: filters.estado === 'activo',
     },
     {
+      // "Por vencer" links straight to the renovación action queue —
+      // same contracts, but in a context where the action ("ask landlord
+      // renew or rescind?") is explicit.
       label: 'Por vencer',
       value: counts.por_vencer.toString(),
-      delta: 'en próximos 60 días',
+      delta: 'tocá para acción',
       tone:  counts.por_vencer > 0 ? 'negative' as const : 'neutral' as const,
-      href:  buildHref({ estado: 'por_vencer' }),
-      clearHref: clearEstadoHref,
-      active: filters.estado === 'por_vencer',
+      href:  '/pendientes?tipo=renovacion',
+      active: false,
     },
     {
       label: 'Alquiler activos',
@@ -292,8 +294,12 @@ export default async function ContratosPage({ searchParams }: PageProps) {
  *     Force INK (dark).
  */
 function RowStatusBadge({ row }: { row: ContractRow }) {
+  // Non-active statuses short-circuit before the urgency switch.
+  // (Schema enum: draft | active | suspended | ended | rescinded.)
   if (row.status === 'rescinded') return <Badge tone="danger">Rescindido</Badge>
   if (row.status === 'ended')     return <Badge tone="neutral">Finalizado</Badge>
+  if (row.status === 'draft')     return <Badge tone="neutral">Borrador</Badge>
+  if (row.status === 'suspended') return <Badge tone="warn">Suspendido</Badge>
 
   switch (row.urgency) {
     case 'critical':

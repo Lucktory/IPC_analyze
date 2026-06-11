@@ -10,6 +10,7 @@ import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { computeUrgency, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
+import { getCurrentPeriod } from '@/lib/period'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -59,7 +60,7 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
   if (!contract) notFound()
 
   const periods = await getContractPeriods(id)
-  const period  = paramPeriod ?? periods[0] ?? '2026-05-01'
+  const period  = paramPeriod ?? periods[0] ?? getCurrentPeriod()
   const [embudo, note] = await Promise.all([
     getEmbudoForContract(id, period),
     getNoteForPeriod(id, period),
@@ -335,6 +336,8 @@ function RowStatusBadge({ status, urgency, hasRent, hasNote }: {
 }) {
   if (status === 'rescinded') return <Badge tone="danger">Rescindido</Badge>
   if (status === 'ended')     return <Badge tone="neutral">Finalizado</Badge>
+  if (status === 'draft')     return <Badge tone="neutral">Borrador</Badge>
+  if (status === 'suspended') return <Badge tone="warn">Suspendido</Badge>
 
   const contrastClass = urgency === 'critical' ? '!text-white'
                        : urgency === 'warning' ? '!text-ink'

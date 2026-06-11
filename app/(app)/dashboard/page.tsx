@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { KPICard } from '@/components/ui/KPICard'
 import { Badge } from '@/components/ui/Badge'
 import { StickyHeader } from '@/components/ui/StickyHeader'
@@ -11,6 +12,7 @@ import {
   getPropertyTypeBreakdown,
   getContractsWithoutPayment,
 } from '@/lib/dashboard/queries'
+import { getCurrentPeriodLabel } from '@/lib/period'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
@@ -23,6 +25,9 @@ export default async function DashboardPage() {
     getPropertyTypeBreakdown(),
     getContractsWithoutPayment(),
   ])
+
+  const periodLabel = getCurrentPeriodLabel()
+  const periodMonth = periodLabel.split(' ')[0].toLowerCase()   // "junio" for "Junio 2026"
 
   // Donut data: commission by destination
   const donutColors: Record<string, string> = {
@@ -65,7 +70,7 @@ export default async function DashboardPage() {
       <StickyHeader>
         <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
           <p className="text-[13px] text-slate-dark">
-            Período actual: <strong className="text-ink font-medium">Mayo 2026</strong>
+            Período actual: <strong className="text-ink font-medium">{periodLabel}</strong>
           </p>
           <p className="label-cap text-slate">Datos en vivo desde Supabase</p>
         </div>
@@ -78,15 +83,17 @@ export default async function DashboardPage() {
             deltaTone="neutral"
           />
           <KPICard
-            label="Sin pago de mayo"
+            label={`Sin pago de ${periodMonth}`}
             value={unpaid.length.toString()}
-            delta={unpaid.length > 0 ? 'requieren atención' : 'todo cobrado'}
+            delta={unpaid.length > 0 ? 'tocá para ver pendientes' : 'todo cobrado'}
             deltaTone={unpaid.length > 0 ? 'negative' : 'positive'}
+            href="/pendientes?tipo=cobranza"
+            active={false}
           />
           <KPICard
             label="Ingresos del mes"
             value={fmtCompactARS(kpis.monthlyIncome)}
-            delta="alquileres de mayo"
+            delta={`alquileres de ${periodMonth}`}
             deltaTone="neutral"
           />
           <KPICard
@@ -114,7 +121,7 @@ export default async function DashboardPage() {
               <>
                 <DonutChart
                   data={cobroMes}
-                  totalLabel="Comisión total mayo"
+                  totalLabel={`Comisión total ${periodMonth}`}
                   totalOverride={fmtCompactARS(kpis.monthlyCommission)}
                   height={240}
                 />
@@ -184,7 +191,7 @@ export default async function DashboardPage() {
         <div className="px-5 py-4 border-b border-line flex items-center justify-between">
           <div>
             <h2 className="font-display text-[15px] font-medium text-ink">
-              Propietarios con mayor ingreso (mayo)
+              Propietarios con mayor ingreso ({periodMonth})
             </h2>
             <p className="text-[12px] text-slate mt-0.5">Top 6 por alquileres cobrados</p>
           </div>
@@ -204,51 +211,28 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* Unpaid contracts (atrasados proxy) */}
-      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-line flex items-center justify-between">
-          <div>
-            <h2 className="font-display text-[15px] font-medium text-ink">
-              Contratos sin pago de mayo
-            </h2>
-            <p className="text-[12px] text-slate mt-0.5">
-              Activos que aún no registran RENT_IN del período actual
-            </p>
-          </div>
-          <Badge tone={unpaid.length > 0 ? 'danger' : 'success'}>
-            {unpaid.length} {unpaid.length === 1 ? 'pendiente' : 'pendientes'}
-          </Badge>
-        </div>
-        <div className="overflow-x-auto">
-          {unpaid.length > 0 ? (
-            <table className="w-full text-[13px] min-w-[640px]">
-              <thead>
-                <tr className="border-b border-line">
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Inquilino</th>
-                  <th className="text-left  px-5 py-2.5 label-cap font-medium">Propietario</th>
-                  <th className="text-right px-5 py-2.5 label-cap font-medium">Alquiler esperado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {unpaid.slice(0, 15).map((u, i) => (
-                  <tr
-                    key={u.contractId}
-                    className={i % 2 === 0 ? 'bg-danger/[0.08]' : 'bg-danger/[0.04]'}
-                  >
-                    <td className="px-5 py-3 text-ink font-medium">{u.tenantName}</td>
-                    <td className="px-5 py-3 text-slate-dark">{u.landlordName}</td>
-                    <td className="px-5 py-3 text-right tabular-nums text-ink">{fmt(u.expectedRent)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="p-5">
-              <EmptyState text="Todos los contratos activos tienen el alquiler de mayo cobrado" />
+      {/* Operational queue — replaces the redundant unpaid table.
+          The full list with categories, plazos, and email status lives in
+          /pendientes. This card is just a doorway. */}
+      {unpaid.length > 0 && (
+        <Link
+          href="/pendientes?tipo=cobranza"
+          className="mt-6 block bg-paper border border-line border-l-[4px] border-l-danger rounded shadow-card p-5 hover:shadow-cardHover hover:border-ink/30 transition-all"
+        >
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <p className="label-cap text-danger">Acción requerida</p>
+              <h2 className="font-display text-[18px] font-medium text-ink mt-1">
+                {unpaid.length} {unpaid.length === 1 ? 'contrato' : 'contratos'} sin pago de {periodMonth}
+              </h2>
+              <p className="text-[13px] text-slate-dark mt-1">
+                Tocá para ver la lista completa con datos de contacto.
+              </p>
             </div>
-          )}
-        </div>
-      </section>
+            <span className="text-slate hover:text-ink transition-colors text-[13px]">Ir a Pendientes →</span>
+          </div>
+        </Link>
+      )}
 
       {/* Footer note about Phase D features that need IPC engine */}
       <section className="mt-10">

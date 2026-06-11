@@ -1,20 +1,12 @@
 // ============================================================================
 // Dashboard queries — wired against the v2 schema.
 //
-// Notes:
-//   • The CSV snapshot covers May 2026, so the "current month" for display
-//     purposes is May 2026 (transactions.period = '2026-05-01').
-//   • next_adjustment_date is not yet populated (Phase D — IPC engine).
-//     Upcoming-adjustments returns [] until then.
-//   • "Atrasados" requires a payments/expected model that doesn't yet exist
-//     in the data — we derive a proxy from contracts that have no RENT_IN
-//     in the latest period.
+// Uses lib/period.ts getCurrentPeriod() so dashboard, /pendientes,
+// /contratos, /conciliacion all audit the same month.
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
-
-// The CSV is a May 2026 snapshot. Use that as "current period".
-const CURRENT_PERIOD = '2026-05-01'
+import { getCurrentPeriod } from '@/lib/period'
 
 export interface DashboardKpis {
   activeContracts:   number
@@ -58,12 +50,12 @@ export async function getDashboardKpis(): Promise<DashboardKpis> {
       .from('transactions')
       .select('amount, transaction_types!inner(code)')
       .eq('transaction_types.code', 'RENT_IN')
-      .eq('period', CURRENT_PERIOD),
+      .eq('period', getCurrentPeriod()),
     supabase
       .from('transactions')
       .select('amount, transaction_types!inner(code)')
       .eq('transaction_types.code', 'COMMISSION_OUT')
-      .eq('period', CURRENT_PERIOD),
+      .eq('period', getCurrentPeriod()),
   ])
 
   const sum = (rows: { amount: number | string }[] | null) =>
@@ -87,7 +79,7 @@ export async function getCommissionByDestination(): Promise<CommissionByDestinat
     .from('transactions')
     .select('amount, description, transaction_types!inner(code)')
     .eq('transaction_types.code', 'COMMISSION_OUT')
-    .eq('period', CURRENT_PERIOD)
+    .eq('period', getCurrentPeriod())
 
   const buckets: Record<string, { total: number; count: number; label: string }> = {
     ADM_GALICIA:      { total: 0, count: 0, label: 'ADM Galicia' },
@@ -137,7 +129,7 @@ export async function getTopLandlords(limit = 10): Promise<TopLandlord[]> {
       transaction_types!inner(code)
     `)
     .eq('transaction_types.code', 'RENT_IN')
-    .eq('period', CURRENT_PERIOD)
+    .eq('period', getCurrentPeriod())
 
   // Aggregate in JS — easier than complex Supabase aggregates.
   const acc = new Map<string, { revenue: number; contracts: Set<string> }>()
@@ -204,7 +196,7 @@ export async function getContractsWithoutPayment(): Promise<TenantWithoutPayment
     .from('transactions')
     .select('contract_id, transaction_types!inner(code)')
     .eq('transaction_types.code', 'RENT_IN')
-    .eq('period', CURRENT_PERIOD)
+    .eq('period', getCurrentPeriod())
     .in('contract_id', contractIds)
 
   const paidIds = new Set((payments ?? []).map(p => (p as any).contract_id))

@@ -4,8 +4,7 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
-
-const CURRENT_PERIOD = '2026-05-01'
+import { getCurrentPeriod } from '@/lib/period'
 
 // ---------------------------------------------------------------------------
 // LANDLORDS  (a.k.a. "contribuyentes" — propietarios with tax info)
@@ -48,7 +47,7 @@ export async function listLandlords(): Promise<LandlordRow[]> {
         transaction_types!inner(code)
       `)
       .eq('transaction_types.code', 'RENT_IN')
-      .eq('period', CURRENT_PERIOD),
+      .eq('period', getCurrentPeriod()),
   ])
 
   // Build a contract_id → landlord_ids map (a contract may have multiple co-owners)
@@ -384,13 +383,13 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
     supabase
       .from('transactions')
       .select(`contract_id, bank_date, transaction_types!inner(code)`)
-      .eq('period', CURRENT_PERIOD)
+      .eq('period', getCurrentPeriod())
       .eq('transaction_types.code', 'RENT_IN'),
     // Per-contract notes for the current period
     supabase
       .from('contract_period_notes')
       .select('contract_id, body, updated_at')
-      .eq('period', CURRENT_PERIOD),
+      .eq('period', getCurrentPeriod()),
   ])
 
   // 48-hour cutoff for "recently touched"

@@ -3,6 +3,7 @@ import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { PrintButton } from '@/components/ui/PrintButton'
 import { listTransactionPeriods } from '@/lib/entities/queries'
+import { getCurrentPeriod } from '@/lib/period'
 import {
   getReconciliationByDestination,
   type ReconciliationBucket,
@@ -31,7 +32,7 @@ const DATE_LABEL = (s: string | null) => {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
 }
 
-const DEFAULT_PERIOD = '2026-05-01'
+// DEFAULT_PERIOD is derived inside the component now
 
 interface PageProps {
   searchParams: Promise<{ period?: string }>
@@ -39,7 +40,7 @@ interface PageProps {
 
 export default async function ConciliacionPage({ searchParams }: PageProps) {
   const { period: paramPeriod } = await searchParams
-  const period = paramPeriod ?? DEFAULT_PERIOD
+  const period = paramPeriod ?? getCurrentPeriod()
 
   const [periods, buckets] = await Promise.all([
     listTransactionPeriods(),
