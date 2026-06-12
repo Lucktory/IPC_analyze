@@ -41,6 +41,26 @@ export default {
         warn: '#F2994A',
         danger: '#DC2626',
         info: '#2563EB',
+        // ── /dashboard "executive" panels — dark premium theme. Limited to
+        //    that single page; the rest of the app stays in light mode. ──
+        panel: {
+          bg:      '#0F1218',  // page background
+          surface: '#171B24',  // card surface — one step lighter
+          line:    '#262C39',  // card border / dividers
+          ink:     '#E5E7EB',  // primary text (titles, KPI numbers)
+          muted:   '#9CA3AF',  // captions, axis labels, percentages
+          dim:     '#6B7280',  // tertiary (legend lines, separators)
+        },
+        // ── Premium accent palette used inside dashboard charts ──
+        //    Muted on purpose — high-saturation colors look cheap at
+        //    chart sizes. These are the four-hue rotation: gold, slate,
+        //    emerald, amethyst.
+        accent: {
+          gold:    '#D4A857',
+          slate:   '#7E8696',
+          emerald: '#6FB783',
+          amethyst:'#9B8EC5',
+        },
       },
       fontFamily: {
         sans: ['var(--font-lexend)', 'system-ui', 'sans-serif'],

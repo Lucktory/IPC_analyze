@@ -6,7 +6,7 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
-import { getCurrentPeriod } from '@/lib/period'
+import { getCurrentPeriod, getRecentPeriods, periodAxisLabel } from '@/lib/period'
 
 export interface DashboardKpis {
   activeContracts:   number
@@ -175,6 +175,131 @@ export async function getPropertyTypeBreakdown(): Promise<PropertyTypeBreakdown[
 // ---------------------------------------------------------------------------
 // 5. Contracts with no current-period payment — proxy for "atrasados"
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 6. Contracts by cadence (mensual / trimestral / etc.) — donut composition.
+//    Filters out rescinded so the chart reflects the live portfolio.
+// ---------------------------------------------------------------------------
+export interface CadenceBreakdown {
+  cadence: string   // raw DB value
+  label:   string   // capitalized for the legend
+  count:   number
+}
+
+const CADENCE_LABEL: Record<string, string> = {
+  mensual:       'Mensual',
+  bimestral:     'Bimestral',
+  trimestral:    'Trimestral',
+  cuatrimestral: 'Cuatrimestral',
+  semestral:     'Semestral',
+  anual:         'Anual',
+}
+
+export async function getContractsByCadence(): Promise<CadenceBreakdown[]> {
+  const supabase = await createSupabaseServer()
+  const { data } = await supabase
+    .from('contracts')
+    .select('cadence')
+    .eq('status', 'active')
+
+  const counts = new Map<string, number>()
+  for (const row of data ?? []) {
+    const c = ((row as any).cadence ?? 'desconocida') as string
+    counts.set(c, (counts.get(c) ?? 0) + 1)
+  }
+
+  return [...counts.entries()]
+    .map(([cadence, count]) => ({
+      cadence,
+      label: CADENCE_LABEL[cadence] ?? cadence,
+      count,
+    }))
+    .sort((a, b) => b.count - a.count)
+}
+
+// ---------------------------------------------------------------------------
+// 7. Monthly income trend — last N periods of RENT_IN totals.
+//    Feeds the vertical-bar widget with a "vs. mes anterior" delta.
+// ---------------------------------------------------------------------------
+export interface MonthlyTrendPoint {
+  period: string   // 'YYYY-MM-01'
+  label:  string   // 'jun' / 'may' — for the x-axis
+  value:  number   // pesos
+}
+
+export async function getMonthlyIncomeTrend(months = 6): Promise<MonthlyTrendPoint[]> {
+  const supabase = await createSupabaseServer()
+  const periods  = getRecentPeriods(months)
+
+  const { data } = await supabase
+    .from('transactions')
+    .select('amount, period, transaction_types!inner(code)')
+    .eq('transaction_types.code', 'RENT_IN')
+    .in('period', periods)
+
+  const totals = new Map<string, number>(periods.map(p => [p, 0]))
+  for (const row of (data ?? []) as { amount: number | string; period: string }[]) {
+    totals.set(row.period, (totals.get(row.period) ?? 0) + Number(row.amount))
+  }
+
+  return periods.map(p => ({
+    period: p,
+    label:  periodAxisLabel(p),
+    value:  totals.get(p) ?? 0,
+  }))
+}
+
+// ---------------------------------------------------------------------------
+// 8. Operational trends — last N periods, 3 metrics:
+//    - ingresos    (RENT_IN total)
+//    - comisiones  (COMMISSION_OUT total)
+//    - pagos       (RENT_IN tx count — proxy for "how many tenants paid")
+// ---------------------------------------------------------------------------
+export interface OperationalTrendPoint {
+  period:     string
+  label:      string
+  ingresos:   number
+  comisiones: number
+  pagos:      number   // tx count
+}
+
+export async function getOperationalTrends(months = 6): Promise<OperationalTrendPoint[]> {
+  const supabase = await createSupabaseServer()
+  const periods  = getRecentPeriods(months)
+
+  const [rentRes, commRes] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('amount, period, transaction_types!inner(code)')
+      .eq('transaction_types.code', 'RENT_IN')
+      .in('period', periods),
+    supabase
+      .from('transactions')
+      .select('amount, period, transaction_types!inner(code)')
+      .eq('transaction_types.code', 'COMMISSION_OUT')
+      .in('period', periods),
+  ])
+
+  const ingresos   = new Map<string, number>(periods.map(p => [p, 0]))
+  const comisiones = new Map<string, number>(periods.map(p => [p, 0]))
+  const pagos      = new Map<string, number>(periods.map(p => [p, 0]))
+
+  for (const row of (rentRes.data ?? []) as { amount: number | string; period: string }[]) {
+    ingresos.set(row.period, (ingresos.get(row.period) ?? 0) + Number(row.amount))
+    pagos.set   (row.period, (pagos.get   (row.period) ?? 0) + 1)
+  }
+  for (const row of (commRes.data ?? []) as { amount: number | string; period: string }[]) {
+    comisiones.set(row.period, (comisiones.get(row.period) ?? 0) + Number(row.amount))
+  }
+
+  return periods.map(p => ({
+    period:     p,
+    label:      periodAxisLabel(p),
+    ingresos:   ingresos  .get(p) ?? 0,
+    comisiones: comisiones.get(p) ?? 0,
+    pagos:      pagos     .get(p) ?? 0,
+  }))
+}
+
 export async function getContractsWithoutPayment(): Promise<TenantWithoutPayment[]> {
   const supabase = await createSupabaseServer()
 

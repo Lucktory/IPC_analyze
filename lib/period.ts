@@ -35,3 +35,26 @@ export function periodShort(period: string): string {
 export function getCurrentPeriodLabel(): string {
   return periodLabel(getCurrentPeriod())
 }
+
+/** "Jun" / "Ene" — three-letter month, no year. For tight axis labels. */
+export function periodAxisLabel(period: string): string {
+  const [, m] = period.split('-')
+  return MONTHS_SHORT[+m - 1].toLowerCase()
+}
+
+/**
+ * Last `n` periods including the current one, ordered oldest → newest.
+ * Used by the dashboard trend widgets.
+ */
+export function getRecentPeriods(n: number): string[] {
+  const out: string[] = []
+  const today = new Date()
+  // Walk back from current month
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
+    const year  = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    out.push(`${year}-${month}-01`)
+  }
+  return out
+}
