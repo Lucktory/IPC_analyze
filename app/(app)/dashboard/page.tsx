@@ -37,15 +37,36 @@ import { StackedAreaChart } from '@/components/charts/panel/StackedAreaChart'
 import { TreemapChart }     from '@/components/charts/panel/TreemapChart'
 import { PREMIUM }          from '@/components/charts/theme'
 
-// CSS variable string literals — for chart series colors we need real CSS
-// values, not Tailwind class names, since these get passed to ECharts /
-// inline style props.
-const CSS = {
-  danger:  'rgb(var(--color-danger))',
-  warn:    'rgb(var(--color-warn))',
-  info:    'rgb(var(--color-info))',
-  success: 'rgb(var(--color-success))',
-}
+// Pendientes category colors — vibrant saturated hex (not CSS variables)
+// so they render through ECharts cleanly and read with equal weight on
+// both light + dark surfaces. Categories carry MEANING — red = urgent —
+// so these stay fixed regardless of theme.
+const PENDIENTES_CATEGORIES = [
+  {
+    key:      'cobranza' as const,
+    label:    'Cobranza',
+    sublabel: 'vencidas',
+    color:    '#E63946',   // saturated red
+    bgTint:   'rgba(230,57,70,0.12)',
+    href:     '/pendientes?tipo=cobranza',
+  },
+  {
+    key:      'aumento' as const,
+    label:    'Aumentos',
+    sublabel: 'a notificar',
+    color:    '#F39C12',   // warm orange
+    bgTint:   'rgba(243,156,18,0.12)',
+    href:     '/pendientes?tipo=aumento',
+  },
+  {
+    key:      'renovacion' as const,
+    label:    'Renovaciones',
+    sublabel: 'a confirmar',
+    color:    '#3B82F6',   // bright blue
+    bgTint:   'rgba(59,130,246,0.12)',
+    href:     '/pendientes?tipo=renovacion',
+  },
+]
 
 /** % change from `from` to `to`. Returns null when the base is zero so we
  *  don't render misleading "∞%" trends. */
@@ -71,12 +92,14 @@ export default async function DashboardPage() {
   const incomeDelta    = incomeCurrent - incomePrevious
   const incomeDeltaPct = pctChange(incomePrevious, incomeCurrent)
 
-  // ── Pendientes donut data ──
-  const pendientesItems = [
-    { label: 'Cobranza vencida', value: pending.counts.cobranza,   color: CSS.danger },
-    { label: 'Aviso de aumento', value: pending.counts.aumento,    color: CSS.warn   },
-    { label: 'Renovación',       value: pending.counts.renovacion, color: CSS.info   },
-  ].filter(i => i.value > 0)
+  // ── Pendientes donut data (only non-zero shows in the ring) ──
+  const pendientesItems = PENDIENTES_CATEGORIES
+    .map(cat => ({
+      label: cat.label,
+      value: pending.counts[cat.key],
+      color: cat.color,
+    }))
+    .filter(i => i.value > 0)
 
   // ── Sparklines: three operational metrics derived from the trend rows ──
   const opsFirst   = opsTrend.at(0)
@@ -175,7 +198,7 @@ export default async function DashboardPage() {
         </DashboardCard>
 
         {/* ──────────────────────────────────────────────────────────── */}
-        {/*  Pendientes por categoría — donut                            */}
+        {/*  Pendientes por categoría — donut + colored category cards   */}
         {/* ──────────────────────────────────────────────────────────── */}
         <DashboardCard
           className="xl:col-span-4"
@@ -193,6 +216,36 @@ export default async function DashboardPage() {
                 legendPosition="bottom"
                 totalUnit={pending.counts.total === 1 ? 'pendiente' : 'pendientes'}
               />
+              {/* Three vibrant per-category cards — saturated left border,
+                  tinted background, large count, sub-label. Each clicks
+                  through to the filtered Pendientes list. */}
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                {PENDIENTES_CATEGORIES.map(cat => {
+                  const n = pending.counts[cat.key]
+                  return (
+                    <Link
+                      key={cat.key}
+                      href={cat.href}
+                      className="block px-2.5 py-2 rounded-md border-l-[3px] transition-opacity hover:opacity-80"
+                      style={{
+                        borderLeftColor: cat.color,
+                        backgroundColor: cat.bgTint,
+                      }}
+                    >
+                      <p
+                        className="text-[9px] uppercase tracking-wider font-semibold mb-1"
+                        style={{ color: cat.color }}
+                      >
+                        {cat.label}
+                      </p>
+                      <p className="font-display text-[18px] font-medium tabular-nums leading-none text-ink">
+                        {n}
+                      </p>
+                      <p className="text-[10px] text-slate mt-1 truncate">{cat.sublabel}</p>
+                    </Link>
+                  )
+                })}
+              </div>
               <Link href="/pendientes" className="block mt-3 text-[12px] text-ink hover:underline text-center">
                 Ver detalle →
               </Link>
