@@ -1,46 +1,44 @@
 'use client'
 
 // ============================================================================
-// SparklineGroup — N stacked small-multiples. Each row has:
-//   ● label   current-value   trend %
-//   sparkline (its own y-scale)
+// SparklineGroup — N stacked small-multiples. Each row is wrapped in a
+// tinted card (background tint = series color at low opacity) so the row
+// reads as a self-contained module, matching the "tint card" design
+// language used elsewhere on /dashboard.
 //
-// Why this instead of one shared-axis multi-line chart?
-//   The dashboard's three series — ingresos (millions of pesos), comisiones
-//   (hundreds of thousands), pagos (a dozen tx count) — have wildly different
-//   scales. Stacking them on a shared axis flattens the smaller series to a
-//   straight line. Each sparkline getting its own scale gives every metric
-//   room to show its shape.
-//
-// Renders as SVG (no ECharts) — fast, sharp at any size, no flash on theme
-// swap.
+// Animation: each line draws in from left to right via stroke-dashoffset.
+// Staggered start so the rows reveal sequentially (200ms apart).
 // ============================================================================
 
-import { useId } from 'react'
+import { useEffect, useId, useState } from 'react'
 
 export interface SparklineSeries {
-  label:   string
-  color:   string
+  label:     string
+  color:     string
   /** Current period (last value) formatted for display. */
-  current: string
-  /** Optional % change vs the first point. Set null to hide. */
+  current:   string
+  /** Optional % change vs the first point. null hides it. */
   changePct: number | null
-  values:  number[]
+  values:    number[]
 }
 
 interface Props {
   series:    SparklineSeries[]
   xLabels?:  string[]
-  /** Total height — split across rows. Default 230. */
   height?:   number
 }
 
-export function SparklineGroup({ series, xLabels, height = 230 }: Props) {
-  const rowHeight = (height - 8 * (series.length - 1)) / series.length
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '')
+  return `rgba(${parseInt(h.slice(0,2),16)}, ${parseInt(h.slice(2,4),16)}, ${parseInt(h.slice(4,6),16)}, ${alpha})`
+}
+
+export function SparklineGroup({ series, xLabels, height = 240 }: Props) {
+  const rowHeight = (height - 10 * (series.length - 1)) / series.length
   return (
-    <div className="flex flex-col gap-2">
-      {series.map(s => (
-        <SparklineRow key={s.label} series={s} xLabels={xLabels} height={rowHeight} />
+    <div className="flex flex-col gap-2.5">
+      {series.map((s, i) => (
+        <SparklineRow key={s.label} series={s} xLabels={xLabels} height={rowHeight} delayMs={i * 180} />
       ))}
     </div>
   )
@@ -50,10 +48,12 @@ function SparklineRow({
   series,
   xLabels,
   height,
+  delayMs,
 }: {
   series:  SparklineSeries
   xLabels?: string[]
   height:  number
+  delayMs: number
 }) {
   const id     = useId().replace(/:/g, '')
   const values = series.values
@@ -61,20 +61,17 @@ function SparklineRow({
   const min    = Math.min(...values)
   const range  = max - min || 1
 
-  // SVG viewBox — fixed width, height scales. Use a generous viewBox so the
-  // path geometry computes consistently regardless of container width.
   const VBW = 400
-  const VBH = Math.max(20, height - 28)   // reserve 28px for header row
+  // header takes ~32px, optional xLabels row takes ~14px
+  const VBH = Math.max(24, height - 38 - (xLabels ? 14 : 0))
 
   const step = values.length > 1 ? VBW / (values.length - 1) : 0
   const points = values.map((v, i) => {
     const x = i * step
-    // y goes inverted in SVG. Pad 3px top/bottom so the line doesn't touch edges.
-    const y = VBH - 3 - ((v - min) / range) * (VBH - 6)
+    const y = VBH - 4 - ((v - min) / range) * (VBH - 8)
     return [x, y] as const
   })
 
-  // Path strings for line + filled area beneath.
   const linePath = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ')
   const areaPath = `${linePath} L ${VBW} ${VBH} L 0 ${VBH} Z`
 
@@ -86,14 +83,37 @@ function SparklineRow({
       :                          'text-slate'
   const changeSign  = series.changePct == null ? '' : series.changePct > 0 ? '↑' : series.changePct < 0 ? '↓' : '·'
 
+  // Animate: stroke-dashoffset slides from 1 → 0 to "draw" the line.
+  const [drawn, setDrawn] = useState(false)
+  useEffect(() => {
+    let raf2 = 0
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setDrawn(true))
+    })
+    return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2) }
+  }, [])
+
   return (
-    <div>
-      <div className="flex items-baseline gap-3 mb-1">
-        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: series.color }} />
-        <span className="text-[10px] uppercase tracking-wider text-slate flex-1">{series.label}</span>
-        <span className="text-[14px] font-medium text-ink tabular-nums">{series.current}</span>
+    <div
+      className="rounded-md px-3 py-2.5 border-l-[3px] transition-all"
+      style={{
+        borderLeftColor: series.color,
+        backgroundColor: hexToRgba(series.color, 0.07),
+      }}
+    >
+      <div className="flex items-baseline gap-3 mb-1.5">
+        <span
+          className="text-[10px] uppercase tracking-wider font-semibold flex-1 truncate"
+          style={{ color: series.color }}
+        >
+          {series.label}
+        </span>
+        <span className="text-[15px] font-medium text-ink tabular-nums">{series.current}</span>
         {series.changePct != null && (
-          <span className={`text-[11px] tabular-nums w-12 text-right ${changeColor}`}>
+          <span
+            className={`text-[10px] tabular-nums font-medium px-1.5 py-0.5 rounded-full ${changeColor}`}
+            style={{ backgroundColor: hexToRgba(series.color, 0.10) }}
+          >
             {changeSign} {Math.abs(series.changePct).toFixed(0)}%
           </span>
         )}
@@ -108,18 +128,45 @@ function SparklineRow({
       >
         <defs>
           <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor={series.color} stopOpacity="0.30" />
+            <stop offset="0%"   stopColor={series.color} stopOpacity="0.40" />
             <stop offset="100%" stopColor={series.color} stopOpacity="0" />
           </linearGradient>
         </defs>
-        <path d={areaPath} fill={`url(#grad-${id})`} />
-        <path d={linePath} fill="none" stroke={series.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        {/* Area fill — fades in (no path draw since fills don't animate cleanly) */}
+        <path
+          d={areaPath}
+          fill={`url(#grad-${id})`}
+          opacity={drawn ? 1 : 0}
+          style={{ transition: `opacity 0.8s ease-out ${delayMs + 200}ms` }}
+        />
+        {/* Line stroke — draws in via stroke-dashoffset */}
+        <path
+          d={linePath}
+          fill="none"
+          stroke={series.color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+          pathLength="1"
+          strokeDasharray="1"
+          strokeDashoffset={drawn ? 0 : 1}
+          style={{ transition: `stroke-dashoffset 1.2s cubic-bezier(0.22, 1, 0.36, 1) ${delayMs}ms` }}
+        />
         {last && (
-          <circle cx={last[0]} cy={last[1]} r="2.5" fill={series.color} vectorEffect="non-scaling-stroke" />
+          <circle
+            cx={last[0]}
+            cy={last[1]}
+            r="3"
+            fill={series.color}
+            vectorEffect="non-scaling-stroke"
+            opacity={drawn ? 1 : 0}
+            style={{ transition: `opacity 0.3s ease-out ${delayMs + 1100}ms` }}
+          />
         )}
       </svg>
       {xLabels && xLabels.length > 0 && (
-        <div className="flex justify-between mt-1 text-[10px] text-slate tabular-nums">
+        <div className="flex justify-between mt-0.5 text-[9px] text-slate tabular-nums">
           <span>{xLabels[0]}</span>
           <span>{xLabels.at(-1)}</span>
         </div>

@@ -35,8 +35,10 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
     ...chartBaseStyle,
     backgroundColor: 'transparent',
     animation: true,
-    animationDuration: 700,
-    animationEasing: 'cubicOut',
+    animationDuration: 1100,
+    animationEasing: 'quinticInOut',
+    animationType: 'expansion',
+    animationDelay: (idx: number) => idx * 80,
     tooltip: {
       show: true,
       trigger: 'item',

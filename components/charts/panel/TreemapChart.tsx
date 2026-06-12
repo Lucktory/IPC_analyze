@@ -84,8 +84,9 @@ export function TreemapChart({ items, height = 280 }: Props) {
         roam:       false,
         nodeClick:  false,
         animation:  true,
-        animationDuration: 800,
-        animationEasing:   'cubicOut',
+        animationDuration: 1200,
+        animationEasing:   'quinticInOut',
+        animationDelay: (idx: number) => idx * 70,
         width:  '100%',
         height: '100%',
         // Rich-text label: rank badge over name + amount. ECharts hides the

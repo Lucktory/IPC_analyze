@@ -35,6 +35,7 @@ import { DonutPanel }       from '@/components/charts/panel/DonutPanel'
 import { SparklineGroup }   from '@/components/charts/panel/SparklineGroup'
 import { StackedAreaChart } from '@/components/charts/panel/StackedAreaChart'
 import { TreemapChart }     from '@/components/charts/panel/TreemapChart'
+import { TintCard }         from '@/components/charts/panel/TintCard'
 import { PREMIUM }          from '@/components/charts/theme'
 
 // Pendientes category colors — vibrant saturated hex (not CSS variables)
@@ -42,30 +43,9 @@ import { PREMIUM }          from '@/components/charts/theme'
 // both light + dark surfaces. Categories carry MEANING — red = urgent —
 // so these stay fixed regardless of theme.
 const PENDIENTES_CATEGORIES = [
-  {
-    key:      'cobranza' as const,
-    label:    'Cobranza',
-    sublabel: 'vencidas',
-    color:    '#E63946',   // saturated red
-    bgTint:   'rgba(230,57,70,0.12)',
-    href:     '/pendientes?tipo=cobranza',
-  },
-  {
-    key:      'aumento' as const,
-    label:    'Aumentos',
-    sublabel: 'a notificar',
-    color:    '#F39C12',   // warm orange
-    bgTint:   'rgba(243,156,18,0.12)',
-    href:     '/pendientes?tipo=aumento',
-  },
-  {
-    key:      'renovacion' as const,
-    label:    'Renovaciones',
-    sublabel: 'a confirmar',
-    color:    '#3B82F6',   // bright blue
-    bgTint:   'rgba(59,130,246,0.12)',
-    href:     '/pendientes?tipo=renovacion',
-  },
+  { key: 'cobranza'   as const, label: 'Cobranza',     sublabel: 'vencidas',     color: '#E63946', href: '/pendientes?tipo=cobranza'   },
+  { key: 'aumento'    as const, label: 'Aumentos',     sublabel: 'a notificar',  color: '#F39C12', href: '/pendientes?tipo=aumento'    },
+  { key: 'renovacion' as const, label: 'Renovaciones', sublabel: 'a confirmar',  color: '#3B82F6', href: '/pendientes?tipo=renovacion' },
 ]
 
 /** % change from `from` to `to`. Returns null when the base is zero so we
@@ -134,11 +114,14 @@ export default async function DashboardPage() {
     },
   ] : []
 
-  // ── Ingresos & Comisiones — two-series stacked area ──
+  // ── Ingresos & Comisiones — two-series stacked area + monthly deltas ──
   const ingComisSeries = [
     { name: 'Ingresos',   color: PREMIUM.gold,    values: opsTrend.map(t => t.ingresos)   },
     { name: 'Comisiones', color: PREMIUM.emerald, values: opsTrend.map(t => t.comisiones) },
   ]
+  const opsPrev            = opsTrend.at(-2)
+  const ingresosDeltaPct   = opsPrev ? pctChange(opsPrev.ingresos,   opsCurrent?.ingresos   ?? 0) : null
+  const comisionesDeltaPct = opsPrev ? pctChange(opsPrev.comisiones, opsCurrent?.comisiones ?? 0) : null
 
   // ── Treemap of top landlords ──
   const landlordTotal = topLandlords.reduce((s, l) => s + l.revenue, 0)
@@ -175,19 +158,34 @@ export default async function DashboardPage() {
           {collection.totalContracts > 0 ? (
             <>
               <RadialGauge pct={collection.collectionRateByCount} status={collection.status} />
-              <div className="grid grid-cols-2 gap-3 pt-3 mt-2 border-t border-line">
-                <Stat label="Cobrado"   value={fmtMoney(collection.collectedAmount)} />
-                <Stat label="Pendiente" value={fmtMoney(collection.pendingAmount)} highlight={collection.pendingAmount > 0} />
+              {/* Tinted Cobrado / Pendiente cards — match the design language
+                  of the Pendientes cards below. Green for cobrado; red when
+                  there's still money outstanding, muted slate when 0. */}
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                <TintCard
+                  accent="#16A34A"
+                  label="Cobrado"
+                  value={fmtMoney(collection.collectedAmount)}
+                />
+                <TintCard
+                  accent={collection.pendingAmount > 0 ? '#DC2626' : '#7E8696'}
+                  label="Pendiente"
+                  value={fmtMoney(collection.pendingAmount)}
+                  muted={collection.pendingAmount === 0}
+                />
               </div>
               {incomeDeltaPct != null && (
-                <p className="mt-3 text-[11px] text-slate tabular-nums">
-                  Ingresos {incomeDelta >= 0 ? '↑' : '↓'} <span className={incomeDelta >= 0 ? 'text-success' : 'text-danger'}>
-                    {Math.abs(incomeDeltaPct).toFixed(0)}%
-                  </span> vs mes anterior
-                </p>
+                <div className="mt-3 flex items-center justify-center">
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium tabular-nums ${incomeDelta >= 0 ? 'text-success' : 'text-danger'}`}
+                    style={{ backgroundColor: incomeDelta >= 0 ? 'rgba(22,163,74,0.10)' : 'rgba(220,38,38,0.10)' }}
+                  >
+                    Ingresos {incomeDelta >= 0 ? '↑' : '↓'} {Math.abs(incomeDeltaPct).toFixed(0)}% vs mes anterior
+                  </span>
+                </div>
               )}
               {collection.unpaidCount > 0 && (
-                <Link href="/pendientes?tipo=cobranza" className="block mt-2 text-[12px] text-ink hover:underline">
+                <Link href="/pendientes?tipo=cobranza" className="block mt-3 text-[12px] text-ink hover:underline text-center">
                   Ver {collection.unpaidCount} pendiente{collection.unpaidCount === 1 ? '' : 's'} →
                 </Link>
               )}
@@ -216,35 +214,19 @@ export default async function DashboardPage() {
                 legendPosition="bottom"
                 totalUnit={pending.counts.total === 1 ? 'pendiente' : 'pendientes'}
               />
-              {/* Three vibrant per-category cards — saturated left border,
-                  tinted background, large count, sub-label. Each clicks
-                  through to the filtered Pendientes list. */}
+              {/* Three vibrant per-category cards — each clicks through
+                  to the filtered Pendientes list. */}
               <div className="grid grid-cols-3 gap-2 mt-4">
-                {PENDIENTES_CATEGORIES.map(cat => {
-                  const n = pending.counts[cat.key]
-                  return (
-                    <Link
-                      key={cat.key}
-                      href={cat.href}
-                      className="block px-2.5 py-2 rounded-md border-l-[3px] transition-opacity hover:opacity-80"
-                      style={{
-                        borderLeftColor: cat.color,
-                        backgroundColor: cat.bgTint,
-                      }}
-                    >
-                      <p
-                        className="text-[9px] uppercase tracking-wider font-semibold mb-1"
-                        style={{ color: cat.color }}
-                      >
-                        {cat.label}
-                      </p>
-                      <p className="font-display text-[18px] font-medium tabular-nums leading-none text-ink">
-                        {n}
-                      </p>
-                      <p className="text-[10px] text-slate mt-1 truncate">{cat.sublabel}</p>
-                    </Link>
-                  )
-                })}
+                {PENDIENTES_CATEGORIES.map(cat => (
+                  <TintCard
+                    key={cat.key}
+                    accent={cat.color}
+                    label={cat.label}
+                    value={pending.counts[cat.key]}
+                    sublabel={cat.sublabel}
+                    href={cat.href}
+                  />
+                ))}
               </div>
               <Link href="/pendientes" className="block mt-3 text-[12px] text-ink hover:underline text-center">
                 Ver detalle →
@@ -283,7 +265,31 @@ export default async function DashboardPage() {
           subtitle="Últimos 6 meses · ingresos en oro, comisiones en verde"
         >
           {opsTrend.some(t => t.ingresos > 0 || t.comisiones > 0) ? (
-            <StackedAreaChart xLabels={opsLabels} series={ingComisSeries} height={280} />
+            <>
+              {/* KPI cards above the chart — same accent colors as the
+                  area lines, so the eye links card → chart immediately. */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                <TintCard
+                  accent={PREMIUM.gold}
+                  label="Ingresos este mes"
+                  value={fmtMoney(opsCurrent?.ingresos ?? 0)}
+                  sublabel={
+                    ingresosDeltaPct == null ? undefined :
+                    `${ingresosDeltaPct >= 0 ? '↑' : '↓'} ${Math.abs(ingresosDeltaPct).toFixed(0)}% vs mes anterior`
+                  }
+                />
+                <TintCard
+                  accent={PREMIUM.emerald}
+                  label="Comisiones este mes"
+                  value={fmtMoney(opsCurrent?.comisiones ?? 0)}
+                  sublabel={
+                    comisionesDeltaPct == null ? undefined :
+                    `${comisionesDeltaPct >= 0 ? '↑' : '↓'} ${Math.abs(comisionesDeltaPct).toFixed(0)}% vs mes anterior`
+                  }
+                />
+              </div>
+              <StackedAreaChart xLabels={opsLabels} series={ingComisSeries} height={260} />
+            </>
           ) : (
             <EmptyState text="Sin movimientos registrados" />
           )}
@@ -310,18 +316,6 @@ export default async function DashboardPage() {
         </DashboardCard>
       </div>
     </>
-  )
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-function Stat({ label, value, highlight = false }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div>
-      <p className="label-cap text-slate mb-1">{label}</p>
-      <p className={`font-display text-[15px] font-medium tabular-nums leading-none ${highlight ? 'text-ink' : 'text-slate-dark'}`}>
-        {value}
-      </p>
-    </div>
   )
 }
 

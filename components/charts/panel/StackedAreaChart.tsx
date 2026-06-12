@@ -35,8 +35,10 @@ export function StackedAreaChart({ xLabels, series, height = 280 }: Props) {
     backgroundColor: 'transparent',
     grid: { left: 8, right: 12, top: 32, bottom: 28, containLabel: true },
     animation: true,
-    animationDuration: 800,
-    animationEasing: 'cubicOut',
+    animationDuration: 1400,
+    animationEasing: 'cubicInOut',
+    // Stagger area-fill reveals so the two series don't pop in at once.
+    animationDelay: (idx: number) => idx * 60,
     legend: {
       top: 0,
       right: 0,
@@ -92,11 +94,15 @@ export function StackedAreaChart({ xLabels, series, height = 280 }: Props) {
       lineStyle: { color: s.color, width: 2.5 },
       itemStyle: { color: s.color },
       areaStyle: {
+        // Richer gradient — saturated near the line, full transparency
+        // at the baseline. Same palette as the TintCard tints elsewhere
+        // on /dashboard for visual continuity.
         color: {
           type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: s.color + '50' },
-            { offset: 1, color: s.color + '00' },
+            { offset: 0,   color: s.color + '70' },
+            { offset: 0.6, color: s.color + '20' },
+            { offset: 1,   color: s.color + '00' },
           ],
         },
       },
