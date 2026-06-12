@@ -300,6 +300,84 @@ export async function getOperationalTrends(months = 6): Promise<OperationalTrend
   }))
 }
 
+// ---------------------------------------------------------------------------
+// 9. Collection health — the single most important "how are we doing this
+//    month" metric. Counts and amounts split into paid vs unpaid.
+//
+//    Uses two passes:
+//      a. fetch all active contracts (gives us expected income via sum of
+//         current_rent, and the universe of contracts to score)
+//      b. fetch all RENT_IN tx for the current period (set of contract_ids
+//         that paid, plus sum of actual income)
+// ---------------------------------------------------------------------------
+export interface CollectionHealth {
+  totalContracts:  number
+  paidCount:       number
+  unpaidCount:     number
+  /** Sum of current_rent across all active contracts. */
+  expectedAmount:  number
+  /** Sum of RENT_IN this period — what actually came in. */
+  collectedAmount: number
+  /** expectedAmount - collectedAmount (clamped at 0). */
+  pendingAmount:   number
+  /** % of contracts paid this period, 0-100. */
+  collectionRateByCount:  number
+  /** % of expected amount actually collected, 0-100. */
+  collectionRateByAmount: number
+  /** ok / warning / critical bucket — drives the panel's status pill color. */
+  status:           'ok' | 'warning' | 'critical'
+}
+
+export async function getCollectionHealth(): Promise<CollectionHealth> {
+  const supabase = await createSupabaseServer()
+  const [contractsRes, paymentsRes] = await Promise.all([
+    supabase
+      .from('contracts')
+      .select('id, current_rent')
+      .eq('status', 'active'),
+    supabase
+      .from('transactions')
+      .select('amount, contract_id, transaction_types!inner(code)')
+      .eq('transaction_types.code', 'RENT_IN')
+      .eq('period', getCurrentPeriod()),
+  ])
+
+  const contracts = (contractsRes.data ?? []) as { id: string; current_rent: number | string }[]
+  const payments  = (paymentsRes.data ?? []) as { amount: number | string; contract_id: string | null }[]
+
+  const paidContractIds = new Set<string>(
+    payments.map(p => p.contract_id).filter((id): id is string => !!id),
+  )
+  const totalContracts  = contracts.length
+  const paidCount       = contracts.filter(c => paidContractIds.has(c.id)).length
+  const unpaidCount     = totalContracts - paidCount
+  const expectedAmount  = contracts.reduce((s, c) => s + Number(c.current_rent ?? 0), 0)
+  const collectedAmount = payments  .reduce((s, p) => s + Number(p.amount       ?? 0), 0)
+  const pendingAmount   = Math.max(0, expectedAmount - collectedAmount)
+
+  const collectionRateByCount  = totalContracts > 0 ? (paidCount       / totalContracts) * 100 : 0
+  const collectionRateByAmount = expectedAmount > 0 ? (collectedAmount / expectedAmount) * 100 : 0
+
+  // Pick the lower of the two for the status — both should be high to be healthy.
+  const worstRate = Math.min(collectionRateByCount, collectionRateByAmount)
+  const status: CollectionHealth['status'] =
+    worstRate >= 85 ? 'ok' :
+    worstRate >= 60 ? 'warning' :
+                      'critical'
+
+  return {
+    totalContracts,
+    paidCount,
+    unpaidCount,
+    expectedAmount,
+    collectedAmount,
+    pendingAmount,
+    collectionRateByCount,
+    collectionRateByAmount,
+    status,
+  }
+}
+
 export async function getContractsWithoutPayment(): Promise<TenantWithoutPayment[]> {
   const supabase = await createSupabaseServer()
 

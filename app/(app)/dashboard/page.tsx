@@ -1,41 +1,31 @@
 // ============================================================================
-// Panel ejecutivo — four-card visual brief of the rental portfolio.
+// Panel ejecutivo — four panels that each answer one question at a glance.
 //
-// Each card uses a chart format chosen for the data shape, not for variety:
-//   1. CompositionBar       — single stacked bar for "Propiedades por tipo".
-//      Donuts hide composition at small sizes; a single bar is denser.
-//   2. SortedHorizontalBars — one bar per cadence, sorted. Cadences have
-//      implicit ordering (mensual → anual) that a donut can't show.
-//   3. MonthlyBars + avg    — vertical bars with a dashed average line and
-//      per-bar value tags so "above/below trend" reads at a glance.
-//   4. SparklineGroup       — three small-multiples, each with its own y-scale.
-//      Ingresos, comisiones, and pagos have wildly different magnitudes;
-//      sharing an axis flattens the small one to a flat line.
+//   1. Cobranza del mes      → "Did the rents come in this month?"
+//   2. Atención requerida    → "What do I need to do this week?"
+//   3. Ingresos por mes      → "How is revenue trending?"
+//   4. Tendencia operativa   → "What's the operational momentum?"
+//
+// Portfolio inventory (property types, contract cadence, …) intentionally
+// does NOT live here — those drive decisions on /propiedades and /contratos.
+// The dashboard is purely situational awareness.
 // ============================================================================
 
 import {
-  getContractsByCadence,
-  getPropertyTypeBreakdown,
   getMonthlyIncomeTrend,
   getOperationalTrends,
+  getCollectionHealth,
 } from '@/lib/dashboard/queries'
+import { listPendingActions }    from '@/lib/pending/queries'
 import { getCurrentPeriodLabel } from '@/lib/period'
 import { fmtMoney, fmtTime }     from '@/lib/format'
 import { DashboardCard }            from '@/components/charts/panel/DashboardCard'
-import { CompositionBar }           from '@/components/charts/panel/CompositionBar'
-import { SortedHorizontalBars }     from '@/components/charts/panel/SortedHorizontalBars'
+import { CollectionHealthCard }     from '@/components/charts/panel/CollectionHealthCard'
+import { ActionableBreakdown }      from '@/components/charts/panel/ActionableBreakdown'
 import { MonthlyBars }              from '@/components/charts/panel/MonthlyBars'
 import { SparklineGroup }           from '@/components/charts/panel/SparklineGroup'
 import { DeltaIndicator }           from '@/components/charts/panel/DeltaIndicator'
-import { PREMIUM, PREMIUM_ROTATION } from '@/components/charts/theme'
-
-const PROPERTY_TYPE_LABEL: Record<string, string> = {
-  vivienda: 'Vivienda',
-  local:    'Local',
-  cochera:  'Cochera',
-  oficina:  'Oficina',
-  deposito: 'Depósito',
-}
+import { PREMIUM }                  from '@/components/charts/theme'
 
 /** % change from `from` to `to`. Returns null when the base is zero so we
  *  don't render misleading "∞%" trends. */
@@ -45,30 +35,14 @@ function pctChange(from: number, to: number): number | null {
 }
 
 export default async function DashboardPage() {
-  const [propTypes, cadence, incomeTrend, opsTrend] = await Promise.all([
-    getPropertyTypeBreakdown(),
-    getContractsByCadence(),
+  const [collection, pending, incomeTrend, opsTrend] = await Promise.all([
+    getCollectionHealth(),
+    listPendingActions(),
     getMonthlyIncomeTrend(6),
     getOperationalTrends(6),
   ])
 
   const periodLabel = getCurrentPeriodLabel()
-
-  // ── Panel 1: composition bar — propiedades por tipo ──
-  const propTypeItems = propTypes.map((p, i) => ({
-    label: PROPERTY_TYPE_LABEL[p.type] ?? p.type,
-    value: p.count,
-    color: PREMIUM_ROTATION[i % PREMIUM_ROTATION.length],
-  }))
-  const propTypeTotal = propTypes.reduce((s, p) => s + p.count, 0)
-
-  // ── Panel 2: sorted horizontal bars — contratos por cadencia ──
-  const cadenceItems = cadence.map((c, i) => ({
-    label: c.label,
-    value: c.count,
-    color: PREMIUM_ROTATION[i % PREMIUM_ROTATION.length],
-  }))
-  const cadenceTotal = cadence.reduce((s, c) => s + c.count, 0)
 
   // ── Panel 3: monthly income bars + dashed avg line ──
   const incomePoints   = incomeTrend.map(t => ({ label: t.label, value: t.value }))
@@ -120,28 +94,24 @@ export default async function DashboardPage() {
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        {/* Panel 1 — Propiedades por tipo (composition bar) */}
+        {/* Panel 1 — Cobranza del mes (collection health) */}
         <DashboardCard
-          title="Propiedades por tipo"
-          subtitle={`Distribución actual · ${propTypeTotal} propiedades`}
+          title="Cobranza del mes"
+          subtitle="¿Llegaron los alquileres este período?"
         >
-          {propTypeItems.length > 0 ? (
-            <CompositionBar items={propTypeItems} totalUnit="propiedades" />
+          {collection.totalContracts > 0 ? (
+            <CollectionHealthCard data={collection} />
           ) : (
-            <EmptyState text="Sin propiedades cargadas" />
+            <EmptyState text="Sin contratos activos para evaluar" />
           )}
         </DashboardCard>
 
-        {/* Panel 2 — Contratos por cadencia (sorted horizontal bars) */}
+        {/* Panel 2 — Atención requerida (pendientes breakdown) */}
         <DashboardCard
-          title="Contratos por cadencia"
-          subtitle={`Distribución actual · ${cadenceTotal} contratos activos`}
+          title="Atención requerida"
+          subtitle="Acciones que necesitan tu intervención esta semana"
         >
-          {cadenceItems.length > 0 ? (
-            <SortedHorizontalBars items={cadenceItems} totalUnit="contratos" />
-          ) : (
-            <EmptyState text="Sin contratos activos" />
-          )}
+          <ActionableBreakdown counts={pending.counts} />
         </DashboardCard>
 
         {/* Panel 3 — Ingresos por mes (bars + avg reference line + value tags) */}
