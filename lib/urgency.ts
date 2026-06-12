@@ -7,8 +7,12 @@
 //   100 → 50  = softer
 //   500 → 600 = deeper border (used as the eye-magnet stripe)
 //
-// Dark variants use the -950/-900 tones with alpha so they blend into the
-// card surface as a tinted overlay — the standard dark-mode pattern.
+// LIGHT MODE: soft -100/-200 tints (white surface → pale tint reads cleanly)
+// DARK MODE:  saturated -500 tone at low alpha (~10–25%) on top of the
+//             dark card surface — the proper "tinted glass overlay" pattern
+//             that premium tools (Linear, Vercel) use. Previously we tried
+//             -950/40 which was nearly invisible because dark-on-dark
+//             blends to mud.
 //
 // Everything below builds from URGENCY_THEME — don't override at call sites.
 // ============================================================================
@@ -17,40 +21,40 @@ export type UrgencyTier = 'critical' | 'warning' | 'recent' | 'upcoming' | 'ok'
 
 const URGENCY_THEME = {
   critical: {
-    rowBg:      'bg-orange-100 dark:bg-orange-950/40',
-    rowBgHover: 'hover:bg-orange-200 dark:hover:bg-orange-900/40',
-    cellBg:     'bg-orange-200 dark:bg-orange-900/50',
+    rowBg:      'bg-orange-100 dark:bg-orange-500/[0.10]',
+    rowBgHover: 'hover:bg-orange-200 dark:hover:bg-orange-500/[0.18]',
+    cellBg:     'bg-orange-200 dark:bg-orange-500/[0.22]',
     border:     'border-l-orange-500',          // saturated stripe — same on both
     dot:        'bg-orange-500',
-    text:       'text-orange-900 dark:text-orange-200',
-    bannerBg:   'bg-orange-100 dark:bg-orange-950/40',
+    text:       'text-orange-900 dark:text-orange-300',
+    bannerBg:   'bg-orange-100 dark:bg-orange-500/[0.10]',
   },
   warning: {
-    rowBg:      'bg-yellow-100 dark:bg-yellow-950/40',
-    rowBgHover: 'hover:bg-yellow-200 dark:hover:bg-yellow-900/40',
-    cellBg:     'bg-yellow-200 dark:bg-yellow-900/50',
+    rowBg:      'bg-yellow-100 dark:bg-amber-400/[0.10]',
+    rowBgHover: 'hover:bg-yellow-200 dark:hover:bg-amber-400/[0.18]',
+    cellBg:     'bg-yellow-200 dark:bg-amber-400/[0.22]',
     border:     'border-l-yellow-500',
     dot:        'bg-yellow-500',
-    text:       'text-yellow-900 dark:text-yellow-200',
-    bannerBg:   'bg-yellow-100 dark:bg-yellow-950/40',
+    text:       'text-yellow-900 dark:text-amber-300',
+    bannerBg:   'bg-yellow-100 dark:bg-amber-400/[0.10]',
   },
   recent: {
-    rowBg:      'bg-green-100 dark:bg-green-950/40',
-    rowBgHover: 'hover:bg-green-200 dark:hover:bg-green-900/40',
+    rowBg:      'bg-green-100 dark:bg-green-500/[0.10]',
+    rowBgHover: 'hover:bg-green-200 dark:hover:bg-green-500/[0.18]',
     cellBg:     '',
     border:     'border-l-green-500',
     dot:        'bg-green-500',
-    text:       'text-green-900 dark:text-green-200',
-    bannerBg:   'bg-green-100 dark:bg-green-950/40',
+    text:       'text-green-900 dark:text-green-300',
+    bannerBg:   'bg-green-100 dark:bg-green-500/[0.10]',
   },
   upcoming: {
-    rowBg:      'bg-sky-100 dark:bg-sky-950/40',
-    rowBgHover: 'hover:bg-sky-200 dark:hover:bg-sky-900/40',
+    rowBg:      'bg-sky-100 dark:bg-sky-500/[0.10]',
+    rowBgHover: 'hover:bg-sky-200 dark:hover:bg-sky-500/[0.18]',
     cellBg:     '',
     border:     'border-l-sky-500',
     dot:        'bg-sky-500',
-    text:       'text-sky-900 dark:text-sky-200',
-    bannerBg:   'bg-sky-100 dark:bg-sky-950/40',
+    text:       'text-sky-900 dark:text-sky-300',
+    bannerBg:   'bg-sky-100 dark:bg-sky-500/[0.10]',
   },
 }
 
