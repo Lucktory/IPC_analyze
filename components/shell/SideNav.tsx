@@ -7,7 +7,7 @@ import { getSection } from '@/lib/sections'
 interface NavItem {
   to: string
   label: string
-  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile' | 'sheet' | 'bell'
+  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile' | 'sheet' | 'bell' | 'funnel'
 }
 
 const mainItems: NavItem[] = [
@@ -18,6 +18,7 @@ const mainItems: NavItem[] = [
   { to: '/inquilinos',   label: 'Inquilinos',    icon: 'tenants'    },
   { to: '/propiedades',  label: 'Propiedades',   icon: 'properties' },
   { to: '/movimientos',  label: 'Movimientos',   icon: 'payments'   },
+  { to: '/liquidacion',  label: 'Liquidación',   icon: 'funnel'     },
   { to: '/bancos',       label: 'Bancos',        icon: 'banks'      },
   { to: '/conciliacion', label: 'Conciliación',  icon: 'reconcile'  },
 ]
@@ -120,6 +121,12 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
         <svg {...common} strokeLinejoin="round">
           <path d="M5 9 a5 5 0 0 1 10 0 v3 l1.5 2 H3.5 L5 12 Z" />
           <path d="M8 15 a2 2 0 0 0 4 0" />
+        </svg>
+      )
+    case 'funnel':
+      return (
+        <svg {...common} strokeLinejoin="round">
+          <path d="M2.5 3 H17.5 L12 10 V16 L8 17.5 V10 Z" />
         </svg>
       )
   }

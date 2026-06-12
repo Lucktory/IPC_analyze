@@ -23,6 +23,7 @@ export const SECTIONS: Section[] = [
   { path: '/movimientos',  label: 'Movimientos',   color: '#CA8A04' },
   { path: '/bancos',       label: 'Bancos',        color: '#1E40AF' },
   { path: '/conciliacion', label: 'Conciliación',  color: '#9D174D' },
+  { path: '/liquidacion',  label: 'Liquidación',   color: '#0891B2' },
 ]
 
 const DEFAULT_SECTION: Section = SECTIONS[0]
