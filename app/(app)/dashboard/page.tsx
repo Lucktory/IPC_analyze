@@ -55,6 +55,26 @@ function pctChange(from: number, to: number): number | null {
   return ((to - from) / from) * 100
 }
 
+/**
+ * Pre-format the peak month value for a sparkline. Returns undefined to
+ * signal "don't draw a peak label" — happens when (a) peak IS the current
+ * month, (b) all values are 0/identical, or (c) there's no spread. The
+ * SparklineGroup component (client) then skips rendering the chip.
+ *
+ * Done server-side because formatter functions can't cross the
+ * server→client boundary in Next.js App Router.
+ */
+function computePeakLabel(values: number[], fmt: (v: number) => string): string | undefined {
+  if (values.length === 0) return undefined
+  const max     = Math.max(...values)
+  const min     = Math.min(...values)
+  const peakIdx = values.indexOf(max)
+  if (peakIdx === values.length - 1) return undefined  // peak IS current
+  if (max <= 0)        return undefined                // flatline at zero
+  if (max - min <= 0)  return undefined                // flat at any value
+  return fmt(max)
+}
+
 export default async function DashboardPage() {
   const [collection, pending, incomeTrend, opsTrend, topLandlords] = await Promise.all([
     getCollectionHealth(),
@@ -90,30 +110,32 @@ export default async function DashboardPage() {
   const avgRentSeries      = opsTrend.map(t => t.pagos > 0 ? t.ingresos / t.pagos : 0)
   const commissionPctSeries = opsTrend.map(t => t.ingresos > 0 ? (t.comisiones / t.ingresos) * 100 : 0)
 
+  const intFmt = (v: number) => v.toLocaleString('es-AR')
+  const pctFmt = (v: number) => `${v.toFixed(1)}%`
   const sparkSeries = (opsFirst && opsCurrent) ? [
     {
-      label:       '# Pagos del mes',
-      color:       PREMIUM.amethyst,
-      current:     opsCurrent.pagos.toLocaleString('es-AR'),
-      changePct:   pctChange(opsFirst.pagos, opsCurrent.pagos),
-      values:      pagosSeries,
-      formatValue: (v: number) => v.toLocaleString('es-AR'),
+      label:     '# Pagos del mes',
+      color:     PREMIUM.amethyst,
+      current:   opsCurrent.pagos.toLocaleString('es-AR'),
+      changePct: pctChange(opsFirst.pagos, opsCurrent.pagos),
+      values:    pagosSeries,
+      peakLabel: computePeakLabel(pagosSeries, intFmt),
     },
     {
-      label:       'Promedio por pago',
-      color:       PREMIUM.gold,
-      current:     fmtMoney(avgRentSeries.at(-1) ?? 0),
-      changePct:   pctChange(avgRentSeries[0] ?? 0, avgRentSeries.at(-1) ?? 0),
-      values:      avgRentSeries,
-      formatValue: fmtCompactARS,
+      label:     'Promedio por pago',
+      color:     PREMIUM.gold,
+      current:   fmtMoney(avgRentSeries.at(-1) ?? 0),
+      changePct: pctChange(avgRentSeries[0] ?? 0, avgRentSeries.at(-1) ?? 0),
+      values:    avgRentSeries,
+      peakLabel: computePeakLabel(avgRentSeries, fmtCompactARS),
     },
     {
-      label:       '% Comisión sobre ingresos',
-      color:       PREMIUM.emerald,
-      current:     `${(commissionPctSeries.at(-1) ?? 0).toFixed(1)}%`,
-      changePct:   pctChange(commissionPctSeries[0] ?? 0, commissionPctSeries.at(-1) ?? 0),
-      values:      commissionPctSeries,
-      formatValue: (v: number) => `${v.toFixed(1)}%`,
+      label:     '% Comisión sobre ingresos',
+      color:     PREMIUM.emerald,
+      current:   `${(commissionPctSeries.at(-1) ?? 0).toFixed(1)}%`,
+      changePct: pctChange(commissionPctSeries[0] ?? 0, commissionPctSeries.at(-1) ?? 0),
+      values:    commissionPctSeries,
+      peakLabel: computePeakLabel(commissionPctSeries, pctFmt),
     },
   ] : []
 

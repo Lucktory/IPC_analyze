@@ -19,17 +19,22 @@ import { useEffect, useId, useState } from 'react'
 export interface SparklineSeries {
   label:     string
   color:     string
-  /** Current period (last value) formatted for display. */
+  /** Current period (last value) formatted for display. Also used as the
+   *  inline label rendered next to the end dot. */
   current:   string
   /** Optional % change vs the first point. null hides it. */
   changePct: number | null
   values:    number[]
   /**
-   * Optional formatter for the inline peak + current labels. Defaults
-   * to `v.toLocaleString('es-AR')`. Use `fmtCompactARS` for money,
-   * `v => v.toFixed(1) + '%'` for percentages, etc.
+   * Pre-formatted peak month value (e.g. "$1.2M", "12", "9.6%"). When
+   * undefined, no peak label is drawn — typical when the peak coincides
+   * with the current month, or when the series is a flatline at zero.
+   *
+   * NOTE: this is a plain string, not a formatter function, because
+   * functions cannot be passed from server components → client components
+   * in Next.js App Router. The server callsite does the formatting.
    */
-  formatValue?: (v: number) => string
+  peakLabel?: string
 }
 
 interface Props {
@@ -88,15 +93,14 @@ function SparklineRow({
   const linePath = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ')
   const areaPath = `${linePath} L ${VBW} ${VBH} L 0 ${VBH} Z`
 
-  const last         = points.at(-1)
-  const currentValue = values.at(-1) ?? 0
-  const peakIdx      = values.indexOf(max)
-  const peakAtEnd    = peakIdx === values.length - 1
-  // Peak label only when there's a meaningful spread (range>0), peak is not
-  // the current month, and peak > 0 (avoids labeling a flatline at zero).
-  const showPeak     = max > 0 && !peakAtEnd && range > 0
-  const peakPt       = showPeak ? points[peakIdx] : null
-  const fmt          = series.formatValue ?? ((v: number) => v.toLocaleString('es-AR'))
+  const last      = points.at(-1)
+  const peakIdx   = values.indexOf(max)
+  const peakAtEnd = peakIdx === values.length - 1
+  // Peak label only when the server provided one (it skipped formatting
+  // for trivial cases), the peak isn't the current month, and there's
+  // real spread in the values.
+  const showPeak  = !!series.peakLabel && !peakAtEnd && range > 0
+  const peakPt    = showPeak ? points[peakIdx] : null
 
   const changeColor =
     series.changePct == null   ? 'text-slate'
@@ -221,11 +225,13 @@ function SparklineRow({
               transition:      `opacity 0.4s ease-out ${delayMs + 1000}ms`,
             }}
           >
-            {fmt(values[peakIdx])}
+            {series.peakLabel}
           </span>
         )}
 
-        {/* Current value label — anchored to the end dot's upper-left */}
+        {/* Current value label — anchored to the end dot's upper-left.
+            Uses the same pre-formatted `current` string already shown
+            in the header, so the eye links chart-end to KPI. */}
         {last && (
           <span
             className="absolute text-[10px] font-semibold tabular-nums pointer-events-none whitespace-nowrap"
@@ -239,7 +245,7 @@ function SparklineRow({
               transition: `opacity 0.4s ease-out ${delayMs + 1200}ms`,
             }}
           >
-            {fmt(currentValue)}
+            {series.current}
           </span>
         )}
       </div>
