@@ -23,21 +23,28 @@ interface Props {
   height?: number
   /** Currency vs raw integer formatting on the tooltip + y-axis. */
   format?: 'currency' | 'integer'
+  /** When true, draw a dashed reference line at the mean of the points. */
+  showAverage?: boolean
+  /** When true, draw the value as a small tag above each bar. */
+  showValueTags?: boolean
 }
 
 export function MonthlyBars({
   points,
-  color  = PREMIUM.gold,
-  height = 220,
-  format = 'currency',
+  color         = PREMIUM.gold,
+  height        = 220,
+  format        = 'currency',
+  showAverage   = false,
+  showValueTags = false,
 }: Props) {
   const fmt = format === 'currency' ? fmtCompactARS : (v: number) => v.toLocaleString('es-AR')
   const c   = useChartColors()
+  const avg = points.length > 0 ? points.reduce((s, p) => s + p.value, 0) / points.length : 0
 
   const option: any = {
     ...chartBaseStyle,
     backgroundColor: 'transparent',
-    grid: { left: 8, right: 8, top: 16, bottom: 24, containLabel: true },
+    grid: { left: 8, right: 8, top: showValueTags ? 28 : 16, bottom: 24, containLabel: true },
     animation: true,
     animationDuration: 700,
     animationEasing: 'cubicOut',
@@ -81,6 +88,30 @@ export function MonthlyBars({
           },
           borderRadius: [4, 4, 0, 0],
         },
+        // Per-bar value tag — drawn above each bar when the option is on.
+        label: showValueTags ? {
+          show: true,
+          position: 'top',
+          color: c.axisLabel,
+          fontSize: 10,
+          fontFamily: 'Lexend',
+          fontWeight: 500,
+          formatter: (p: any) => fmt(p.value),
+        } : { show: false },
+        // Dashed average line — drawn through the bars (markLine).
+        markLine: showAverage ? {
+          symbol: 'none',
+          silent: true,
+          lineStyle: { color: c.axisLabel, type: 'dashed', width: 1, opacity: 0.7 },
+          label: {
+            color:    c.axisLabel,
+            fontSize: 10,
+            position: 'insideEndTop',
+            fontFamily: 'Lexend',
+            formatter: () => `Promedio · ${fmt(avg)}`,
+          },
+          data: [{ yAxis: avg }],
+        } : undefined,
         emphasis: {
           itemStyle: {
             color: {
