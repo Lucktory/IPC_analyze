@@ -7,6 +7,8 @@ import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listBanks, listBankAccounts, listBankInstitutions, type BankAccountRow, type BankInstitutionRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/urgency'
+import { fmtMoney }       from '@/lib/format'
+import { OWNER_TYPE_LABEL } from '@/lib/owner'
 
 type Categoria = 'todas' | 'admin' | 'administrator' | 'landlord'
 type Tab = 'cuentas' | 'instituciones'
@@ -19,7 +21,8 @@ interface PageProps {
   }>
 }
 
-const fmt = (n: number | null) => n != null ? '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''
+// Bank fees show two decimals because comisiones come with a 0.5%-style precision.
+const fmt = (n: number | null) => fmtMoney(n, 2)
 
 export default async function BancosPage({ searchParams }: PageProps) {
   const sp        = await searchParams
@@ -203,7 +206,7 @@ export default async function BancosPage({ searchParams }: PageProps) {
                       <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{a.accountType}</td>
                       <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${cbuMissing}`}>{a.cbu ?? ''}</td>
                       <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{a.ownerLabel}</td>
-                      <td className="px-4 py-1.5 text-slate-dark capitalize">{categoryLabel(a.ownerType)}</td>
+                      <td className="px-4 py-1.5 text-slate-dark">{OWNER_TYPE_LABEL[a.ownerType]}</td>
                     </ClickableRow>
                   )
                 })}
@@ -366,11 +369,3 @@ async function InstitucionesView({ q }: { q: string }) {
   )
 }
 
-function categoryLabel(t: 'admin' | 'administrator' | 'landlord' | 'unknown') {
-  switch (t) {
-    case 'admin':         return 'Administración'
-    case 'administrator': return 'Socio'
-    case 'landlord':      return 'Propietario'
-    default:              return '—'
-  }
-}

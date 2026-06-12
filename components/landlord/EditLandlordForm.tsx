@@ -4,6 +4,9 @@ import { useRef, useState, useTransition } from 'react'
 import { updateLandlord, deleteLandlord } from '@/lib/landlord/actions'
 import type { LandlordDetail } from '@/lib/landlord/queries'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
+import { FormField }           from '@/components/ui/FormField'
+import { FormError }           from '@/components/ui/FormError'
+import { FormFooter, SavedIndicator } from '@/components/ui/FormFooter'
 
 interface EditLandlordFormProps {
   landlord:        LandlordDetail
@@ -41,57 +44,16 @@ export function EditLandlordForm({ landlord, propertyCount, contractCount }: Edi
 
   return (
     <form ref={formRef} action={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-      <Field
-        name="name"
-        label="Nombre del propietario"
-        defaultValue={landlord.name}
-        required
-        wide
-      />
+      <FormField name="name"        label="Nombre del propietario" defaultValue={landlord.name} required wide />
+      <FormField name="dni_or_cuit" label="CUIT / DNI"             defaultValue={landlord.dniOrCuit ?? ''} placeholder="20-12345678-9" />
+      <FormField name="phone"       label="Teléfono"               defaultValue={landlord.phone ?? ''}     placeholder="+54 9 11 1234 5678" />
+      <FormField name="email"       label="Correo electrónico"     defaultValue={landlord.email ?? ''}     placeholder="propietario@dominio.com" type="email" wide />
+      <FormField name="notes"       label="Notas internas"         defaultValue={landlord.notes ?? ''}     textarea wide />
 
-      <Field
-        name="dni_or_cuit"
-        label="CUIT / DNI"
-        defaultValue={landlord.dniOrCuit ?? ''}
-        placeholder="20-12345678-9"
-      />
+      <FormError message={error} />
 
-      <Field
-        name="phone"
-        label="Teléfono"
-        defaultValue={landlord.phone ?? ''}
-        placeholder="+54 9 11 1234 5678"
-      />
-
-      <Field
-        name="email"
-        label="Correo electrónico"
-        type="email"
-        defaultValue={landlord.email ?? ''}
-        placeholder="propietario@dominio.com"
-        wide
-      />
-
-      <Field
-        name="notes"
-        label="Notas internas"
-        defaultValue={landlord.notes ?? ''}
-        textarea
-        wide
-      />
-
-      {error && (
-        <p className="sm:col-span-2 text-[13px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
-          {error}
-        </p>
-      )}
-
-      <div className="sm:col-span-2 flex items-center justify-between pt-2 flex-wrap gap-3">
-        <p className="text-[12px] text-slate">
-          {savedAt
-            ? <span className="text-success">✓ Guardado {savedAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-            : 'Los cambios se ejecutan 10s después de confirmar. Tocá el botón armado para cancelar.'}
-        </p>
+      <FormFooter>
+        <SavedIndicator savedAt={savedAt} />
         <div className="flex items-center gap-2">
           <DelayedActionButton
             variant="danger"
@@ -110,36 +72,7 @@ export function EditLandlordForm({ landlord, propertyCount, contractCount }: Edi
             pending={pending}
           />
         </div>
-      </div>
+      </FormFooter>
     </form>
-  )
-}
-
-interface FieldProps {
-  name:         string
-  label:        string
-  defaultValue: string
-  required?:    boolean
-  placeholder?: string
-  type?:        string
-  wide?:        boolean
-  textarea?:    boolean
-}
-
-function Field({ name, label, defaultValue, required, placeholder, type, wide, textarea }: FieldProps) {
-  const Tag = textarea ? 'textarea' as const : 'input' as const
-  return (
-    <label className={`flex flex-col gap-1.5 ${wide ? 'sm:col-span-2' : ''}`}>
-      <span className="label-cap">{label}{required && <span className="text-danger ml-0.5">*</span>}</span>
-      <Tag
-        name={name}
-        defaultValue={defaultValue}
-        required={required}
-        placeholder={placeholder}
-        type={Tag === 'input' ? (type ?? 'text') : undefined}
-        rows={textarea ? 3 : undefined}
-        className="h-10 sm:h-auto px-3 py-2 rounded border border-line bg-cream text-[13px] text-ink outline-none focus:border-ink focus:bg-paper transition-colors resize-none"
-      />
-    </label>
   )
 }

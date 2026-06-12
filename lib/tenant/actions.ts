@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { dbFailure }            from '@/lib/db-errors'
 
 export interface UpdateTenantResult {
   ok:    boolean
@@ -27,7 +28,7 @@ export async function updateTenant(
   const supabase = await createSupabaseServer()
   const { error } = await supabase.from('tenants').update(fields).eq('id', id)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) return dbFailure(error)
 
   revalidatePath('/inquilinos')
   revalidatePath(`/inquilinos/${id}`)
@@ -50,15 +51,9 @@ export async function deleteTenant(id: string): Promise<DeleteTenantResult> {
   const { error } = await supabase.from('tenants').delete().eq('id', id)
 
   if (error) {
-    // 23503 = foreign_key_violation. Most common cause here: tenant has
-    // contract_tenants junction rows.
-    if ((error as any).code === '23503' || /foreign key/i.test(error.message)) {
-      return {
-        ok: false,
-        error: 'No se puede eliminar: el inquilino tiene contratos asociados. Primero rescindí o eliminá esos contratos.',
-      }
-    }
-    return { ok: false, error: error.message }
+    return dbFailure(error, {
+      fkMessage: 'No se puede eliminar: el inquilino tiene contratos asociados. Primero rescindí o eliminá esos contratos.',
+    })
   }
 
   revalidatePath('/inquilinos')

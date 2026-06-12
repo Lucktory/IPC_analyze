@@ -7,10 +7,9 @@ import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import Link from 'next/link'
 import { listTransactions, listTransactionPeriods, type TransactionRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/urgency'
+import { fmtMoney as fmt } from '@/lib/format'
 
 const PAGE_SIZE = 50
-
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
 const PERIOD_LABEL = (s: string | null) => {
   if (!s) return '—'

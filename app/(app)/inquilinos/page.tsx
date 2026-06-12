@@ -7,8 +7,7 @@ import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listTenants, type TenantRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/urgency'
-
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
+import { fmtMoney as fmt } from '@/lib/format'
 
 type Tipo = 'todos' | 'con_contrato' | 'sin_contrato' | 'sin_telefono' | 'sin_email'
 

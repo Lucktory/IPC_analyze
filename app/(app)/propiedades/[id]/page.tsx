@@ -4,8 +4,7 @@ import { Badge } from '@/components/ui/Badge'
 import { getPropertyDetail } from '@/lib/property/queries'
 import { EditPropertyForm } from '@/components/property/EditPropertyForm'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
-
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
+import { fmtMoney as fmt } from '@/lib/format'
 
 const TYPE_LABEL: Record<string, string> = {
   vivienda: 'Vivienda',

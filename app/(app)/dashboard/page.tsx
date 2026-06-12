@@ -13,8 +13,7 @@ import {
   getContractsWithoutPayment,
 } from '@/lib/dashboard/queries'
 import { getCurrentPeriodLabel } from '@/lib/period'
-
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
+import { fmtMoney as fmt }       from '@/lib/format'
 
 export default async function DashboardPage() {
   // Fetch everything in parallel

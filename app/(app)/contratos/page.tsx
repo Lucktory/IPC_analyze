@@ -8,12 +8,7 @@ import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listContracts, type ContractListFilters, type ContractRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/contract/urgency'
-
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
-const fmtDate = (s: string) => {
-  const d = new Date(s)
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
+import { fmtMoney as fmt, fmtDate } from '@/lib/format'
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const fmtMonthYear = (s: string) => {

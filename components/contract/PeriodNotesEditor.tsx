@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react'
 import { saveContractPeriodNote } from '@/lib/contract/actions'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
+import { fmtDateTime }         from '@/lib/format'
 
 interface PeriodNotesEditorProps {
   contractId: string
@@ -44,11 +45,8 @@ export function PeriodNotesEditor({
     })
   }
 
-  const fmtMeta = meta.at
-    ? `Guardado ${new Date(meta.at).toLocaleString('es-AR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      })}${meta.by ? ' por ' + meta.by : ''}`
+  const metaCaption = meta.at
+    ? `Guardado ${fmtDateTime(meta.at)}${meta.by ? ' por ' + meta.by : ''}`
     : 'Sin notas guardadas para este período.'
 
   return (
@@ -73,7 +71,7 @@ export function PeriodNotesEditor({
 
       <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-[11px] text-slate">
-          {dirty ? <span className="text-ink">Cambios sin guardar · se guardan 10s después de confirmar</span> : fmtMeta}
+          {dirty ? <span className="text-ink">Cambios sin guardar · se guardan 10s después de confirmar</span> : metaCaption}
         </p>
         <DelayedActionButton
           variant="primary"

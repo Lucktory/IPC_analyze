@@ -1,6 +1,8 @@
 // Shared ECharts theme — ported from Plager ERP useChartTheme.ts.
 // Currency formatters adapted from BRL (R$) to ARS ($).
 
+import { fmtMoney } from '@/lib/format'
+
 // Legacy multi-hue palette — kept for backward compatibility but discouraged.
 // Prefer the monochrome palettes below for new charts.
 export const chartPalette = ['#FF8552', '#E66A36', '#16A34A', '#2563EB', '#F5C518', '#7D8491']
@@ -41,9 +43,7 @@ export function fmtCompactARS(v: number): string {
   return `$ ${v.toLocaleString('es-AR')}`
 }
 
-export function fmtARS(v: number): string {
-  return '$' + Math.round(v).toLocaleString('es-AR')
-}
+export const fmtARS = (v: number) => fmtMoney(v)
 
 export function fmtInt(v: number): string {
   return Math.round(v).toLocaleString('es-AR')

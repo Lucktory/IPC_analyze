@@ -8,11 +8,10 @@ import {
   getReconciliationByDestination,
   type ReconciliationBucket,
 } from '@/lib/reconciliation/queries'
+import { fmtMoney as fmt } from '@/lib/format'
 
 // Slugify a bucket code into an anchor id (hyphens, lowercase, safe chars)
 const anchor = (code: string) => 'b-' + code.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 
 const PERIOD_LABEL = (s: string) => {
   const [y, m] = s.split('-')

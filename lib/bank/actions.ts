@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { dbFailure }            from '@/lib/db-errors'
 
 export interface UpdateBankAccountResult {
   ok:    boolean
@@ -35,7 +36,7 @@ export async function updateBankAccount(
   const supabase = await createSupabaseServer()
   const { error } = await supabase.from('bank_accounts').update(fields).eq('id', id)
 
-  if (error) return { ok: false, error: error.message }
+  if (error) return dbFailure(error)
 
   revalidatePath('/bancos')
   revalidatePath(`/bancos/${id}`)
@@ -58,13 +59,9 @@ export async function deleteBankAccount(id: string): Promise<DeleteBankAccountRe
   const { error } = await supabase.from('bank_accounts').delete().eq('id', id)
 
   if (error) {
-    if ((error as any).code === '23503' || /foreign key/i.test(error.message)) {
-      return {
-        ok: false,
-        error: 'No se puede eliminar: la cuenta tiene movimientos o contratos asociados.',
-      }
-    }
-    return { ok: false, error: error.message }
+    return dbFailure(error, {
+      fkMessage: 'No se puede eliminar: la cuenta tiene movimientos o contratos asociados.',
+    })
   }
 
   revalidatePath('/bancos')
@@ -117,11 +114,9 @@ export async function createBankInstitution(formData: FormData): Promise<BankIns
     .single()
 
   if (error) {
-    // 23505 = unique_violation. The banks.name has a UNIQUE constraint.
-    if ((error as any).code === '23505') {
-      return { ok: false, error: 'Ya existe un banco con ese nombre.' }
-    }
-    return { ok: false, error: error.message }
+    return dbFailure(error, {
+      uniqueMessage: 'Ya existe un banco con ese nombre.',
+    })
   }
 
   revalidatePath('/bancos')
@@ -136,10 +131,9 @@ export async function updateBankInstitution(id: string, formData: FormData): Pro
   const { error } = await supabase.from('banks').update(fields).eq('id', id)
 
   if (error) {
-    if ((error as any).code === '23505') {
-      return { ok: false, error: 'Ya existe un banco con ese nombre.' }
-    }
-    return { ok: false, error: error.message }
+    return dbFailure(error, {
+      uniqueMessage: 'Ya existe un banco con ese nombre.',
+    })
   }
 
   revalidatePath('/bancos')
@@ -152,13 +146,9 @@ export async function deleteBankInstitution(id: string): Promise<BankInstitution
   const { error } = await supabase.from('banks').delete().eq('id', id)
 
   if (error) {
-    if ((error as any).code === '23503' || /foreign key/i.test(error.message)) {
-      return {
-        ok: false,
-        error: 'No se puede eliminar: el banco tiene cuentas asociadas. Primero reasigná o eliminá esas cuentas.',
-      }
-    }
-    return { ok: false, error: error.message }
+    return dbFailure(error, {
+      fkMessage: 'No se puede eliminar: el banco tiene cuentas asociadas. Primero reasigná o eliminá esas cuentas.',
+    })
   }
 
   revalidatePath('/bancos')

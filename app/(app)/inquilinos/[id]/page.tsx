@@ -4,8 +4,7 @@ import { Badge } from '@/components/ui/Badge'
 import { getTenantDetail } from '@/lib/tenant/queries'
 import { EditTenantForm } from '@/components/tenant/EditTenantForm'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
-
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
+import { fmtMoney as fmt } from '@/lib/format'
 
 interface PageProps {
   params: Promise<{ id: string }>

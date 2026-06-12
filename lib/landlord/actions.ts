@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { dbFailure }            from '@/lib/db-errors'
 
 export interface UpdateLandlordResult {
   ok:    boolean
@@ -29,9 +30,7 @@ export async function updateLandlord(
   const supabase = await createSupabaseServer()
   const { error } = await supabase.from('landlords').update(fields).eq('id', id)
 
-  if (error) {
-    return { ok: false, error: error.message }
-  }
+  if (error) return dbFailure(error)
 
   revalidatePath('/propietarios')
   revalidatePath(`/propietarios/${id}`)
@@ -53,13 +52,9 @@ export async function deleteLandlord(id: string): Promise<DeleteLandlordResult> 
   const { error } = await supabase.from('landlords').delete().eq('id', id)
 
   if (error) {
-    if ((error as any).code === '23503' || /foreign key/i.test(error.message)) {
-      return {
-        ok: false,
-        error: 'No se puede eliminar: el propietario tiene propiedades o contratos asociados.',
-      }
-    }
-    return { ok: false, error: error.message }
+    return dbFailure(error, {
+      fkMessage: 'No se puede eliminar: el propietario tiene propiedades o contratos asociados.',
+    })
   }
 
   revalidatePath('/propietarios')

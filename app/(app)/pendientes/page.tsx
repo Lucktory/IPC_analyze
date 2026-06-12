@@ -10,8 +10,7 @@ import {
   type PendingCategory,
   type PendingRow,
 } from '@/lib/pending/queries'
-
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
+import { fmtMoney as fmt } from '@/lib/format'
 
 interface PageProps {
   searchParams: Promise<{ tipo?: string }>

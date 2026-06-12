@@ -4,6 +4,9 @@ import { useRef, useState, useTransition } from 'react'
 import { updateTenant, deleteTenant } from '@/lib/tenant/actions'
 import type { TenantDetail } from '@/lib/tenant/queries'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
+import { FormField }           from '@/components/ui/FormField'
+import { FormError }           from '@/components/ui/FormError'
+import { FormFooter, SavedIndicator } from '@/components/ui/FormFooter'
 
 interface EditTenantFormProps {
   tenant: TenantDetail
@@ -42,23 +45,15 @@ export function EditTenantForm({ tenant }: EditTenantFormProps) {
 
   return (
     <form ref={formRef} action={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-      <Field name="name"  label="Nombre" defaultValue={tenant.name} required wide />
-      <Field name="dni"   label="DNI"    defaultValue={tenant.dni   ?? ''} />
-      <Field name="phone" label="Teléfono" defaultValue={tenant.phone ?? ''} placeholder="+54 9 11 1234 5678" />
-      <Field name="email" label="Correo electrónico" type="email" defaultValue={tenant.email ?? ''} placeholder="inquilino@dominio.com" />
+      <FormField name="name"  label="Nombre" defaultValue={tenant.name} required wide />
+      <FormField name="dni"   label="DNI"    defaultValue={tenant.dni   ?? ''} />
+      <FormField name="phone" label="Teléfono" defaultValue={tenant.phone ?? ''} placeholder="+54 9 11 1234 5678" />
+      <FormField name="email" label="Correo electrónico" type="email" defaultValue={tenant.email ?? ''} placeholder="inquilino@dominio.com" />
 
-      {error && (
-        <p className="sm:col-span-2 text-[13px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
-          {error}
-        </p>
-      )}
+      <FormError message={error} />
 
-      <div className="sm:col-span-2 flex items-center justify-between pt-2 flex-wrap gap-3">
-        <p className="text-[12px] text-slate">
-          {savedAt
-            ? <span className="text-success">✓ Guardado {savedAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-            : 'Los cambios se ejecutan 10s después de confirmar. Tocá el botón armado para cancelar.'}
-        </p>
+      <FormFooter>
+        <SavedIndicator savedAt={savedAt} />
         <div className="flex items-center gap-2">
           <DelayedActionButton
             variant="danger"
@@ -77,33 +72,7 @@ export function EditTenantForm({ tenant }: EditTenantFormProps) {
             pending={pending}
           />
         </div>
-      </div>
+      </FormFooter>
     </form>
-  )
-}
-
-interface FieldProps {
-  name:         string
-  label:        string
-  defaultValue: string
-  required?:    boolean
-  placeholder?: string
-  type?:        string
-  wide?:        boolean
-}
-
-function Field({ name, label, defaultValue, required, placeholder, type, wide }: FieldProps) {
-  return (
-    <label className={`flex flex-col gap-1.5 ${wide ? 'sm:col-span-2' : ''}`}>
-      <span className="label-cap">{label}{required && <span className="text-danger ml-0.5">*</span>}</span>
-      <input
-        name={name}
-        defaultValue={defaultValue}
-        required={required}
-        placeholder={placeholder}
-        type={type ?? 'text'}
-        className="h-10 px-3 rounded border border-line bg-cream text-[13px] text-ink outline-none focus:border-ink focus:bg-paper transition-colors"
-      />
-    </label>
   )
 }

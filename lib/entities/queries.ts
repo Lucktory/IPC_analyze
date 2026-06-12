@@ -5,6 +5,7 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { getCurrentPeriod } from '@/lib/period'
+import { deriveOwner, type OwnerType } from '@/lib/owner'
 
 // ---------------------------------------------------------------------------
 // LANDLORDS  (a.k.a. "contribuyentes" — propietarios with tax info)
@@ -218,7 +219,7 @@ export interface BankAccountRow {
   accountNumber: string | null
   cbu:           string | null
   accountType:   string
-  ownerType:     'admin' | 'administrator' | 'landlord' | 'unknown'
+  ownerType:     OwnerType
   ownerLabel:    string
   isActive:      boolean
   urgency:        UrgencyTier
@@ -234,6 +235,7 @@ export async function listBankAccounts(): Promise<BankAccountRow[]> {
       id, alias, account_number, cbu, account_type, is_active,
       banks!inner(name),
       administration_id, administrator_id, landlord_id,
+      administrations(name),
       administrators(name),
       landlords(name)
     `)
@@ -241,18 +243,7 @@ export async function listBankAccounts(): Promise<BankAccountRow[]> {
 
   return (data ?? []).map(b => {
     const row = b as any
-    let ownerType: BankAccountRow['ownerType'] = 'unknown'
-    let ownerLabel = '(sin dueño asignado)'
-    if (row.administration_id) {
-      ownerType = 'admin'
-      ownerLabel = 'Pampa Administración'
-    } else if (row.administrator_id) {
-      ownerType = 'administrator'
-      ownerLabel = row.administrators?.name ?? '(admin)'
-    } else if (row.landlord_id) {
-      ownerType = 'landlord'
-      ownerLabel = row.landlords?.name ?? '(propietario)'
-    }
+    const { ownerType, ownerLabel } = deriveOwner(row)
     // Urgency for bank accounts — only the blocking case (can't transfer).
     // Missing account_number alone is data hygiene; we don't tint for that.
     const reasons: string[] = []

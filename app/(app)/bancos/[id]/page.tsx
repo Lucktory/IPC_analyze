@@ -5,16 +5,10 @@ import { getBankAccountDetail } from '@/lib/bank/queries'
 import { listBanks } from '@/lib/entities/queries'
 import { EditBankAccountForm } from '@/components/bank/EditBankAccountForm'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
+import { OWNER_TYPE_LABEL } from '@/lib/owner'
 
 interface PageProps {
   params: Promise<{ id: string }>
-}
-
-const OWNER_LABEL: Record<string, string> = {
-  admin:         'Administración',
-  administrator: 'Socio',
-  landlord:      'Propietario',
-  unknown:       'Sin asignar',
 }
 
 export default async function BancoDetailPage({ params }: PageProps) {
@@ -48,7 +42,7 @@ export default async function BancoDetailPage({ params }: PageProps) {
           {account.isActive
             ? <Badge tone="success">Activa</Badge>
             : <Badge tone="neutral">Inactiva</Badge>}
-          <Badge tone="neutral">{OWNER_LABEL[account.ownerType]}</Badge>
+          <Badge tone="neutral">{OWNER_TYPE_LABEL[account.ownerType]}</Badge>
         </div>
       </div>
 

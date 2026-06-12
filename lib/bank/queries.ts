@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { deriveOwner, type OwnerType } from '@/lib/owner'
 
 export interface BankAccountDetail {
   id:            string
@@ -13,7 +14,7 @@ export interface BankAccountDetail {
   cbu:           string | null
   accountType:   string
   isActive:      boolean
-  ownerType:     'admin' | 'administrator' | 'landlord' | 'unknown'
+  ownerType:     OwnerType
   ownerLabel:    string
   administrationId: string | null
   administratorId:  string | null
@@ -38,18 +39,7 @@ export async function getBankAccountDetail(id: string): Promise<BankAccountDetai
   if (!data) return null
   const row = data as any
 
-  let ownerType: BankAccountDetail['ownerType'] = 'unknown'
-  let ownerLabel = '(sin dueño asignado)'
-  if (row.administration_id) {
-    ownerType = 'admin'
-    ownerLabel = row.administrations?.name ?? 'Pampa Administración'
-  } else if (row.administrator_id) {
-    ownerType = 'administrator'
-    ownerLabel = row.administrators?.name ?? '(socio)'
-  } else if (row.landlord_id) {
-    ownerType = 'landlord'
-    ownerLabel = row.landlords?.name ?? '(propietario)'
-  }
+  const { ownerType, ownerLabel } = deriveOwner(row)
 
   return {
     id:               row.id,

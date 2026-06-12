@@ -4,6 +4,9 @@ import { useRef, useState, useTransition } from 'react'
 import { updateProperty, deleteProperty } from '@/lib/property/actions'
 import type { PropertyDetail } from '@/lib/property/queries'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
+import { FormField }           from '@/components/ui/FormField'
+import { FormError }           from '@/components/ui/FormError'
+import { FormFooter, SavedIndicator } from '@/components/ui/FormFooter'
 
 const TYPE_OPTIONS = [
   { value: 'vivienda', label: 'Vivienda' },
@@ -48,16 +51,7 @@ export function EditPropertyForm({ property, contractCount }: EditPropertyFormPr
 
   return (
     <form ref={formRef} action={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-      <label className="flex flex-col gap-1.5 sm:col-span-2">
-        <span className="label-cap">Dirección<span className="text-danger ml-0.5">*</span></span>
-        <input
-          name="address"
-          defaultValue={property.address}
-          required
-          placeholder="Av. Belgrano 1234, 2°B"
-          className="h-10 px-3 rounded border border-line bg-cream text-[13px] text-ink outline-none focus:border-ink focus:bg-paper transition-colors"
-        />
-      </label>
+      <FormField name="address" label="Dirección" defaultValue={property.address} required wide placeholder="Av. Belgrano 1234, 2°B" />
 
       <label className="flex flex-col gap-1.5">
         <span className="label-cap">Tipo</span>
@@ -70,18 +64,10 @@ export function EditPropertyForm({ property, contractCount }: EditPropertyFormPr
         </select>
       </label>
 
-      {error && (
-        <p className="sm:col-span-2 text-[13px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
-          {error}
-        </p>
-      )}
+      <FormError message={error} />
 
-      <div className="sm:col-span-2 flex items-center justify-between pt-2 flex-wrap gap-3">
-        <p className="text-[12px] text-slate">
-          {savedAt
-            ? <span className="text-success">✓ Guardado {savedAt.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-            : 'Los cambios se ejecutan 10s después de confirmar. Tocá el botón armado para cancelar.'}
-        </p>
+      <FormFooter>
+        <SavedIndicator savedAt={savedAt} />
         <div className="flex items-center gap-2">
           <DelayedActionButton
             variant="danger"
@@ -100,7 +86,7 @@ export function EditPropertyForm({ property, contractCount }: EditPropertyFormPr
             pending={pending}
           />
         </div>
-      </div>
+      </FormFooter>
     </form>
   )
 }

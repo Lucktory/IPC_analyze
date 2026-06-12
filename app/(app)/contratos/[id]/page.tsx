@@ -11,9 +11,7 @@ import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { computeUrgency, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 import { getCurrentPeriod } from '@/lib/period'
-
-const fmt = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
-const fmtDate = (s: string) => new Date(s).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
+import { fmtMoney as fmt, fmtDateLong as fmtDate } from '@/lib/format'
 
 // Próximo aumento: same logic as in the contracts list — keeps both views consistent.
 const CADENCE_MONTHS: Record<string, number> = {
