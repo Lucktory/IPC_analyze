@@ -8,7 +8,7 @@
 // ============================================================================
 
 import dynamic from 'next/dynamic'
-import { chartBaseStyle, fmtCompactARS, useChartColors } from '../theme'
+import { chartBaseStyle, fmtCompactARS, useChartColors, PREMIUM } from '../theme'
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
@@ -27,7 +27,7 @@ interface Props {
 
 export function MonthlyBars({
   points,
-  color  = '#D4A857',
+  color  = PREMIUM.gold,
   height = 220,
   format = 'currency',
 }: Props) {

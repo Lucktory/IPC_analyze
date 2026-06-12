@@ -52,19 +52,38 @@ export const accentInk   = '#4A4F58'
 export const accentGreen = '#16A34A'
 export const accentRed   = '#DC2626'
 
+// Premium muted palette used by /dashboard. Tuned to read OK on both light
+// and dark surfaces — saturated enough to be distinct, desaturated enough
+// to feel calm. Mirrors `accent.*` in tailwind.config.ts (Tailwind tokens
+// can't be read from JS, so we keep them as hex here too).
+export const PREMIUM = {
+  gold:     '#D4A857',
+  slate:    '#7E8696',
+  emerald:  '#6FB783',
+  amethyst: '#9B8EC5',
+  inkSoft:  '#5A6373',
+  inkDeep:  '#4A4F58',
+} as const
+
+// Color rotation for donut segments etc. Cycles through the four premium
+// hues + two dark slates as fallbacks for 5th/6th segments.
+export const PREMIUM_ROTATION = [
+  PREMIUM.gold,
+  PREMIUM.slate,
+  PREMIUM.emerald,
+  PREMIUM.amethyst,
+  PREMIUM.inkSoft,
+  PREMIUM.inkDeep,
+]
+
+// Theme-neutral chart defaults. Tooltip colors live in `useChartColors()`
+// because they need to swap with the theme — every chart overrides them
+// from there. The font family + grid spacing here are safe in both themes.
 export const chartBaseStyle = {
   textStyle: {
     fontFamily: 'Lexend, system-ui, sans-serif',
-    color: '#4A4F58',
   },
   grid: { left: 16, right: 16, top: 16, bottom: 16, containLabel: true },
-  tooltip: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E6E1D8',
-    borderWidth: 1,
-    textStyle: { color: '#1F1F1F', fontFamily: 'Lexend, system-ui, sans-serif' },
-    padding: [8, 12] as [number, number],
-  },
 }
 
 export function fmtCompactARS(v: number): string {

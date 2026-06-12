@@ -18,6 +18,7 @@ import { MonthlyBars }      from '@/components/charts/panel/MonthlyBars'
 import { MultiLineArea }    from '@/components/charts/panel/MultiLineArea'
 import { DeltaIndicator }   from '@/components/charts/panel/DeltaIndicator'
 import { SeriesKpiStrip }   from '@/components/charts/panel/SeriesKpiStrip'
+import { PREMIUM, PREMIUM_ROTATION } from '@/components/charts/theme'
 
 const PROPERTY_TYPE_LABEL: Record<string, string> = {
   vivienda: 'Vivienda',
@@ -26,11 +27,6 @@ const PROPERTY_TYPE_LABEL: Record<string, string> = {
   oficina:  'Oficina',
   deposito: 'Depósito',
 }
-
-// Donut color rotation — gold, slate, emerald, amethyst, then dim slate
-// for any 5th/6th segment. Same Tailwind tokens as `accent.*`, hard-coded
-// here because ECharts can't read Tailwind classes.
-const ACCENTS = ['#D4A857', '#7E8696', '#6FB783', '#9B8EC5', '#5A6373', '#4A4F58']
 
 export default async function DashboardPage() {
   const [propTypes, cadence, incomeTrend, opsTrend] = await Promise.all([
@@ -46,7 +42,7 @@ export default async function DashboardPage() {
   const propTypeItems = propTypes.map((p, i) => ({
     label: PROPERTY_TYPE_LABEL[p.type] ?? p.type,
     value: p.count,
-    color: ACCENTS[i % ACCENTS.length],
+    color: PREMIUM_ROTATION[i % PREMIUM_ROTATION.length],
   }))
   const propTypeTotal = propTypes.reduce((s, p) => s + p.count, 0)
 
@@ -54,7 +50,7 @@ export default async function DashboardPage() {
   const cadenceItems = cadence.map((c, i) => ({
     label: c.label,
     value: c.count,
-    color: ACCENTS[i % ACCENTS.length],
+    color: PREMIUM_ROTATION[i % PREMIUM_ROTATION.length],
   }))
   const cadenceTotal = cadence.reduce((s, c) => s + c.count, 0)
 
@@ -69,9 +65,9 @@ export default async function DashboardPage() {
   const opsLabels = opsTrend.map(t => t.label)
   const opsCurrent = opsTrend.at(-1)
   const opsSeries = [
-    { name: 'Ingresos',   color: '#D4A857', values: opsTrend.map(t => t.ingresos),   format: 'currency' as const },
-    { name: 'Comisiones', color: '#6FB783', values: opsTrend.map(t => t.comisiones), format: 'currency' as const },
-    { name: 'Pagos',      color: '#9B8EC5', values: opsTrend.map(t => t.pagos),      format: 'integer'  as const },
+    { name: 'Ingresos',   color: PREMIUM.gold,     values: opsTrend.map(t => t.ingresos),   format: 'currency' as const },
+    { name: 'Comisiones', color: PREMIUM.emerald,  values: opsTrend.map(t => t.comisiones), format: 'currency' as const },
+    { name: 'Pagos',      color: PREMIUM.amethyst, values: opsTrend.map(t => t.pagos),      format: 'integer'  as const },
   ]
 
   return (
@@ -120,7 +116,7 @@ export default async function DashboardPage() {
           topRight={<DeltaIndicator label="vs. mes anterior" delta={incomeDelta} currency />}
         >
           {incomePoints.some(p => p.value > 0) ? (
-            <MonthlyBars points={incomePoints} color="#D4A857" format="currency" />
+            <MonthlyBars points={incomePoints} color={PREMIUM.gold} format="currency" />
           ) : (
             <EmptyState text="Sin ingresos registrados" />
           )}
@@ -132,9 +128,9 @@ export default async function DashboardPage() {
             <>
               <SeriesKpiStrip
                 items={[
-                  { label: 'Ingresos',   color: '#D4A857', value: fmtMoney(opsCurrent.ingresos) },
-                  { label: 'Comisiones', color: '#6FB783', value: fmtMoney(opsCurrent.comisiones) },
-                  { label: 'Pagos',      color: '#9B8EC5', value: opsCurrent.pagos.toString() },
+                  { label: 'Ingresos',   color: PREMIUM.gold,     value: fmtMoney(opsCurrent.ingresos) },
+                  { label: 'Comisiones', color: PREMIUM.emerald,  value: fmtMoney(opsCurrent.comisiones) },
+                  { label: 'Pagos',      color: PREMIUM.amethyst, value: opsCurrent.pagos.toString() },
                 ]}
               />
               <MultiLineArea xLabels={opsLabels} series={opsSeries} />

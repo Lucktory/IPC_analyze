@@ -292,8 +292,8 @@ function TxRow({ t, odd }: { t: TransactionRow; odd: boolean }) {
   // so the encargada's eye locks on big-ticket items.
   const isIn  = t.direction === 'IN'
   const isBig = t.amount >= LARGE_AMOUNT_THRESHOLD
-  const amountCellBg   = isIn ? 'bg-green-100' : 'bg-red-100'
-  const amountTextCol  = isIn ? 'text-green-900' : 'text-red-900'
+  const amountCellBg   = isIn ? 'bg-success/10' : 'bg-danger/10'
+  const amountTextCol  = isIn ? 'text-success'  : 'text-danger'
   const amountWeight   = isBig ? 'font-bold text-[14px]' : 'font-semibold text-[13px]'
   const amountPrefix   = isIn ? '+ ' : '− '
 
