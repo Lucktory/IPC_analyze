@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { getSection, getBreadcrumbSuffix } from '@/lib/sections'
 import { useBreadcrumbTitle } from './BreadcrumbContext'
 import { UserMenu } from './UserMenu'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 interface TopBarProps {
   pendientes?:  number
@@ -85,6 +86,10 @@ export function TopBar({
           </span>
         )}
       </Link>
+
+      <div className="self-center">
+        <ThemeToggle />
+      </div>
 
       <UserMenu email={userEmail} />
     </header>

@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { chartBaseStyle, monoInkPalette, fmtCompactARS, fmtInt } from './theme'
+import { chartBaseStyle, monoInkPalette, fmtCompactARS, fmtInt, useChartColors } from './theme'
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
@@ -53,6 +53,7 @@ export function DonutChart({
 }: Props) {
   const total = data.reduce((s, d) => s + d.value, 0)
   const fmt = buildFormatter({ format, unit, unitPlural })
+  const c   = useChartColors()
   const radius = compact ? ['62%', '80%'] : ['60%', '80%']
   const centerFontSize = compact ? 18 : 32
   const labelFontSize = compact ? 9 : 10
@@ -66,11 +67,11 @@ export function DonutChart({
     tooltip: {
       show: true,
       trigger: 'item',
-      backgroundColor: '#1F1F1F',
+      backgroundColor: c.tooltipBg,
       borderWidth: 0,
       padding: [10, 14],
       textStyle: {
-        color: '#FAF6F1',
+        color: c.tooltipText,
         fontFamily: 'Lexend, system-ui, sans-serif',
         fontSize: 12,
       },
@@ -110,7 +111,7 @@ export function DonutChart({
             style: {
               text: totalLabel,
               fontSize: labelFontSize,
-              fill: '#7D8491',
+              fill: c.centerLabel,
               fontFamily: 'Lexend',
               fontWeight: 500,
               textTransform: 'uppercase',
@@ -125,7 +126,7 @@ export function DonutChart({
               text: totalOverride ?? fmt(total),
               fontSize: centerFontSize,
               fontWeight: 600,
-              fill: '#1F1F1F',
+              fill: c.centerValue,
               fontFamily: 'Lexend',
             },
           },

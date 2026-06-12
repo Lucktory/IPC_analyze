@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Lexend } from 'next/font/google'
 import './globals.css'
+import { ThemeProvider, FOUC_PREVENTION_SCRIPT } from '@/lib/theme'
 
 const lexend = Lexend({
   subsets: ['latin'],
@@ -16,8 +17,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={lexend.variable}>
-      <body>{children}</body>
+    <html lang="es" className={lexend.variable} suppressHydrationWarning>
+      <head>
+        {/* Runs synchronously before React hydrates — sets data-theme on
+            <html> from localStorage / OS preference so the first paint
+            matches the user's theme. Avoids a flash of light content
+            for dark-mode users. */}
+        <script dangerouslySetInnerHTML={{ __html: FOUC_PREVENTION_SCRIPT }} />
+      </head>
+      <body>
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   )
 }

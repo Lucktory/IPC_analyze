@@ -2,6 +2,36 @@
 // Currency formatters adapted from BRL (R$) to ARS ($).
 
 import { fmtMoney } from '@/lib/format'
+import { useTheme } from '@/lib/theme'
+
+/**
+ * Theme-aware color tokens for ECharts. Hardcoded colors in chart option
+ * objects (tooltip backgrounds, axis labels, split lines, donut center
+ * text, pie segment borders) all read from this hook so charts swap
+ * cleanly when the user toggles the theme.
+ *
+ * Light values match the existing chart look; dark values come from the
+ * panel.* / paper-dark scale defined in globals.css.
+ */
+export function useChartColors() {
+  const { resolved } = useTheme()
+  const isDark = resolved === 'dark'
+  return {
+    isDark,
+    // Surfaces — pie segment borders, card-internal backgrounds
+    surface:     isDark ? '#18181B' : '#FFFFFF',
+    // Tooltip — stays high-contrast on either theme (dark bubble works on both)
+    tooltipBg:   isDark ? '#27272A' : '#1F1F1F',
+    tooltipText: isDark ? '#FAFAFA' : '#FAFAFA',
+    // Axis + grid — softer on dark
+    axisLine:    isDark ? '#27272A' : '#E5E5E5',
+    axisLabel:   isDark ? '#71717A' : '#7D8491',
+    gridLine:    isDark ? '#27272A' : '#F2F2F2',
+    // Donut center / large numbers
+    centerLabel: isDark ? '#71717A' : '#7D8491',
+    centerValue: isDark ? '#FAFAFA' : '#1F1F1F',
+  }
+}
 
 // Legacy multi-hue palette — kept for backward compatibility but discouraged.
 // Prefer the monochrome palettes below for new charts.

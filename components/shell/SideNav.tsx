@@ -142,15 +142,15 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
 
   return (
     <>
-      <div className="h-14 flex items-center gap-3 px-5 border-b border-paper/10">
-        <div className="h-7 w-7 rounded bg-paper/10 flex items-center justify-center font-display font-semibold text-paper text-[14px] shrink-0">
+      <div className="h-14 flex items-center gap-3 px-5 border-b border-nav-text/10">
+        <div className="h-7 w-7 rounded bg-nav-text/10 flex items-center justify-center font-display font-semibold text-nav-text text-[14px] shrink-0">
           {initial}
         </div>
         <div className="flex flex-col leading-tight min-w-0">
-          <span className="font-display font-medium text-[15px] text-paper tracking-tight truncate">
+          <span className="font-display font-medium text-[15px] text-nav-text tracking-tight truncate">
             {displayName}
           </span>
-          <span className="text-[9px] text-paper/50 uppercase tracking-[0.18em] mt-0.5">
+          <span className="text-[9px] text-nav-text/50 uppercase tracking-[0.18em] mt-0.5">
             Pampa Administración
           </span>
         </div>
@@ -169,8 +169,8 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
                   className={[
                     'relative flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium transition-colors',
                     active
-                      ? 'bg-paper/[0.08] text-paper'
-                      : 'text-paper/60 hover:bg-paper/[0.04] hover:text-paper',
+                      ? 'bg-nav-text/[0.08] text-nav-text'
+                      : 'text-nav-text/60 hover:bg-nav-text/[0.04] hover:text-nav-text',
                   ].join(' ')}
                 >
                   {/* 3px section-color accent on active items — mirrors the TopBar stripe */}
@@ -184,7 +184,7 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
                   <span
                     className={[
                       'w-4 h-4 shrink-0 flex items-center justify-center transition-colors',
-                      active ? 'text-paper' : 'text-paper/50',
+                      active ? 'text-nav-text' : 'text-nav-text/50',
                     ].join(' ')}
                   >
                     <NavIcon name={item.icon} />
@@ -196,12 +196,12 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
           })}
         </ul>
 
-        <p className="px-3 pt-7 pb-2 text-[10px] font-medium uppercase tracking-[0.16em] text-paper/40">
+        <p className="px-3 pt-7 pb-2 text-[10px] font-medium uppercase tracking-[0.16em] text-nav-text/40">
           Configuración
         </p>
         <ul className="space-y-0.5">
           <li>
-            <span className="flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium text-paper/35 cursor-not-allowed select-none">
+            <span className="flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium text-nav-text/35 cursor-not-allowed select-none">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="w-4 h-4 shrink-0">
                 <circle cx="10" cy="7.5" r="3" />
                 <path d="M3 17 Q3 12 10 12 Q17 12 17 17" />
@@ -210,7 +210,7 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
             </span>
           </li>
           <li>
-            <span className="flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium text-paper/35 cursor-not-allowed select-none">
+            <span className="flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium text-nav-text/35 cursor-not-allowed select-none">
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
                 <circle cx="10" cy="10" r="6" />
                 <path d="M10 7 V10 L12 11.5" />
@@ -221,10 +221,10 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
         </ul>
       </nav>
 
-      <footer className="px-5 py-4 border-t border-paper/10 text-[10.5px] text-paper/45 leading-relaxed">
-        <p className="text-paper/80 font-medium">Pampa Administración</p>
+      <footer className="px-5 py-4 border-t border-nav-text/10 text-[10.5px] text-nav-text/45 leading-relaxed">
+        <p className="text-nav-text/80 font-medium">Pampa Administración</p>
         <p className="mt-0.5">IPC-ANALYZE</p>
-        <p className="mt-2 text-paper/35 tabular-nums">v0.1.0</p>
+        <p className="mt-2 text-nav-text/35 tabular-nums">v0.1.0</p>
       </footer>
     </>
   )

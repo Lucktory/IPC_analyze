@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { chartBaseStyle, accentInk, fmtCompactARS, fmtInt } from './theme'
+import { chartBaseStyle, accentInk, fmtCompactARS, fmtInt, useChartColors } from './theme'
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
@@ -52,6 +52,7 @@ export function BarHorizontal({
 }: Props) {
   const ordered = preserveOrder ? [...data].reverse() : [...data].sort((a, b) => a.value - b.value)
   const fmt = buildFormatter({ format, unit, unitPlural })
+  const c   = useChartColors()
 
   const option = {
     ...chartBaseStyle,
@@ -69,7 +70,7 @@ export function BarHorizontal({
       data: ordered.map(d => d.name),
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#4A4F58', fontSize: 12, fontFamily: 'Lexend' },
+      axisLabel: { color: c.axisLabel, fontSize: 12, fontFamily: 'Lexend' },
     },
     series: [
       {
@@ -80,7 +81,7 @@ export function BarHorizontal({
         label: {
           show: showLabels,
           position: 'right' as const,
-          color: '#1F1F1F',
+          color: c.centerValue,
           fontSize: 11,
           fontFamily: 'Lexend',
           fontWeight: 500,

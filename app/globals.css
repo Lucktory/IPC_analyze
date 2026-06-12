@@ -2,22 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --coral: #FF8552;
-  --coral-dark: #E66A36;
-  --peach: #FFBC7D;
-  --slate: #7D8491;
-  --slate-dark: #4A4F58;
-  --ink: #1F1F1F;
-  --ink-soft: #2A2A2A;
-  --paper: #FFFFFF;
-  --cream: #FAFAFA;
-  --cream-2: #F2F2F2;
-  --line: #E5E5E5;
-  --success: #16A34A;
-  --warn: #F2994A;
-  --danger: #DC2626;
-  --info: #2563EB;
+/* ============================================================================
+   Design tokens — surfaces, text, semantic. Defined as RGB triplets so
+   Tailwind can apply alpha via `bg-paper/40` etc.
+
+   :root  → light theme (warm Linear-style cream)
+   [data-theme="dark"]  → dark theme (warm near-black)
+
+   Toggle by setting `data-theme="dark"` on <html>. ThemeProvider handles
+   this; a tiny inline script in <head> sets it before React hydrates to
+   avoid a FOUC.
+   ============================================================================ */
+
+:root, [data-theme="light"] {
+  /* Surfaces — warmer than pure white/gray, Linear-inspired */
+  --color-paper:        255 255 255;   /* #FFFFFF — card surface */
+  --color-cream:        250 248 244;   /* #FAF8F4 — page background, warm */
+  --color-cream-2:      242 239 233;   /* #F2EFE9 — zebra row / hover */
+  --color-line:         232 229 224;   /* #E8E5E0 — border, warm */
+
+  /* Text */
+  --color-ink:          28  27  31;    /* #1C1B1F — warm near-black */
+  --color-ink-soft:     42  42  42;    /* #2A2A2A */
+  --color-slate-dark:   74  79  88;    /* #4A4F58 — body text */
+  --color-slate:        125 132 145;   /* #7D8491 — captions, axis */
+
+  /* Semantic — same hue, work on both surfaces */
+  --color-success:      22  163 74;    /* #16A34A */
+  --color-warn:         242 153 74;    /* #F2994A */
+  --color-danger:       220 38  38;    /* #DC2626 */
+  --color-info:         37  99  235;   /* #2563EB */
+
+  /* Sidebar — stays dark in both themes for hierarchy, but uses darker
+     anchor color in dark mode so it reads as a distinct vertical band. */
+  --color-nav-bg:       28  27  31;    /* #1C1B1F — dark sidebar in light */
+  --color-nav-text:     250 250 250;   /* #FAFAFA */
+  --color-nav-muted:    161 161 170;   /* #A1A1AA */
+
+  /* Watermark — clearly visible in light */
+  --watermark-opacity:  0.09;
+  --scrollbar-thumb:    #D1D1D1;
+  --scrollbar-hover:    #B8B8B8;
+}
+
+[data-theme="dark"] {
+  /* Surfaces — warm near-black, NOT cold pure black. Linear / Vercel feel. */
+  --color-paper:        24  24  27;    /* #18181B — card surface, elevated */
+  --color-cream:        14  14  16;    /* #0E0E10 — page background */
+  --color-cream-2:      32  32  36;    /* #202024 — zebra row / hover */
+  --color-line:         39  39  42;    /* #27272A — border, subtle */
+
+  /* Text — off-white not pure */
+  --color-ink:          250 250 250;   /* #FAFAFA */
+  --color-ink-soft:     228 228 231;   /* #E4E4E7 */
+  --color-slate-dark:   161 161 170;   /* #A1A1AA — body text */
+  --color-slate:        113 113 122;   /* #71717A — captions, axis */
+
+  /* Semantic — slightly desaturated/brighter to read on dark */
+  --color-success:      74  222 128;   /* #4ADE80 */
+  --color-warn:         251 191 36;    /* #FBBF24 */
+  --color-danger:       248 113 113;   /* #F87171 */
+  --color-info:         96  165 250;   /* #60A5FA */
+
+  /* Sidebar in dark: darker than page bg so it reads as an anchored band */
+  --color-nav-bg:       9   9   11;    /* #09090B — anchored sidebar in dark */
+  --color-nav-text:     228 228 231;   /* #E4E4E7 */
+  --color-nav-muted:    113 113 122;   /* #71717A */
+
+  /* Watermark — very subtle in dark per spec */
+  --watermark-opacity:  0.04;
+  --scrollbar-thumb:    #3F3F46;
+  --scrollbar-hover:    #52525B;
 }
 
 html, body {
@@ -30,9 +85,10 @@ body {
   font-weight: 400;
   font-size: 14px;
   line-height: 1.5;
-  color: var(--ink);
-  background: var(--cream);
+  color: rgb(var(--color-ink));
+  background: rgb(var(--color-cream));
   -webkit-font-smoothing: antialiased;
+  color-scheme: light dark;
 }
 
 h1, h2, h3, h4 {
@@ -41,7 +97,7 @@ h1, h2, h3, h4 {
   letter-spacing: -0.02em;
   line-height: 1.15;
   margin: 0;
-  color: var(--ink);
+  color: rgb(var(--color-ink));
 }
 
 button { font-family: inherit; }
@@ -53,34 +109,48 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--slate);
+  color: rgb(var(--color-slate));
 }
 
-/* Neutral scrollbar. */
+/* Theme-aware scrollbar. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #D1D1D1; border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: #B8B8B8; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* IPC-ANALYZE diagonal watermark — SVG <pattern> with patternTransform
    rotation so individual text instances line up into continuous diagonal
-   rows. Light gray fill (#D8D8D8) at full opacity gives crisp, defined
-   letterforms in a quiet color — the premium watermark technique used by
-   Linear / Stripe-class tools — rather than smudgy dark-low-opacity. */
+   rows. Opacity is theme-aware via --watermark-opacity so the watermark
+   reads as a clear-but-quiet detail in light and a faint presence in dark. */
 .bg-watermark {
-  background-color: var(--cream);
+  background-color: rgb(var(--color-cream));
+  position: relative;
+}
+.bg-watermark::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   background-image: url('/watermark.svg');
   background-repeat: repeat;
+  opacity: var(--watermark-opacity);
+  pointer-events: none;
+  z-index: 0;
 }
+.bg-watermark > * {
+  position: relative;
+  z-index: 1;
+}
+/* In dark mode the watermark SVG's light-gray fill is already correct
+   against the dark page bg — no inversion needed. Lower opacity (set
+   via --watermark-opacity) makes it read as a faint texture. */
 
-/* Print mode — strip background, watermark, and animations; force a paper
-   look for hard-copy reconciliation handoffs. */
+/* Print mode — always light, strip background, watermark, animations. */
 @media print {
   @page { margin: 12mm; }
-  body { background: var(--paper); font-size: 11px; }
+  body { background: #FFFFFF; color: #1F1F1F; font-size: 11px; }
   .bg-watermark { background-image: none; }
+  .bg-watermark::before { display: none; }
   .shadow-card { box-shadow: none !important; }
-  /* Avoid splitting tables across page breaks where avoidable */
   table { page-break-inside: auto; }
   tr    { page-break-inside: avoid; page-break-after: auto; }
   thead { display: table-header-group; }

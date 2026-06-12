@@ -7,6 +7,9 @@
 //   100 → 50  = softer
 //   500 → 600 = deeper border (used as the eye-magnet stripe)
 //
+// Dark variants use the -950/-900 tones with alpha so they blend into the
+// card surface as a tinted overlay — the standard dark-mode pattern.
+//
 // Everything below builds from URGENCY_THEME — don't override at call sites.
 // ============================================================================
 
@@ -14,40 +17,40 @@ export type UrgencyTier = 'critical' | 'warning' | 'recent' | 'upcoming' | 'ok'
 
 const URGENCY_THEME = {
   critical: {
-    rowBg:      'bg-orange-100',        // soft tint for the whole row
-    rowBgHover: 'hover:bg-orange-200',  // deeper on hover
-    cellBg:     'bg-orange-200',        // deeper tint on the specific empty audit cell
-    border:     'border-l-orange-500',  // saturated 4px stripe — carries the signal
+    rowBg:      'bg-orange-100 dark:bg-orange-950/40',
+    rowBgHover: 'hover:bg-orange-200 dark:hover:bg-orange-900/40',
+    cellBg:     'bg-orange-200 dark:bg-orange-900/50',
+    border:     'border-l-orange-500',          // saturated stripe — same on both
     dot:        'bg-orange-500',
-    text:       'text-orange-900',
-    bannerBg:   'bg-orange-100',        // detail-page banner background
+    text:       'text-orange-900 dark:text-orange-200',
+    bannerBg:   'bg-orange-100 dark:bg-orange-950/40',
   },
   warning: {
-    rowBg:      'bg-yellow-100',
-    rowBgHover: 'hover:bg-yellow-200',
-    cellBg:     'bg-yellow-200',
+    rowBg:      'bg-yellow-100 dark:bg-yellow-950/40',
+    rowBgHover: 'hover:bg-yellow-200 dark:hover:bg-yellow-900/40',
+    cellBg:     'bg-yellow-200 dark:bg-yellow-900/50',
     border:     'border-l-yellow-500',
     dot:        'bg-yellow-500',
-    text:       'text-yellow-900',
-    bannerBg:   'bg-yellow-100',
+    text:       'text-yellow-900 dark:text-yellow-200',
+    bannerBg:   'bg-yellow-100 dark:bg-yellow-950/40',
   },
   recent: {
-    rowBg:      'bg-green-100',
-    rowBgHover: 'hover:bg-green-200',
+    rowBg:      'bg-green-100 dark:bg-green-950/40',
+    rowBgHover: 'hover:bg-green-200 dark:hover:bg-green-900/40',
     cellBg:     '',
     border:     'border-l-green-500',
     dot:        'bg-green-500',
-    text:       'text-green-900',
-    bannerBg:   'bg-green-100',
+    text:       'text-green-900 dark:text-green-200',
+    bannerBg:   'bg-green-100 dark:bg-green-950/40',
   },
   upcoming: {
-    rowBg:      'bg-sky-100',
-    rowBgHover: 'hover:bg-sky-200',
+    rowBg:      'bg-sky-100 dark:bg-sky-950/40',
+    rowBgHover: 'hover:bg-sky-200 dark:hover:bg-sky-900/40',
     cellBg:     '',
     border:     'border-l-sky-500',
     dot:        'bg-sky-500',
-    text:       'text-sky-900',
-    bannerBg:   'bg-sky-100',
+    text:       'text-sky-900 dark:text-sky-200',
+    bannerBg:   'bg-sky-100 dark:bg-sky-950/40',
   },
 }
 

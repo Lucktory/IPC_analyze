@@ -47,9 +47,12 @@ const IDLE_CLS: Record<Variant, string> = {
 
 // Armed = countdown running. Use warn/danger ring to make the change of
 // state obvious, plus tabular-nums so the counter doesn't jitter.
+// Text on warn is always near-black (text-zinc-900) because the warn
+// orange/yellow background is bright enough that white text would read
+// poorly in dark mode.
 const ARMED_CLS: Record<Variant, string> = {
-  primary: 'bg-warn   text-ink   ring-2 ring-warn/40',
-  danger:  'bg-danger text-paper ring-2 ring-danger/50 animate-pulse',
+  primary: 'bg-warn   text-zinc-900 ring-2 ring-warn/40',
+  danger:  'bg-danger text-white    ring-2 ring-danger/50 animate-pulse',
 }
 
 export function DelayedActionButton({

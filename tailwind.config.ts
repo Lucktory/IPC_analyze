@@ -1,27 +1,51 @@
 import type { Config } from 'tailwindcss'
 
-// Design system ported from Plager ERP prototype.
-// Source: c:\HSH\chatActive\joao-br-plager-erp-refactor\prototipo-erp\tailwind.config.ts
-// Rationale documented in WORKLOG.md.
+// Design system ported from Plager ERP prototype, theming added on top.
+// Surface + text + semantic colors resolve to CSS variables defined in
+// app/globals.css, so existing utilities (bg-paper, text-ink, …) work
+// automatically in light AND dark — no `dark:` variant proliferation.
+//
+// Accent and chart colors stay as static hex (they look right on both
+// surfaces); chart components branch on theme internally via useTheme().
 
 export default {
   content: [
     './app/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
-    // lib/ holds the URGENCY_STYLES table — classes there must be scanned too,
-    // otherwise the row tints get stripped from the compiled CSS.
     './lib/**/*.{ts,tsx}',
   ],
+  darkMode: ['selector', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
+        // ── Themed tokens — resolve to CSS variables ──
+        paper:  'rgb(var(--color-paper) / <alpha-value>)',
+        cream: {
+          DEFAULT: 'rgb(var(--color-cream)   / <alpha-value>)',
+          2:       'rgb(var(--color-cream-2) / <alpha-value>)',
+        },
+        line:   'rgb(var(--color-line) / <alpha-value>)',
+        ink: {
+          DEFAULT: 'rgb(var(--color-ink)      / <alpha-value>)',
+          soft:    'rgb(var(--color-ink-soft) / <alpha-value>)',
+        },
+        slate: {
+          DEFAULT: 'rgb(var(--color-slate)      / <alpha-value>)',
+          dark:    'rgb(var(--color-slate-dark) / <alpha-value>)',
+        },
+        success: 'rgb(var(--color-success) / <alpha-value>)',
+        warn:    'rgb(var(--color-warn)    / <alpha-value>)',
+        danger:  'rgb(var(--color-danger)  / <alpha-value>)',
+        info:    'rgb(var(--color-info)    / <alpha-value>)',
+        nav: {
+          bg:    'rgb(var(--color-nav-bg)    / <alpha-value>)',
+          text:  'rgb(var(--color-nav-text)  / <alpha-value>)',
+          muted: 'rgb(var(--color-nav-muted) / <alpha-value>)',
+        },
+
+        // ── Static tokens — not theme-dependent ──
         coral: { DEFAULT: '#FF8552', dark: '#E66A36' },
         peach: '#FFBC7D',
-        slate: { DEFAULT: '#7D8491', dark: '#4A4F58' },
-        ink: { DEFAULT: '#1F1F1F', soft: '#2A2A2A' },
-        paper: '#FFFFFF',
-        cream: { DEFAULT: '#FAFAFA', 2: '#F2F2F2' },
-        line: '#E5E5E5',
         royal: {
           DEFAULT: '#4068d8',
           dark: '#3457b8',
@@ -37,13 +61,8 @@ export default {
           deep: '#16294A',
           line: '#385479',
         },
-        success: '#16A34A',
-        warn: '#F2994A',
-        danger: '#DC2626',
-        info: '#2563EB',
-        // ── Premium accent palette used inside /dashboard charts ──
-        //    Muted on purpose — high-saturation colors look cheap at
-        //    chart sizes. Four-hue rotation: gold, slate, emerald, amethyst.
+        // Premium chart palette used on /dashboard. Muted so the same hex
+        // reads premium on both light and dark surfaces.
         accent: {
           gold:    '#D4A857',
           slate:   '#7E8696',

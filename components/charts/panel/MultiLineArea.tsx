@@ -8,7 +8,7 @@
 // ============================================================================
 
 import dynamic from 'next/dynamic'
-import { chartBaseStyle, fmtCompactARS } from '../theme'
+import { chartBaseStyle, fmtCompactARS, useChartColors } from '../theme'
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
@@ -28,6 +28,8 @@ interface Props {
 }
 
 export function MultiLineArea({ xLabels, series, height = 220 }: Props) {
+  const c = useChartColors()
+
   const option: any = {
     ...chartBaseStyle,
     backgroundColor: 'transparent',
@@ -39,13 +41,13 @@ export function MultiLineArea({ xLabels, series, height = 220 }: Props) {
       trigger: 'axis',
       axisPointer: {
         type: 'line',
-        lineStyle: { color: '#D6CFC1', width: 1 },
+        lineStyle: { color: c.axisLine, width: 1 },
       },
-      backgroundColor: '#1F1F1F',
+      backgroundColor: c.tooltipBg,
       borderWidth: 0,
       padding: [10, 14],
-      textStyle: { color: '#FAFAFA', fontFamily: 'Lexend', fontSize: 12 },
-      extraCssText: 'border-radius: 4px; box-shadow: 0 2px 12px rgba(31,31,31,0.18);',
+      textStyle: { color: c.tooltipText, fontFamily: 'Lexend', fontSize: 12 },
+      extraCssText: 'border-radius: 4px; box-shadow: 0 2px 12px rgba(0,0,0,0.25);',
       formatter: (params: any[]) => {
         const month = params[0]?.axisValueLabel ?? ''
         const lines = params.map(p => {
@@ -64,14 +66,14 @@ export function MultiLineArea({ xLabels, series, height = 220 }: Props) {
       type: 'category',
       data: xLabels,
       boundaryGap: false,
-      axisLine:  { lineStyle: { color: '#E5E5E5' } },
+      axisLine:  { lineStyle: { color: c.axisLine } },
       axisTick:  { show: false },
-      axisLabel: { color: '#7D8491', fontFamily: 'Lexend', fontSize: 11 },
+      axisLabel: { color: c.axisLabel, fontFamily: 'Lexend', fontSize: 11 },
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: '#7D8491', fontFamily: 'Lexend', fontSize: 10 },
-      splitLine: { lineStyle: { color: '#F2F2F2', type: [4, 4] } },
+      axisLabel: { color: c.axisLabel, fontFamily: 'Lexend', fontSize: 10 },
+      splitLine: { lineStyle: { color: c.gridLine, type: [4, 4] } },
     },
     series: series.map(s => ({
       name: s.name,

@@ -38,7 +38,7 @@ export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProp
       <aside
         className={[
           'fixed lg:relative inset-y-0 left-0 z-50 print:hidden',
-          'w-[240px] shrink-0 bg-ink text-paper flex flex-col',
+          'w-[240px] shrink-0 bg-nav-bg text-nav-text flex flex-col',
           'transition-transform duration-200 ease-out',
           open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         ].join(' ')}

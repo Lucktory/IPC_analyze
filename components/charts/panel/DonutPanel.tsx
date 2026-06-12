@@ -8,7 +8,7 @@
 // ============================================================================
 
 import dynamic from 'next/dynamic'
-import { chartBaseStyle } from '../theme'
+import { chartBaseStyle, useChartColors } from '../theme'
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
@@ -29,6 +29,7 @@ interface Props {
 
 export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total' }: Props) {
   const total = items.reduce((s, i) => s + i.value, 0)
+  const c     = useChartColors()
 
   const option: any = {
     ...chartBaseStyle,
@@ -39,11 +40,11 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
     tooltip: {
       show: true,
       trigger: 'item',
-      backgroundColor: '#1F1F1F',
+      backgroundColor: c.tooltipBg,
       borderWidth: 0,
       padding: [8, 12],
       textStyle: {
-        color: '#FAFAFA',
+        color: c.tooltipText,
         fontFamily: 'Lexend, system-ui, sans-serif',
         fontSize: 12,
       },
@@ -67,7 +68,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
         data: items.map(i => ({
           name:  i.label,
           value: i.value,
-          itemStyle: { color: i.color, borderColor: '#FFFFFF', borderWidth: 2 },
+          itemStyle: { color: i.color, borderColor: c.surface, borderWidth: 2 },
         })),
       },
     ],
@@ -79,7 +80,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
         style: {
           text: 'TOTAL',
           fontSize: 10,
-          fill: '#7D8491',
+          fill: c.centerLabel,
           fontFamily: 'Lexend',
           fontWeight: 500,
           letterSpacing: 2,
@@ -93,7 +94,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
           text: total.toLocaleString('es-AR'),
           fontSize: 30,
           fontWeight: 600,
-          fill: '#1F1F1F',
+          fill: c.centerValue,
           fontFamily: 'Lexend',
         },
       },
@@ -104,7 +105,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
         style: {
           text: totalUnit,
           fontSize: 11,
-          fill: '#7D8491',
+          fill: c.centerLabel,
           fontFamily: 'Lexend',
         },
       },
