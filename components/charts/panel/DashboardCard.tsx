@@ -1,10 +1,7 @@
 // ============================================================================
-// DashboardCard — dark "executive" card wrapper used across the /dashboard
-// premium panels (donuts, monthly bars, multi-line area).
-//
-// Design language: near-black surface, slate-cool border, large display
-// title + small caption, optional top-right slot for a delta indicator
-// ("vs. mes anterior ↑14") or auxiliary KPIs.
+// DashboardCard — light "executive" card used across the /dashboard premium
+// panels. Matches the rest of the app's bg-paper / border-line / shadow-card
+// look. The "premium" feel comes from the chart palette + layout, not theme.
 // ============================================================================
 
 import type { ReactNode } from 'react'
@@ -14,7 +11,7 @@ interface DashboardCardProps {
   subtitle?: string
   /** Top-right slot: delta indicator, series KPIs, etc. */
   topRight?: ReactNode
-  /** Optional fixed height — useful when sibling cards must align. */
+  /** Optional minimum height — useful when sibling cards must align. */
   minHeight?: number
   children:  ReactNode
 }
@@ -28,14 +25,14 @@ export function DashboardCard({
 }: DashboardCardProps) {
   return (
     <section
-      className="rounded-xl border border-panel-line bg-panel-surface px-6 py-5 shadow-lg shadow-black/30"
+      className="rounded bg-paper border border-line shadow-card px-5 py-4 sm:px-6 sm:py-5"
       style={minHeight ? { minHeight } : undefined}
     >
       <header className="flex items-start justify-between gap-4 mb-4">
         <div className="min-w-0">
-          <h3 className="font-display text-[15px] font-medium text-panel-ink leading-tight">{title}</h3>
+          <h3 className="font-display text-[15px] font-medium text-ink leading-tight">{title}</h3>
           {subtitle && (
-            <p className="text-[12px] text-panel-muted mt-0.5 truncate">{subtitle}</p>
+            <p className="text-[12px] text-slate mt-0.5 truncate">{subtitle}</p>
           )}
         </div>
         {topRight && <div className="shrink-0">{topRight}</div>}

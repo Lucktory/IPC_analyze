@@ -1,7 +1,7 @@
 'use client'
 
 // ============================================================================
-// DonutPanel — dark donut chart with a configurable legend (side or bottom).
+// DonutPanel — donut chart with a configurable legend (side or bottom).
 // Used by the top two cards on /dashboard. The donut renders via ECharts;
 // the legend is plain HTML so we can draw the colored accent underline
 // beneath each label exactly as in the design reference.
@@ -23,7 +23,7 @@ export interface DonutPanelItem {
 interface Props {
   items:           DonutPanelItem[]
   legendPosition?: LegendPosition
-  /** Word shown under the big number, e.g. "usuarios", "contratos". */
+  /** Word shown under the big number, e.g. "propiedades", "contratos". */
   totalUnit?:      string
 }
 
@@ -39,19 +39,19 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
     tooltip: {
       show: true,
       trigger: 'item',
-      backgroundColor: '#0F1218',
-      borderColor: '#262C39',
-      borderWidth: 1,
+      backgroundColor: '#1F1F1F',
+      borderWidth: 0,
       padding: [8, 12],
       textStyle: {
-        color: '#E5E7EB',
+        color: '#FAFAFA',
         fontFamily: 'Lexend, system-ui, sans-serif',
         fontSize: 12,
       },
+      extraCssText: 'border-radius: 4px; box-shadow: 0 2px 12px rgba(31,31,31,0.18);',
       formatter: (p: any) =>
         `<div style="font-weight:500;margin-bottom:2px">${p.name}</div>` +
-        `<div style="display:flex;gap:8px;align-items:baseline;color:#9CA3AF">` +
-        `<span style="font-variant-numeric:tabular-nums;color:#E5E7EB">${p.value.toLocaleString('es-AR')}</span>` +
+        `<div style="display:flex;gap:8px;align-items:baseline;opacity:0.85">` +
+        `<span style="font-variant-numeric:tabular-nums">${p.value.toLocaleString('es-AR')}</span>` +
         `<span style="font-variant-numeric:tabular-nums">${p.percent}%</span></div>`,
     },
     series: [
@@ -67,7 +67,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
         data: items.map(i => ({
           name:  i.label,
           value: i.value,
-          itemStyle: { color: i.color, borderColor: '#171B24', borderWidth: 2 },
+          itemStyle: { color: i.color, borderColor: '#FFFFFF', borderWidth: 2 },
         })),
       },
     ],
@@ -79,7 +79,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
         style: {
           text: 'TOTAL',
           fontSize: 10,
-          fill: '#6B7280',
+          fill: '#7D8491',
           fontFamily: 'Lexend',
           fontWeight: 500,
           letterSpacing: 2,
@@ -93,7 +93,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
           text: total.toLocaleString('es-AR'),
           fontSize: 30,
           fontWeight: 600,
-          fill: '#E5E7EB',
+          fill: '#1F1F1F',
           fontFamily: 'Lexend',
         },
       },
@@ -104,7 +104,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
         style: {
           text: totalUnit,
           fontSize: 11,
-          fill: '#9CA3AF',
+          fill: '#7D8491',
           fontFamily: 'Lexend',
         },
       },
@@ -121,9 +121,9 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
     return (
       <div className="flex flex-col">
         {donut}
-        <div className="flex items-center justify-center gap-4 flex-wrap mt-2 pt-3 border-t border-panel-line">
+        <div className="flex items-center justify-center gap-4 flex-wrap mt-2 pt-3 border-t border-line">
           {items.map(i => (
-            <span key={i.label} className="inline-flex items-center gap-2 text-[12px] text-panel-muted">
+            <span key={i.label} className="inline-flex items-center gap-2 text-[12px] text-slate-dark">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: i.color }} />
               {i.label}
             </span>
@@ -144,9 +144,9 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
             <li key={i.label}>
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: i.color }} />
-                <span className="text-[13px] text-panel-ink flex-1 truncate">{i.label}</span>
-                <span className="text-[14px] font-medium text-panel-ink tabular-nums">{i.value}</span>
-                <span className="text-[11px] text-panel-muted tabular-nums w-9 text-right">{pct}%</span>
+                <span className="text-[13px] text-ink flex-1 truncate">{i.label}</span>
+                <span className="text-[14px] font-medium text-ink tabular-nums">{i.value}</span>
+                <span className="text-[11px] text-slate tabular-nums w-9 text-right">{pct}%</span>
               </div>
               <div className="h-[2px] rounded-full" style={{ backgroundColor: i.color, opacity: 0.85 }} />
             </li>

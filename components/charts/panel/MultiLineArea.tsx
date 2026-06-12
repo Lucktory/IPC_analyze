@@ -1,8 +1,8 @@
 'use client'
 
 // ============================================================================
-// MultiLineArea — N smooth area lines on a shared time axis, dark themed.
-// Used by /dashboard for "Tendencia operativa". Three muted accent colors
+// MultiLineArea — N smooth area lines on a shared time axis. Used by the
+// /dashboard "Tendencia operativa" card. Three muted accent colors
 // (gold / emerald / amethyst) by default. The current-value KPI strip
 // above the chart is rendered by the parent in the card's body, not here.
 // ============================================================================
@@ -39,22 +39,22 @@ export function MultiLineArea({ xLabels, series, height = 220 }: Props) {
       trigger: 'axis',
       axisPointer: {
         type: 'line',
-        lineStyle: { color: '#262C39', width: 1 },
+        lineStyle: { color: '#D6CFC1', width: 1 },
       },
-      backgroundColor: '#0F1218',
-      borderColor: '#262C39',
-      borderWidth: 1,
+      backgroundColor: '#1F1F1F',
+      borderWidth: 0,
       padding: [10, 14],
-      textStyle: { color: '#E5E7EB', fontFamily: 'Lexend', fontSize: 12 },
+      textStyle: { color: '#FAFAFA', fontFamily: 'Lexend', fontSize: 12 },
+      extraCssText: 'border-radius: 4px; box-shadow: 0 2px 12px rgba(31,31,31,0.18);',
       formatter: (params: any[]) => {
         const month = params[0]?.axisValueLabel ?? ''
         const lines = params.map(p => {
-          const s     = series[p.seriesIndex]
-          const fmt   = (s.format ?? 'integer') === 'currency' ? fmtCompactARS : (v: number) => v.toLocaleString('es-AR')
+          const s   = series[p.seriesIndex]
+          const fmt = (s.format ?? 'integer') === 'currency' ? fmtCompactARS : (v: number) => v.toLocaleString('es-AR')
           return `<div style="display:flex;gap:10px;align-items:baseline">` +
                  `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${s.color}"></span>` +
-                 `<span style="flex:1;color:#9CA3AF">${s.name}</span>` +
-                 `<span style="font-variant-numeric:tabular-nums;color:#E5E7EB">${fmt(p.value)}</span>` +
+                 `<span style="flex:1;opacity:0.7">${s.name}</span>` +
+                 `<span style="font-variant-numeric:tabular-nums">${fmt(p.value)}</span>` +
                  `</div>`
         }).join('')
         return `<div style="font-weight:500;margin-bottom:6px">${month}</div>${lines}`
@@ -64,14 +64,14 @@ export function MultiLineArea({ xLabels, series, height = 220 }: Props) {
       type: 'category',
       data: xLabels,
       boundaryGap: false,
-      axisLine:  { lineStyle: { color: '#262C39' } },
+      axisLine:  { lineStyle: { color: '#E5E5E5' } },
       axisTick:  { show: false },
-      axisLabel: { color: '#9CA3AF', fontFamily: 'Lexend', fontSize: 11 },
+      axisLabel: { color: '#7D8491', fontFamily: 'Lexend', fontSize: 11 },
     },
     yAxis: {
       type: 'value',
-      axisLabel: { color: '#9CA3AF', fontFamily: 'Lexend', fontSize: 10 },
-      splitLine: { lineStyle: { color: '#1F2430', type: [4, 4] } },
+      axisLabel: { color: '#7D8491', fontFamily: 'Lexend', fontSize: 10 },
+      splitLine: { lineStyle: { color: '#F2F2F2', type: [4, 4] } },
     },
     series: series.map(s => ({
       name: s.name,
@@ -84,7 +84,7 @@ export function MultiLineArea({ xLabels, series, height = 220 }: Props) {
         color: {
           type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: s.color + '55' },
+            { offset: 0, color: s.color + '40' },
             { offset: 1, color: s.color + '00' },
           ],
         },

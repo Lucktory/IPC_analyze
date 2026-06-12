@@ -19,8 +19,8 @@ export function SeriesKpiStrip({ items }: Props) {
       {items.map(i => (
         <div key={i.label} className="inline-flex items-baseline gap-2">
           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: i.color }} />
-          <span className="text-[10px] text-panel-muted uppercase tracking-wider">{i.label}</span>
-          <span className="text-[14px] font-medium text-panel-ink tabular-nums">{i.value}</span>
+          <span className="text-[10px] text-slate uppercase tracking-wider">{i.label}</span>
+          <span className="text-[14px] font-medium text-ink tabular-nums">{i.value}</span>
         </div>
       ))}
     </div>

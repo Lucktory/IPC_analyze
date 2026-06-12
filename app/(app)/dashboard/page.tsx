@@ -75,14 +75,14 @@ export default async function DashboardPage() {
   ]
 
   return (
-    <div className="-mx-4 sm:-mx-6 lg:-mx-8 -my-5 sm:-my-6 lg:-my-8 min-h-[calc(100vh-3.25rem)] bg-panel-bg px-4 sm:px-6 lg:px-8 py-6 sm:py-7 lg:py-8 print:bg-paper">
+    <>
       <header className="mb-6">
         <div className="flex items-baseline justify-between flex-wrap gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.15em] text-panel-muted">Panel ejecutivo</p>
-            <h1 className="font-display text-[22px] font-medium text-panel-ink mt-1">{periodLabel}</h1>
+            <p className="label-cap text-slate">Panel ejecutivo</p>
+            <h1 className="font-display text-[22px] font-medium text-ink mt-1">{periodLabel}</h1>
           </div>
-          <p className="text-[11px] text-panel-dim tabular-nums">
+          <p className="text-[11px] text-slate tabular-nums">
             Actualizado · {fmtTime(new Date())}
           </p>
         </div>
@@ -144,14 +144,14 @@ export default async function DashboardPage() {
           )}
         </DashboardCard>
       </div>
-    </div>
+    </>
   )
 }
 
 function EmptyState({ text }: { text: string }) {
   return (
     <div className="py-10 text-center">
-      <p className="text-[13px] text-panel-muted">{text}</p>
+      <p className="text-[13px] text-slate">{text}</p>
     </div>
   )
 }

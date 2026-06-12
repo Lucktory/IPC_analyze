@@ -15,13 +15,13 @@ interface DeltaIndicatorProps {
 
 export function DeltaIndicator({ label, delta, currency }: DeltaIndicatorProps) {
   const sign  = delta > 0 ? '↑' : delta < 0 ? '↓' : '·'
-  const color = delta > 0 ? 'text-accent-emerald' : delta < 0 ? 'text-danger' : 'text-panel-muted'
+  const color = delta > 0 ? 'text-success' : delta < 0 ? 'text-danger' : 'text-slate'
   const abs   = Math.abs(delta)
   const value = currency ? fmtMoney(abs) : abs.toLocaleString('es-AR')
 
   return (
     <div className="text-right">
-      <p className="text-[10px] text-panel-muted uppercase tracking-wider">{label}</p>
+      <p className="text-[10px] text-slate uppercase tracking-wider">{label}</p>
       <p className={`text-[15px] font-medium tabular-nums leading-tight mt-0.5 ${color}`}>
         {sign} {value}
       </p>
