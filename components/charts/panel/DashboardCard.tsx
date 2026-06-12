@@ -13,6 +13,8 @@ interface DashboardCardProps {
   topRight?: ReactNode
   /** Optional minimum height — useful when sibling cards must align. */
   minHeight?: number
+  /** Extra classes appended to the wrapping <section>. Used for grid spans. */
+  className?: string
   children:  ReactNode
 }
 
@@ -21,11 +23,12 @@ export function DashboardCard({
   subtitle,
   topRight,
   minHeight,
+  className = '',
   children,
 }: DashboardCardProps) {
   return (
     <section
-      className="rounded bg-paper border border-line shadow-card px-5 py-4 sm:px-6 sm:py-5"
+      className={`rounded bg-paper border border-line shadow-card px-5 py-4 sm:px-6 sm:py-5 ${className}`}
       style={minHeight ? { minHeight } : undefined}
     >
       <header className="flex items-start justify-between gap-4 mb-4">
