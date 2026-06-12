@@ -36,7 +36,7 @@ import { SparklineGroup }   from '@/components/charts/panel/SparklineGroup'
 import { StackedAreaChart } from '@/components/charts/panel/StackedAreaChart'
 import { TreemapChart }     from '@/components/charts/panel/TreemapChart'
 import { TintCard }         from '@/components/charts/panel/TintCard'
-import { PREMIUM }          from '@/components/charts/theme'
+import { PREMIUM, fmtCompactARS } from '@/components/charts/theme'
 
 // Pendientes category colors — vibrant saturated hex (not CSS variables)
 // so they render through ECharts cleanly and read with equal weight on
@@ -92,25 +92,28 @@ export default async function DashboardPage() {
 
   const sparkSeries = (opsFirst && opsCurrent) ? [
     {
-      label:     '# Pagos del mes',
-      color:     PREMIUM.amethyst,
-      current:   opsCurrent.pagos.toLocaleString('es-AR'),
-      changePct: pctChange(opsFirst.pagos, opsCurrent.pagos),
-      values:    pagosSeries,
+      label:       '# Pagos del mes',
+      color:       PREMIUM.amethyst,
+      current:     opsCurrent.pagos.toLocaleString('es-AR'),
+      changePct:   pctChange(opsFirst.pagos, opsCurrent.pagos),
+      values:      pagosSeries,
+      formatValue: (v: number) => v.toLocaleString('es-AR'),
     },
     {
-      label:     'Promedio por pago',
-      color:     PREMIUM.gold,
-      current:   fmtMoney(avgRentSeries.at(-1) ?? 0),
-      changePct: pctChange(avgRentSeries[0] ?? 0, avgRentSeries.at(-1) ?? 0),
-      values:    avgRentSeries,
+      label:       'Promedio por pago',
+      color:       PREMIUM.gold,
+      current:     fmtMoney(avgRentSeries.at(-1) ?? 0),
+      changePct:   pctChange(avgRentSeries[0] ?? 0, avgRentSeries.at(-1) ?? 0),
+      values:      avgRentSeries,
+      formatValue: fmtCompactARS,
     },
     {
-      label:     '% Comisión sobre ingresos',
-      color:     PREMIUM.emerald,
-      current:   `${(commissionPctSeries.at(-1) ?? 0).toFixed(1)}%`,
-      changePct: pctChange(commissionPctSeries[0] ?? 0, commissionPctSeries.at(-1) ?? 0),
-      values:    commissionPctSeries,
+      label:       '% Comisión sobre ingresos',
+      color:       PREMIUM.emerald,
+      current:     `${(commissionPctSeries.at(-1) ?? 0).toFixed(1)}%`,
+      changePct:   pctChange(commissionPctSeries[0] ?? 0, commissionPctSeries.at(-1) ?? 0),
+      values:      commissionPctSeries,
+      formatValue: (v: number) => `${v.toFixed(1)}%`,
     },
   ] : []
 
