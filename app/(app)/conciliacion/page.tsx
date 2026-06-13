@@ -171,9 +171,30 @@ function BucketSection({ b, anchorId }: { b: ReconciliationBucket; anchorId: str
   return (
     <section id={anchorId} className="bg-paper border border-line rounded shadow-card overflow-hidden scroll-mt-32 print:break-inside-avoid">
       <div className="px-5 py-4 border-b border-line flex items-start justify-between flex-wrap gap-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="font-display text-[15px] font-medium text-ink">{b.label}</h2>
           <p className="text-[12px] text-slate mt-0.5">{b.subtitle}</p>
+          {/* Alias / CBU pills — la jefa uses these to match against the bank
+              statement header. Per Alejandro's confirmed requirement #7. */}
+          {(b.alias || b.cbu || b.note) && (
+            <div className="flex items-center gap-2 flex-wrap mt-2">
+              {b.alias && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-cream-2 border border-line text-[11px] tabular-nums">
+                  <span className="label-cap text-slate">alias</span>
+                  <span className="text-ink font-medium">{b.alias}</span>
+                </span>
+              )}
+              {b.cbu && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-cream-2 border border-line text-[11px] tabular-nums">
+                  <span className="label-cap text-slate">cbu</span>
+                  <span className="text-ink font-medium">{b.cbu}</span>
+                </span>
+              )}
+              {b.note && (
+                <span className="text-[11px] text-slate italic">{b.note}</span>
+              )}
+            </div>
+          )}
         </div>
         <div className="text-right">
           <p className="label-cap text-slate mb-0.5">Total esperado</p>

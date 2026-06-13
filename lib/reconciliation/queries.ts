@@ -14,29 +14,50 @@ export type DestinationCode =
   | 'ADM_FRANCES_51_6'
   | 'OTHER'
 
-export const DESTINATION_META: Record<
-  DestinationCode,
-  { label: string; subtitle: string; bank: string }
-> = {
+export interface DestinationMeta {
+  label:    string
+  subtitle: string
+  bank:     string
+  /** Alias bancario (es-AR alias). Shown next to the title for fast match against bank statement. */
+  alias:    string | null
+  /** CBU/CVU — shown next to the alias when known. Leave null until populated. */
+  cbu:      string | null
+  /** Internal note about the account (e.g. "marcada ADM FLAVIO"). */
+  note:     string | null
+}
+
+export const DESTINATION_META: Record<DestinationCode, DestinationMeta> = {
   ADM_GALICIA: {
     label:    'ADM Galicia',
     subtitle: 'Cuenta operativa Banco Galicia',
     bank:     'Banco Galicia',
+    alias:    null,
+    cbu:      null,
+    note:     null,
   },
   ADM_FRANCES_50_9: {
     label:    'BBVA Francés 50/9',
-    subtitle: 'Alias: DONDE.LISA.VALOR',
+    subtitle: 'Cuenta operativa BBVA',
     bank:     'BBVA Francés',
+    alias:    'DONDE.LISA.VALOR',
+    cbu:      null,
+    note:     null,
   },
   ADM_FRANCES_51_6: {
     label:    'BBVA Francés 51/6',
-    subtitle: 'Alias: DORSO.LISA.VALOR · marcada ADM FLAVIO',
+    subtitle: 'Cuenta operativa BBVA',
     bank:     'BBVA Francés',
+    alias:    'DORSO.LISA.VALOR',
+    cbu:      null,
+    note:     'marcada ADM FLAVIO',
   },
   OTHER: {
     label:    'Sin destino identificado',
     subtitle: 'Movimientos sin etiqueta de cuenta',
     bank:     '—',
+    alias:    null,
+    cbu:      null,
+    note:     null,
   },
 }
 
@@ -54,6 +75,9 @@ export interface ReconciliationBucket {
   label:   string
   subtitle: string
   bank:    string
+  alias:   string | null
+  cbu:     string | null
+  note:    string | null
   total:   number
   count:   number
   rows:    ReconciliationRow[]
@@ -125,5 +149,16 @@ export async function getReconciliationByDestination(
 
 function newBucket(code: DestinationCode): ReconciliationBucket {
   const meta = DESTINATION_META[code]
-  return { code, label: meta.label, subtitle: meta.subtitle, bank: meta.bank, total: 0, count: 0, rows: [] }
+  return {
+    code,
+    label:    meta.label,
+    subtitle: meta.subtitle,
+    bank:     meta.bank,
+    alias:    meta.alias,
+    cbu:      meta.cbu,
+    note:     meta.note,
+    total:    0,
+    count:    0,
+    rows:     [],
+  }
 }
