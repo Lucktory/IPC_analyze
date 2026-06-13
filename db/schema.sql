@@ -229,6 +229,9 @@ create table contracts (
   -- contract (L=Lisa, F=Flavio, A=Alejandro). Matches the LFA column from
   -- the encargada's current Excel.
   lfa_code text,
+  -- Pampa's commission percentage, applied to TOTAL COBRADO (alquiler
+  -- + recuperos), per Alejandro's confirmed spec #2.
+  commission_pct numeric(5,2) default 8.0,
   notes text,
   created_at timestamptz default now()
 );

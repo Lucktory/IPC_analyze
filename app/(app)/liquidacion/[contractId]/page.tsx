@@ -6,6 +6,7 @@ import { getCurrentPeriod, periodLabel } from '@/lib/period'
 import { getLiquidacionDetail, type LiquidacionDetailLine, type LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { fmtMoney as fmt, fmtDate, fmtDateTime } from '@/lib/format'
 import { LiquidacionActionsBar } from '@/components/liquidacion/LiquidacionActionsBar'
+import { GenerateCommissionButton } from '@/components/liquidacion/GenerateCommissionButton'
 import { PrintButton } from '@/components/ui/PrintButton'
 
 const STATUS_THEME: Record<LiquidacionStatus, { label: string; dot: string; tint: string; text: string; border: string }> = {
@@ -67,11 +68,18 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
 
       {/* Embudo — horizontal stacked bar showing the funnel */}
       <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-line">
-          <h2 className="font-display text-[15px] font-medium text-ink">Embudo del período</h2>
-          <p className="text-[12px] text-slate mt-0.5">
-            Total cobrado al inquilino → comisión administración + otros descuentos → neto al propietario
-          </p>
+        <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="font-display text-[15px] font-medium text-ink">Embudo del período</h2>
+            <p className="text-[12px] text-slate mt-0.5">
+              Total cobrado al inquilino → comisión administración + otros descuentos → neto al propietario
+            </p>
+          </div>
+          {total > 0 && (
+            <div className="print:hidden">
+              <GenerateCommissionButton contractId={detail.contractId} period={detail.period} />
+            </div>
+          )}
         </div>
         <div className="p-5">
           {total > 0 ? (

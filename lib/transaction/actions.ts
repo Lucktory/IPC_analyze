@@ -189,6 +189,67 @@ export async function createTransaction(formData: FormData): Promise<CreateTrans
 }
 
 // ============================================================================
+// generateCommissionForPeriod — auto-calculate Pampa's commission for a
+// (contract, period) based on total cobrado × contract.commission_pct.
+//
+// Per Alejandro's spec #2: applies to TOTAL COBRADO (alquiler + recuperos),
+// not just the rent. Sums all IN transactions where affects_liquidacion=true.
+//
+// Idempotent: if a COMMISSION_OUT already exists for the (contract, period),
+// updates its amount in place rather than inserting a duplicate.
+// ============================================================================
+export async function generateCommissionForPeriod(
+  contractId: string,
+  period:     string,
+): Promise<TransactionResult> {
+  const supabase = await createSupabaseServer()
+
+  const { data: contract, error: contractErr } = await supabase
+    .from('contracts')
+    .select('administration_id, commission_pct')
+    .eq('id', contractId)
+    .maybeSingle()
+  if (contractErr) return dbFailure(contractErr)
+  if (!contract)   return { ok: false, error: 'Contrato no encontrado.' }
+
+  const pct = Number((contract as any).commission_pct ?? 8)
+  if (!isFinite(pct) || pct <= 0) {
+    return { ok: false, error: 'El contrato no tiene un % de comisión válido.' }
+  }
+
+  // Sum total cobrado for the period
+  const { data: ins, error: insErr } = await supabase
+    .from('transactions')
+    .select('amount, transaction_types!inner(direction, affects_liquidacion)')
+    .eq('contract_id', contractId)
+    .eq('period', period)
+  if (insErr) return dbFailure(insErr)
+
+  let totalCobrado = 0
+  for (const t of (ins ?? []) as any[]) {
+    const typ = t.transaction_types
+    if (typ.affects_liquidacion && typ.direction === 'IN') {
+      totalCobrado += Number(t.amount)
+    }
+  }
+  if (totalCobrado <= 0) {
+    return { ok: false, error: 'No hay ingresos cobrados todavía para este período — la comisión sería $0.' }
+  }
+
+  const commissionAmount = Math.round((totalCobrado * pct) / 100 * 100) / 100  // 2-decimal precision
+
+  // Use the upsert helper — it preserves existing description if any.
+  return upsertTransactionByContractPeriod({
+    contractId,
+    period,
+    typeCode:    'COMMISSION_OUT',
+    bankDate:    null,   // not yet transferred when computed
+    amount:      commissionAmount,
+    description: `Comisión ${pct}% sobre total cobrado`,
+  })
+}
+
+// ============================================================================
 // updateTransaction — edit an existing transaction's mutable fields.
 // ============================================================================
 export async function updateTransaction(
