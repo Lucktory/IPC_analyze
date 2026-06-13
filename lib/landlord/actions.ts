@@ -37,6 +37,26 @@ export async function updateLandlord(
   return { ok: true, error: null }
 }
 
+/** Create a new landlord. Redirects to the detail page on success. */
+export async function createLandlord(formData: FormData): Promise<UpdateLandlordResult> {
+  const fields = {
+    name:        String(formData.get('name') ?? '').trim(),
+    email:       String(formData.get('email') ?? '').trim() || null,
+    phone:       String(formData.get('phone') ?? '').trim() || null,
+    dni_or_cuit: String(formData.get('dni_or_cuit') ?? '').trim() || null,
+    notes:       String(formData.get('notes') ?? '').trim() || null,
+  }
+  if (!fields.name) return { ok: false, error: 'El nombre no puede estar vacío.' }
+
+  const supabase = await createSupabaseServer()
+  const { data, error } = await supabase
+    .from('landlords').insert(fields).select('id').single()
+  if (error) return dbFailure(error)
+
+  revalidatePath('/propietarios')
+  redirect(`/propietarios/${(data as any).id}`)
+}
+
 export interface DeleteLandlordResult {
   ok:    boolean
   error: string | null

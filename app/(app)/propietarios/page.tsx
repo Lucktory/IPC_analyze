@@ -124,8 +124,16 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
             {rows.length === counts.todos ? `${counts.todos}` : `${rows.length} de ${counts.todos}`}
             {activeSummary && <span className="text-slate"> · {activeSummary}</span>}
           </p>
-          <div className="w-full sm:w-72 shrink-0 order-3 sm:order-none">
-            <AutoSearchInput initialValue={q} placeholder="Buscar por nombre o CUIT…" />
+          <div className="flex items-center gap-2 order-3 sm:order-none">
+            <div className="w-full sm:w-72 shrink-0">
+              <AutoSearchInput initialValue={q} placeholder="Buscar por nombre o CUIT…" />
+            </div>
+            <Link
+              href="/propietarios/nuevo"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 transition-opacity shrink-0"
+            >
+              + Nuevo
+            </Link>
           </div>
         </div>
 

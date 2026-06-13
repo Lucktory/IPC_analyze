@@ -38,6 +38,26 @@ export async function updateProperty(
   return { ok: true, error: null }
 }
 
+/** Create a new property. Redirects to the detail page on success. */
+export async function createProperty(formData: FormData): Promise<UpdatePropertyResult> {
+  const fields = {
+    address:       String(formData.get('address')       ?? '').trim(),
+    property_type: String(formData.get('property_type') ?? '').trim(),
+  }
+  if (!fields.address) return { ok: false, error: 'La dirección no puede estar vacía.' }
+  if (!ALLOWED_TYPES.includes(fields.property_type)) {
+    return { ok: false, error: 'Tipo de propiedad inválido.' }
+  }
+
+  const supabase = await createSupabaseServer()
+  const { data, error } = await supabase
+    .from('properties').insert(fields).select('id').single()
+  if (error) return dbFailure(error)
+
+  revalidatePath('/propiedades')
+  redirect(`/propiedades/${(data as any).id}`)
+}
+
 export interface DeletePropertyResult {
   ok:    boolean
   error: string | null
