@@ -136,11 +136,19 @@ export default async function ContratosPage({ searchParams }: PageProps) {
               : `${rows.length} de ${counts.todos}`}
             {activeSummary && <span className="text-slate"> · {activeSummary}</span>}
           </p>
-          <div className="w-full sm:w-72 shrink-0 order-3 sm:order-none">
-            <AutoSearchInput
-              initialValue={filters.q ?? ''}
-              placeholder="Buscar por inquilino o propietario…"
-            />
+          <div className="flex items-center gap-2 order-3 sm:order-none">
+            <div className="w-full sm:w-72 shrink-0">
+              <AutoSearchInput
+                initialValue={filters.q ?? ''}
+                placeholder="Buscar por inquilino o propietario…"
+              />
+            </div>
+            <Link
+              href="/contratos/nuevo"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 transition-opacity shrink-0"
+            >
+              + Nuevo
+            </Link>
           </div>
         </div>
 
