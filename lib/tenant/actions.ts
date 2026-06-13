@@ -35,6 +35,28 @@ export async function updateTenant(
   return { ok: true, error: null }
 }
 
+/** Create a new tenant. Redirects to the detail page on success. */
+export async function createTenant(formData: FormData): Promise<UpdateTenantResult> {
+  const fields = {
+    name:  String(formData.get('name')  ?? '').trim(),
+    email: String(formData.get('email') ?? '').trim() || null,
+    phone: String(formData.get('phone') ?? '').trim() || null,
+    dni:   String(formData.get('dni')   ?? '').trim() || null,
+  }
+  if (!fields.name) return { ok: false, error: 'El nombre no puede estar vacío.' }
+
+  const supabase = await createSupabaseServer()
+  const { data, error } = await supabase
+    .from('tenants')
+    .insert(fields)
+    .select('id')
+    .single()
+  if (error) return dbFailure(error)
+
+  revalidatePath('/inquilinos')
+  redirect(`/inquilinos/${(data as any).id}`)
+}
+
 export interface DeleteTenantResult {
   ok:    boolean
   error: string | null
