@@ -4,31 +4,49 @@ import { StickyHeader } from '@/components/ui/StickyHeader'
 import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { listTransactionPeriods } from '@/lib/entities/queries'
 import { getCurrentPeriod, periodLabel, periodShort } from '@/lib/period'
-import { getLiquidacionGridForPeriod } from '@/lib/liquidacion/queries'
+import { getLiquidacionGridForPeriod, type LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { LiquidacionGrid } from '@/components/liquidacion/LiquidacionGrid'
 import { fmtMoney as fmt } from '@/lib/format'
 
+type StatusFilter = 'todas' | LiquidacionStatus
+
 interface PageProps {
-  searchParams: Promise<{ period?: string }>
+  searchParams: Promise<{ period?: string; status?: string }>
 }
 
 export default async function LiquidacionPage({ searchParams }: PageProps) {
-  const { period: paramPeriod } = await searchParams
+  const { period: paramPeriod, status: paramStatus } = await searchParams
   const period = paramPeriod ?? getCurrentPeriod()
+  const statusFilter: StatusFilter =
+    paramStatus === 'draft' || paramStatus === 'sent' || paramStatus === 'paid'
+      ? paramStatus
+      : 'todas'
 
-  const [periods, rows] = await Promise.all([
+  const [periods, allRows] = await Promise.all([
     listTransactionPeriods(),
     getLiquidacionGridForPeriod(period),
   ])
 
-  // ── KPIs aggregated across the visible rows ──
+  // Per-status counts (for the pill badges)
+  const counts = {
+    todas: allRows.length,
+    draft: allRows.filter(r => r.status === 'draft').length,
+    sent:  allRows.filter(r => r.status === 'sent').length,
+    paid:  allRows.filter(r => r.status === 'paid').length,
+  }
+
+  const rows = statusFilter === 'todas' ? allRows : allRows.filter(r => r.status === statusFilter)
+
+  // ── KPIs aggregated across the visible (filtered) rows ──
   const cobrados      = rows.filter(r => !!r.fechaBanco).length
-  const transferidos  = rows.filter(r => !!r.diaTransf).length
   const pendientes    = rows.length - cobrados
   const totalIngresos = rows.reduce((s, r) => s + r.ingresos, 0)
   const totalAdmi     = rows.reduce((s, r) => s + r.admi, 0)
-  const totalNeto     = rows.reduce((s, r) => s + r.transferencia, 0)
   const conAumento    = rows.filter(r => r.hasUpcomingAdjustment).length
+
+  // Preserve status filter in period-selector hrefs and vice versa
+  const linkWithStatus = (p: string) => statusFilter === 'todas' ? `/liquidacion?period=${p}` : `/liquidacion?period=${p}&status=${statusFilter}`
+  const linkWithFilter = (s: StatusFilter) => s === 'todas' ? `/liquidacion?period=${period}` : `/liquidacion?period=${period}&status=${s}`
 
   return (
     <>
@@ -86,7 +104,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
           {periods.map(p => (
             <Link
               key={p}
-              href={`/liquidacion?period=${p}`}
+              href={linkWithStatus(p)}
               className={[
                 'inline-flex items-center px-3 py-1.5 rounded-full border text-[12px] font-medium transition-colors shrink-0',
                 p === period
@@ -97,6 +115,15 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
               {periodShort(p)}
             </Link>
           ))}
+        </div>
+
+        {/* Status filter pills — Alejandro's gray/green/blue workflow */}
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <span className="label-cap text-slate mr-1">Estado</span>
+          <StatusPill href={linkWithFilter('todas')}  active={statusFilter === 'todas'}  label="Todas"     count={counts.todas} />
+          <StatusPill href={linkWithFilter('draft')}  active={statusFilter === 'draft'}  label="Borrador"  count={counts.draft} tone="slate" />
+          <StatusPill href={linkWithFilter('sent')}   active={statusFilter === 'sent'}   label="Enviadas"  count={counts.sent}  tone="success" />
+          <StatusPill href={linkWithFilter('paid')}   active={statusFilter === 'paid'}   label="Pagadas"   count={counts.paid}  tone="info" />
         </div>
 
         <p className="mt-3 text-[11px] text-slate">
@@ -114,5 +141,38 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
         <LiquidacionGrid rows={rows} period={period} />
       </div>
     </>
+  )
+}
+
+function StatusPill({
+  href, active, label, count, tone = 'neutral',
+}: {
+  href:   string
+  active: boolean
+  label:  string
+  count:  number
+  tone?:  'neutral' | 'slate' | 'success' | 'info'
+}) {
+  const dotCls =
+    tone === 'success' ? 'bg-success' :
+    tone === 'info'    ? 'bg-info'    :
+    tone === 'slate'   ? 'bg-slate'   :
+                         'bg-slate/40'
+  return (
+    <Link
+      href={href}
+      className={[
+        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-medium transition-colors',
+        active
+          ? 'bg-cream-2 text-ink border-ink/40 ring-1 ring-ink/20 hover:bg-cream'
+          : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
+      ].join(' ')}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${dotCls}`} />
+      {label}
+      <span className="inline-flex items-center justify-center text-[10px] font-medium tabular-nums px-1.5 rounded bg-line/60 text-slate-dark">
+        {count}
+      </span>
+    </Link>
   )
 }
