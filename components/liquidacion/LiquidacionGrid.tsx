@@ -36,12 +36,6 @@ const STATUS_DOT: Record<LiquidacionStatus, string> = {
   paid:  'bg-info',
 }
 
-function fmtShortDate(s: string | null): string {
-  if (!s) return ''
-  const d = new Date(s)
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
 function fmtMoneyOr(n: number | null | undefined): string {
   return n != null && n !== 0 ? fmtMoney(n) : '—'
 }
@@ -173,11 +167,15 @@ export function LiquidacionGrid({ rows, period }: Props) {
                     </span>
                   </Td>
 
-                  {/* Día transferencia */}
+                  {/* Día transferencia — click to record LANDLORD_PAYOUT */}
                   <Td width={70} align="center">
-                    <span className={r.diaTransf ? 'text-ink tabular-nums font-medium' : 'text-slate/60'}>
-                      {r.diaTransf ? fmtShortDate(r.diaTransf) : '—'}
-                    </span>
+                    <InlineDateCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="LANDLORD_PAYOUT"
+                      initialDate={r.diaTransf}
+                      defaultAmount={Math.max(0, r.transferencia)}
+                    />
                   </Td>
 
                   <Td width={110} align="right">
