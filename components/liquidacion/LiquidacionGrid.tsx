@@ -23,6 +23,7 @@
 import Link from 'next/link'
 import type { LiquidacionGridRow, LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { fmtMoney } from '@/lib/format'
+import { InlineDateCell } from './InlineDateCell'
 
 interface Props {
   rows:    LiquidacionGridRow[]
@@ -149,11 +150,15 @@ export function LiquidacionGrid({ rows, period }: Props) {
                     </span>
                   </Td>
 
-                  {/* Fecha banco — empty cell when no payment yet (the "estado" signal) */}
+                  {/* Fecha banco — click to record cobro (creates/updates RENT_IN) */}
                   <Td width={70} align="center">
-                    <span className={r.fechaBanco ? 'text-ink tabular-nums font-medium' : 'text-slate/60'}>
-                      {r.fechaBanco ? fmtShortDate(r.fechaBanco) : '—'}
-                    </span>
+                    <InlineDateCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="RENT_IN"
+                      initialDate={r.fechaBanco}
+                      defaultAmount={r.currentRent}
+                    />
                   </Td>
 
                   <Td width={100} align="right">
