@@ -99,12 +99,17 @@ export async function transitionLiquidacionStatus(
   return { ok: true, error: null }
 }
 
-/** Save free-text notes on a liquidación (creates the row if missing). */
-export async function updateLiquidacionNotes(
-  contractId: string,
-  landlordId: string,
-  period:     string,
-  notes:      string,
+/**
+ * Save the OBSERVACION cell: free-text notes + a signed adjustment that
+ * affects the transferencia (positive = extra paid to landlord, negative
+ * = extra deducted). Upserts the liquidaciones row.
+ */
+export async function upsertLiquidacionObservacion(
+  contractId:       string,
+  landlordId:       string,
+  period:           string,
+  notes:            string,
+  adjustmentAmount: number,
 ): Promise<LiquidacionActionResult> {
   const supabase = await createSupabaseServer()
 
@@ -124,11 +129,13 @@ export async function updateLiquidacionNotes(
         landlord_id:       landlordId,
         period,
         notes:             notes.trim() || null,
+        adjustment_amount: isFinite(adjustmentAmount) ? adjustmentAmount : 0,
       },
       { onConflict: 'contract_id,landlord_id,period' },
     )
 
   if (error) return dbFailure(error)
+  revalidatePath('/liquidacion')
   revalidatePath(`/liquidacion/${contractId}`)
   return { ok: true, error: null }
 }

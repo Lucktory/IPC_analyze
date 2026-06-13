@@ -24,6 +24,7 @@ import Link from 'next/link'
 import type { LiquidacionGridRow, LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { fmtMoney } from '@/lib/format'
 import { InlineDateCell } from './InlineDateCell'
+import { InlineObservacionCell } from './InlineObservacionCell'
 
 interface Props {
   rows:    LiquidacionGridRow[]
@@ -212,9 +213,15 @@ export function LiquidacionGrid({ rows, period }: Props) {
                     </span>
                   </Td>
 
-                  {/* Observaciones — notes + the signed adjustment if any */}
+                  {/* Observaciones — click to edit notes + signed adjustment */}
                   <Td width={110}>
-                    <ObservacionCell observacion={r.observacion} adjustment={r.adjustmentAmount} />
+                    <InlineObservacionCell
+                      contractId={r.contractId}
+                      landlordId={r.landlordId}
+                      period={r.periodo}
+                      initialNotes={r.observacion}
+                      initialAdjustment={r.adjustmentAmount}
+                    />
                   </Td>
 
                   {/* Estado liquidación — small dot */}
@@ -288,22 +295,3 @@ function Td({ children, width, align = 'left', sticky, left, bg, title, style }:
   )
 }
 
-function ObservacionCell({ observacion, adjustment }: { observacion: string | null; adjustment: number }) {
-  const hasNote = !!observacion?.trim()
-  const hasAdj  = adjustment !== 0
-  if (!hasNote && !hasAdj) return <span className="text-slate/60">—</span>
-  return (
-    <div className="flex flex-col gap-0.5">
-      {hasNote && (
-        <span className="text-slate-dark text-[11px] truncate" title={observacion ?? ''}>
-          {observacion}
-        </span>
-      )}
-      {hasAdj && (
-        <span className={`text-[11px] tabular-nums font-medium ${adjustment > 0 ? 'text-success' : 'text-danger'}`}>
-          {adjustment > 0 ? '+' : ''}{fmtMoney(adjustment)}
-        </span>
-      )}
-    </div>
-  )
-}
