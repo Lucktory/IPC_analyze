@@ -4,6 +4,7 @@ import { StickyHeader } from '@/components/ui/StickyHeader'
 import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { ClickableRow } from '@/components/ui/ClickableRow'
 import Link from 'next/link'
 import { listTransactions, listTransactionPeriods, type TransactionRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/urgency'
@@ -306,7 +307,8 @@ function TxRow({ t, odd }: { t: TransactionRow; odd: boolean }) {
   const amountPrefix   = isIn ? '+ ' : '− '
 
   return (
-    <tr
+    <ClickableRow
+      href={`/movimientos/${t.id}`}
       title={t.urgencyReasons.length ? t.urgencyReasons.join(' · ') : undefined}
       className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
     >
@@ -322,7 +324,7 @@ function TxRow({ t, odd }: { t: TransactionRow; odd: boolean }) {
       <td className="px-4 py-1.5 text-slate text-[12px] truncate max-w-[280px]">
         {t.description ?? ''}
       </td>
-    </tr>
+    </ClickableRow>
   )
 }
 

@@ -187,3 +187,68 @@ export async function createTransaction(formData: FormData): Promise<CreateTrans
   revalidatePath('/liquidacion')
   redirect('/movimientos')
 }
+
+// ============================================================================
+// updateTransaction — edit an existing transaction's mutable fields.
+// ============================================================================
+export async function updateTransaction(
+  id:       string,
+  formData: FormData,
+): Promise<CreateTransactionResult> {
+  const typeCode      = String(formData.get('type_code')   ?? '').trim()
+  const amountRaw     = String(formData.get('amount')      ?? '').trim()
+  const period        = String(formData.get('period')      ?? '').trim()
+  const bankDateRaw   = String(formData.get('bank_date')   ?? '').trim()
+  const contractIdRaw = String(formData.get('contract_id') ?? '').trim()
+  const bankAccountIdRaw = String(formData.get('bank_account_id') ?? '').trim()
+  const description   = String(formData.get('description') ?? '').trim() || null
+
+  if (!typeCode)  return { ok: false, error: 'Tipo es obligatorio.' }
+  if (!amountRaw) return { ok: false, error: 'Monto es obligatorio.' }
+  const amount = Number(amountRaw)
+  if (!isFinite(amount) || amount <= 0) return { ok: false, error: 'Monto debe ser un número mayor a 0.' }
+  if (!period) return { ok: false, error: 'Período es obligatorio.' }
+
+  const supabase = await createSupabaseServer()
+
+  const { data: typeRow, error: typeErr } = await supabase
+    .from('transaction_types').select('id').eq('code', typeCode).maybeSingle()
+  if (typeErr)   return dbFailure(typeErr)
+  if (!typeRow)  return { ok: false, error: `Tipo "${typeCode}" no encontrado.` }
+
+  const { error } = await supabase
+    .from('transactions')
+    .update({
+      transaction_type_id: (typeRow as any).id,
+      contract_id:         contractIdRaw    || null,
+      bank_account_id:     bankAccountIdRaw || null,
+      amount,
+      period,
+      bank_date:           bankDateRaw      || null,
+      description,
+    })
+    .eq('id', id)
+
+  if (error) return dbFailure(error)
+
+  revalidatePath('/movimientos')
+  revalidatePath(`/movimientos/${id}`)
+  revalidatePath('/liquidacion')
+  return { ok: true, error: null }
+}
+
+// ============================================================================
+// deleteTransaction — hard delete with optional FK guard message.
+// ============================================================================
+export async function deleteTransaction(id: string): Promise<CreateTransactionResult> {
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase.from('transactions').delete().eq('id', id)
+  if (error) {
+    return dbFailure(error, {
+      fkMessage: 'No se puede eliminar: la transacción está referenciada por una liquidación.',
+    })
+  }
+  revalidatePath('/movimientos')
+  revalidatePath('/liquidacion')
+  redirect('/movimientos')
+}
