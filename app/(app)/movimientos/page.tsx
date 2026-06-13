@@ -162,8 +162,16 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
             {filtered.length !== all.length && ` · ${filtered.length} de ${all.length}`}
             {activeSummary && <span className="text-slate"> · {activeSummary}</span>}
           </p>
-          <div className="w-full sm:w-72 shrink-0 order-3 sm:order-none">
-            <AutoSearchInput initialValue={q} placeholder="Buscar por inquilino, descripción o tipo…" resetParams={['page']} />
+          <div className="flex items-center gap-2 order-3 sm:order-none">
+            <div className="w-full sm:w-72 shrink-0">
+              <AutoSearchInput initialValue={q} placeholder="Buscar por inquilino, descripción o tipo…" resetParams={['page']} />
+            </div>
+            <Link
+              href="/movimientos/nuevo"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 transition-opacity shrink-0"
+            >
+              + Nuevo
+            </Link>
           </div>
         </div>
 
