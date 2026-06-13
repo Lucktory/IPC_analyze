@@ -59,7 +59,7 @@ export interface ReconciliationBucket {
   rows:    ReconciliationRow[]
 }
 
-function classifyDestination(description: string | null): DestinationCode {
+export function classifyDestination(description: string | null): DestinationCode {
   const d = description ?? ''
   if (d.includes('ADM_GALICIA'))      return 'ADM_GALICIA'
   if (d.includes('ADM_FRANCES_50_9')) return 'ADM_FRANCES_50_9'

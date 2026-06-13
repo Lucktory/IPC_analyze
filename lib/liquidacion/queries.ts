@@ -13,6 +13,23 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { classifyDestination } from '@/lib/reconciliation/queries'
+
+// ── Cadence helpers — mirrors the function in lib/pending/queries.ts so
+// the orange-highlight rule (aumento ≤30d) uses the SAME logic as the
+// Pendientes bell. Don't divergent — refactor to a shared module if a third
+// caller appears.
+const CADENCE_MONTHS: Record<string, number> = {
+  mensual: 1, bimestral: 2, trimestral: 3, cuatrimestral: 4, semestral: 6, anual: 12,
+}
+function nextAdjustmentDate(startDate: string, cadence: string, today: Date): Date | null {
+  const months = CADENCE_MONTHS[cadence]
+  if (!months) return null
+  const next = new Date(startDate)
+  let safety = 1000
+  while (next <= today && safety-- > 0) next.setMonth(next.getMonth() + months)
+  return safety > 0 ? next : null
+}
 
 export type LiquidacionStatus = 'draft' | 'sent' | 'paid'
 
@@ -61,6 +78,214 @@ export interface LiquidacionDetail extends Omit<LiquidacionRow, never> {
   notes:           string | null
   lines:           LiquidacionDetailLine[]
   administrationId: string
+}
+
+// ============================================================================
+// 19-column grid row — Alejandro's wide spreadsheet view. Mirrors the
+// exact column structure in scripts/import-from-sheet.ts (his current Excel).
+// ============================================================================
+export interface LiquidacionGridRow {
+  /** For row navigation. */
+  contractId:           string
+  landlordId:           string
+  hasMultipleLandlords: boolean
+
+  // ── Identity columns (left side, sticky) ──
+  observacion:   string | null   // liquidaciones.notes
+  lfa:           string | null   // contracts.lfa_code
+  propietario:   string          // primary landlord name
+  inquilino:     string          // primary tenant name
+  contrato:      string | null   // contracts.contract_number
+
+  // ── Period info ──
+  periodo:       string          // period date
+  expensas:      number | null   // contracts.expensas (monthly)
+
+  // ── Cobro side (light gray until fechaBanco set, then dark gray) ──
+  fechaBanco:    string | null   // max(RENT_IN.bank_date)
+  ingresos:      number          // sum IN affects_liquidacion
+  deuda:         number          // current_rent - ingresos (positive = owed)
+
+  // ── Transfer side (light gray until diaTransf set, then dark gray) ──
+  diaTransf:     string | null   // max(LANDLORD_PAYOUT.bank_date)
+  transferencia: number          // computed: ingresos - admi - otros + adjustment
+  otros:         number          // sum OUT (≠ COMMISSION_OUT) affects_liquidacion
+
+  // ── Commission breakdown (3 destinations stay SEPARATE per Alejandro's spec) ──
+  pct:           number          // effective % = admi / ingresos × 100
+  admi:          number          // sum COMMISSION_OUT
+  admGalicia:    number
+  admFrances509: number
+  admFrances516: number
+
+  // ── Highlight flags ──
+  /** True when the contract's nextAdjustmentDate is within 30 days. Drives
+   *  the light-orange background on the INGRESOS cell. */
+  hasUpcomingAdjustment: boolean
+  daysUntilAdjustment:   number | null
+
+  // ── Liquidación record state (gray/green/blue badge) ──
+  status:            LiquidacionStatus
+  adjustmentAmount:  number   // signed manual adjustment from observaciones
+  liquidacionId:     string | null
+  sentAt:            string | null
+  paidAt:            string | null
+
+  // ── Current contract rent (used to compute DEUDA) ──
+  currentRent:       number
+}
+
+// ── Rich grid query — returns all 19 columns per row ───────────────────────
+export async function getLiquidacionGridForPeriod(period: string): Promise<LiquidacionGridRow[]> {
+  const supabase = await createSupabaseServer()
+  const today = new Date()
+
+  const [contractsRes, txnsRes, liqsRes] = await Promise.all([
+    supabase
+      .from('contracts')
+      .select(`
+        id, status, contract_number, lfa_code, expensas, current_rent,
+        cadence, start_date,
+        contract_tenants(is_primary, tenants(name)),
+        contract_landlords(ownership_pct, landlords(id, name))
+      `)
+      .eq('status', 'active'),
+    supabase
+      .from('transactions')
+      .select(`
+        amount, contract_id, bank_date, description,
+        transaction_types!inner(code, direction, affects_liquidacion)
+      `)
+      .eq('period', period),
+    supabase
+      .from('liquidaciones')
+      .select('id, contract_id, landlord_id, status, sent_at, paid_at, notes, adjustment_amount')
+      .eq('period', period),
+  ])
+
+  // ── Aggregate transactions per contract ──
+  interface Agg {
+    ingresos:    number
+    admi:        number
+    otros:       number
+    payout:      number
+    galicia:     number
+    frances509:  number
+    frances516:  number
+    fechaBanco:  string | null   // latest RENT_IN bank_date
+    diaTransf:   string | null   // latest LANDLORD_PAYOUT bank_date
+  }
+  const blank = (): Agg => ({
+    ingresos: 0, admi: 0, otros: 0, payout: 0, galicia: 0, frances509: 0, frances516: 0,
+    fechaBanco: null, diaTransf: null,
+  })
+  const agg = new Map<string, Agg>()
+
+  for (const t of (txnsRes.data ?? []) as any[]) {
+    if (!t.contract_id) continue
+    const entry = agg.get(t.contract_id) ?? blank()
+    const typ = t.transaction_types
+    const amt = Number(t.amount)
+
+    if (typ.code === 'RENT_IN') {
+      if (typ.affects_liquidacion) entry.ingresos += amt
+      if (t.bank_date && (!entry.fechaBanco || t.bank_date > entry.fechaBanco)) {
+        entry.fechaBanco = t.bank_date
+      }
+    } else if (typ.affects_liquidacion && typ.direction === 'IN') {
+      entry.ingresos += amt
+    } else if (typ.code === 'COMMISSION_OUT') {
+      entry.admi += amt
+      const dest = classifyDestination(t.description ?? null)
+      if      (dest === 'ADM_GALICIA')      entry.galicia    += amt
+      else if (dest === 'ADM_FRANCES_50_9') entry.frances509 += amt
+      else if (dest === 'ADM_FRANCES_51_6') entry.frances516 += amt
+    } else if (typ.code === 'LANDLORD_PAYOUT') {
+      entry.payout += amt
+      if (t.bank_date && (!entry.diaTransf || t.bank_date > entry.diaTransf)) {
+        entry.diaTransf = t.bank_date
+      }
+    } else if (typ.affects_liquidacion && typ.direction === 'OUT') {
+      entry.otros += amt
+    }
+    agg.set(t.contract_id, entry)
+  }
+
+  // Index persisted liquidación rows by (contract|landlord)
+  const liqByKey = new Map<string, any>()
+  for (const l of (liqsRes.data ?? []) as any[]) {
+    liqByKey.set(`${l.contract_id}|${l.landlord_id}`, l)
+  }
+
+  const rows: LiquidacionGridRow[] = []
+  for (const c of (contractsRes.data ?? []) as any[]) {
+    const landlords = (c.contract_landlords ?? []) as any[]
+    if (landlords.length === 0) continue
+    const primary = [...landlords].sort(
+      (a, b) => Number(b.ownership_pct ?? 0) - Number(a.ownership_pct ?? 0),
+    )[0]
+    if (!primary?.landlords) continue
+
+    const tenant = (c.contract_tenants ?? []).find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
+
+    const a = agg.get(c.id) ?? blank()
+    const currentRent = Number(c.current_rent ?? 0)
+    const deuda       = Math.max(0, currentRent - a.ingresos)
+
+    // Aumento próximo: reuse same function the Pendientes bell uses
+    const nextAdj    = c.start_date && c.cadence ? nextAdjustmentDate(c.start_date, c.cadence, today) : null
+    const msUntilAdj = nextAdj ? nextAdj.getTime() - today.getTime() : null
+    const daysUntilAdjustment = msUntilAdj != null ? Math.ceil(msUntilAdj / 86400000) : null
+    const hasUpcomingAdjustment = daysUntilAdjustment != null && daysUntilAdjustment >= 0 && daysUntilAdjustment <= 30
+
+    const liq        = liqByKey.get(`${c.id}|${primary.landlords.id}`)
+    const adjustment = Number(liq?.adjustment_amount ?? 0)
+
+    // Transferencia (computed) = ingresos - admi - otros + adjustment (signed)
+    // Use the actual LANDLORD_PAYOUT if it exists, else fall back to computed.
+    const transferencia = a.payout > 0 ? a.payout : Math.max(0, a.ingresos - a.admi - a.otros + adjustment)
+
+    const pct = a.ingresos > 0 ? (a.admi / a.ingresos) * 100 : 0
+
+    rows.push({
+      contractId:           c.id,
+      landlordId:           primary.landlords.id,
+      hasMultipleLandlords: landlords.length > 1,
+      observacion:   liq?.notes ?? null,
+      lfa:           c.lfa_code ?? null,
+      propietario:   primary.landlords.name ?? '(sin propietario)',
+      inquilino:     tenant?.tenants?.name ?? '(sin inquilino)',
+      contrato:      c.contract_number ?? null,
+      periodo:       period,
+      expensas:      c.expensas != null ? Number(c.expensas) : null,
+      fechaBanco:    a.fechaBanco,
+      ingresos:      a.ingresos,
+      deuda,
+      diaTransf:     a.diaTransf,
+      transferencia,
+      otros:         a.otros,
+      pct,
+      admi:          a.admi,
+      admGalicia:    a.galicia,
+      admFrances509: a.frances509,
+      admFrances516: a.frances516,
+      hasUpcomingAdjustment,
+      daysUntilAdjustment,
+      status:        (liq?.status ?? 'draft') as LiquidacionStatus,
+      adjustmentAmount: adjustment,
+      liquidacionId: liq?.id ?? null,
+      sentAt:        liq?.sent_at ?? null,
+      paidAt:        liq?.paid_at ?? null,
+      currentRent,
+    })
+  }
+
+  // Sort: unpaid first (no fechaBanco), then by inquilino name
+  return rows.sort((a, b) => {
+    if (!a.fechaBanco && b.fechaBanco) return -1
+    if (a.fechaBanco && !b.fechaBanco) return 1
+    return a.inquilino.localeCompare(b.inquilino)
+  })
 }
 
 // ── List query — one row per active contract for the period ────────────────

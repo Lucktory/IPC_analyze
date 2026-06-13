@@ -225,6 +225,10 @@ create table contracts (
   late_interest_rate numeric(5,2) default 5.0,
   bank_account_id uuid references bank_accounts(id),
   status text default 'active' check (status in ('draft','active','suspended','ended','rescinded')),
+  -- Pampa-internal code identifying which administrator handles this
+  -- contract (L=Lisa, F=Flavio, A=Alejandro). Matches the LFA column from
+  -- the encargada's current Excel.
+  lfa_code text,
   notes text,
   created_at timestamptz default now()
 );
@@ -354,6 +358,10 @@ create table liquidaciones (
   paid_at timestamptz,
   pdf_url text,
   notes text,
+  -- Signed manual adjustment to the transferencia al propietario. Positive
+  -- = extra paid out, negative = extra deducted. Shown alongside notes in
+  -- the OBSERVACIONES column of the liquidación grid.
+  adjustment_amount numeric(12,2) default 0,
   created_at timestamptz default now(),
   unique (contract_id, landlord_id, period)
 );
