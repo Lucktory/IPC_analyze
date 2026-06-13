@@ -6,6 +6,7 @@ import { getCurrentPeriod, periodLabel } from '@/lib/period'
 import { getLiquidacionDetail, type LiquidacionDetailLine, type LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { fmtMoney as fmt, fmtDate, fmtDateTime } from '@/lib/format'
 import { LiquidacionActionsBar } from '@/components/liquidacion/LiquidacionActionsBar'
+import { PrintButton } from '@/components/ui/PrintButton'
 
 const STATUS_THEME: Record<LiquidacionStatus, { label: string; dot: string; tint: string; text: string; border: string }> = {
   draft: { label: 'Borrador', dot: 'bg-slate',   tint: 'bg-cream-2',     text: 'text-slate-dark', border: 'border-l-slate' },
@@ -40,10 +41,11 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
     <>
       <BreadcrumbTitle name={`${detail.tenantName} · ${periodLabel(period)}`} />
 
-      <div className="mb-6">
+      <div className="mb-6 flex items-center justify-between flex-wrap gap-3 print:hidden">
         <Link href={`/liquidacion?period=${period}`} className="text-[12px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">
           ← Volver a liquidaciones
         </Link>
+        <PrintButton label="Imprimir / PDF" />
       </div>
 
       {/* Header: tenant + landlord + status pill */}
@@ -139,8 +141,8 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
         </div>
       </section>
 
-      {/* Status actions */}
-      <section className="mt-6 bg-paper border border-line rounded shadow-card p-5">
+      {/* Status actions — hidden in print */}
+      <section className="mt-6 bg-paper border border-line rounded shadow-card p-5 print:hidden">
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div className="min-w-0">
             <h2 className="font-display text-[15px] font-medium text-ink">Estado de la liquidación</h2>
