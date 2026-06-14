@@ -11,14 +11,16 @@ interface NavItem {
 }
 
 const mainItems: NavItem[] = [
-  { to: '/dashboard',    label: 'Panel',         icon: 'dashboard'  },
+  // Liquidación first — the encargada's daily work starts here (Alejandro's
+  // direction 2026-06-15). The other views are secondary.
+  { to: '/liquidacion',  label: 'Liquidación',   icon: 'funnel'     },
   { to: '/pendientes',   label: 'Pendientes',    icon: 'bell'       },
+  { to: '/dashboard',    label: 'Panel',         icon: 'dashboard'  },
   { to: '/contratos',    label: 'Contratos',     icon: 'contracts'  },
   { to: '/propietarios', label: 'Propietarios',  icon: 'owners'     },
   { to: '/inquilinos',   label: 'Inquilinos',    icon: 'tenants'    },
   { to: '/propiedades',  label: 'Propiedades',   icon: 'properties' },
   { to: '/movimientos',  label: 'Movimientos',   icon: 'payments'   },
-  { to: '/liquidacion',  label: 'Liquidación',   icon: 'funnel'     },
   { to: '/bancos',       label: 'Bancos',        icon: 'banks'      },
   { to: '/conciliacion', label: 'Conciliación',  icon: 'reconcile'  },
 ]
