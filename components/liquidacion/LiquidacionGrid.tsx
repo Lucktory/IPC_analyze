@@ -46,6 +46,23 @@ function cellTextClass(done: boolean): string {
   return done ? 'text-ink' : 'text-slate'
 }
 
+/** Human-readable formula tooltip for the Transferencia cell. Hover-only —
+ *  helps the encargada (or the auditor) see how the value was computed. */
+function buildTransferenciaTooltip(r: LiquidacionGridRow): string {
+  const adj = r.adjustmentAmount ?? 0
+  const computed = Math.max(0, r.ingresos - r.admi - r.otros + adj)
+  const parts = [
+    `Transferencia = Ingresos − ADMI − Otros${adj !== 0 ? ' + Ajuste' : ''}`,
+    `= ${fmtMoney(r.ingresos)} − ${fmtMoney(r.admi)} − ${fmtMoney(r.otros)}${adj !== 0 ? ` + ${fmtMoney(adj)}` : ''}`,
+    `= ${fmtMoney(computed)}`,
+  ]
+  // If the actual LANDLORD_PAYOUT differs from the computed value, note the override
+  if (r.diaTransf && Math.abs(r.transferencia - computed) > 1) {
+    parts.push(`Valor registrado en banco: ${fmtMoney(r.transferencia)}`)
+  }
+  return parts.join('\n')
+}
+
 export function LiquidacionGrid({ rows, period }: Props) {
   if (rows.length === 0) {
     return (
@@ -125,15 +142,28 @@ export function LiquidacionGrid({ rows, period }: Props) {
                     <span className="text-slate-dark truncate block">{r.propietario}</span>
                   </Td>
 
-                  {/* Pct (effective commission %) */}
-                  <Td width={70} align="right">
+                  {/* Pct (effective commission %) — formula on hover */}
+                  <Td
+                    width={70}
+                    align="right"
+                    title={r.ingresos > 0
+                      ? `Pct = ADMI / Ingresos × 100 = ${fmtMoney(r.admi)} / ${fmtMoney(r.ingresos)} × 100 = ${r.pct.toFixed(2)}%`
+                      : undefined}
+                  >
                     <span className={cellTextClass(cobrado)}>
                       {r.ingresos > 0 ? `${r.pct.toFixed(1)}%` : '—'}
                     </span>
                   </Td>
 
                   {/* Alquiler — base rent, gets the orange highlight when aumento próximo */}
-                  <Td width={90} align="right" style={alquilerBg} title={r.hasUpcomingAdjustment ? `Aumento en ${r.daysUntilAdjustment} días` : undefined}>
+                  <Td
+                    width={90}
+                    align="right"
+                    style={alquilerBg}
+                    title={r.hasUpcomingAdjustment
+                      ? `Alquiler actual: ${fmtMoney(r.currentRent)} · ⚠ Aumento en ${r.daysUntilAdjustment} días`
+                      : `Alquiler actual: ${fmtMoney(r.currentRent)} (contrato.current_rent)`}
+                  >
                     <span className={`tabular-nums ${cellTextClass(cobrado)}`}>
                       {fmtMoney(r.currentRent)}
                     </span>
@@ -156,13 +186,25 @@ export function LiquidacionGrid({ rows, period }: Props) {
                     />
                   </Td>
 
-                  <Td width={100} align="right">
+                  <Td
+                    width={100}
+                    align="right"
+                    title={r.ingresos > 0
+                      ? `Ingresos = suma de cobros del período (RENT_IN + EXPENSAS_IN + recuperos) = ${fmtMoney(r.ingresos)}`
+                      : 'Ingresos = aún sin cobros registrados en el período'}
+                  >
                     <span className={`tabular-nums font-medium ${cellTextClass(cobrado)}`}>
                       {r.ingresos > 0 ? fmtMoney(r.ingresos) : '—'}
                     </span>
                   </Td>
 
-                  <Td width={80} align="right">
+                  <Td
+                    width={80}
+                    align="right"
+                    title={r.deuda > 0
+                      ? `Deuda = Alquiler − Ingresos = ${fmtMoney(r.currentRent)} − ${fmtMoney(r.ingresos)} = ${fmtMoney(r.deuda)}`
+                      : 'Deuda = 0 (cobro completo o por completar)'}
+                  >
                     <span className={`tabular-nums ${r.deuda > 0 ? 'text-danger font-medium' : 'text-slate/60'}`}>
                       {r.deuda > 0 ? fmtMoney(r.deuda) : '—'}
                     </span>
@@ -179,7 +221,13 @@ export function LiquidacionGrid({ rows, period }: Props) {
                     />
                   </Td>
 
-                  <Td width={110} align="right">
+                  <Td
+                    width={110}
+                    align="right"
+                    title={r.transferencia > 0
+                      ? buildTransferenciaTooltip(r)
+                      : 'Transferencia = Ingresos − ADMI − Otros (+ ajuste). Aún sin valor mientras no haya ingresos.'}
+                  >
                     <span className={`tabular-nums font-medium ${cellTextClass(transferido)}`}>
                       {r.transferencia > 0 ? fmtMoney(r.transferencia) : '—'}
                     </span>
@@ -192,22 +240,46 @@ export function LiquidacionGrid({ rows, period }: Props) {
                   </Td>
 
                   {/* ADMI total + the three destination splits */}
-                  <Td width={90} align="right">
+                  <Td
+                    width={90}
+                    align="right"
+                    title={r.admi > 0
+                      ? `ADMI = Galicia + BBVA 50/9 + BBVA 51/6 = ${fmtMoney(r.admGalicia)} + ${fmtMoney(r.admFrances509)} + ${fmtMoney(r.admFrances516)} = ${fmtMoney(r.admi)}`
+                      : 'ADMI = comisión total. Aún sin COMMISSION_OUT en el período.'}
+                  >
                     <span className={`tabular-nums ${cellTextClass(transferido)}`}>
                       {fmtMoneyOr(r.admi)}
                     </span>
                   </Td>
-                  <Td width={90} align="right">
+                  <Td
+                    width={90}
+                    align="right"
+                    title={r.admGalicia > 0
+                      ? `Comisión cobrada en cuenta ADM Galicia: ${fmtMoney(r.admGalicia)}`
+                      : 'Sin comisión clasificada como ADM_GALICIA'}
+                  >
                     <span className={`tabular-nums text-[11px] ${cellTextClass(transferido)}`}>
                       {fmtMoneyOr(r.admGalicia)}
                     </span>
                   </Td>
-                  <Td width={90} align="right">
+                  <Td
+                    width={90}
+                    align="right"
+                    title={r.admFrances509 > 0
+                      ? `Comisión cobrada en BBVA Francés 50/9: ${fmtMoney(r.admFrances509)}`
+                      : 'Sin comisión clasificada como ADM_FRANCES_50_9'}
+                  >
                     <span className={`tabular-nums text-[11px] ${cellTextClass(transferido)}`}>
                       {fmtMoneyOr(r.admFrances509)}
                     </span>
                   </Td>
-                  <Td width={90} align="right">
+                  <Td
+                    width={90}
+                    align="right"
+                    title={r.admFrances516 > 0
+                      ? `Comisión cobrada en BBVA Francés 51/6: ${fmtMoney(r.admFrances516)}`
+                      : 'Sin comisión clasificada como ADM_FRANCES_51_6'}
+                  >
                     <span className={`tabular-nums text-[11px] ${cellTextClass(transferido)}`}>
                       {fmtMoneyOr(r.admFrances516)}
                     </span>
