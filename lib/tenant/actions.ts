@@ -35,6 +35,50 @@ export async function updateTenant(
   return { ok: true, error: null }
 }
 
+/**
+ * Standalone create for the planilla's "+ Nuevo X" modal — does NOT redirect.
+ * Returns the new id so the caller can pre-select the tenant.
+ */
+export interface CreateTenantStandaloneResult {
+  ok:    boolean
+  error: string | null
+  id?:   string
+}
+
+export async function createTenantStandalone(input: {
+  name:    string
+  dni?:    string | null
+  phone?:  string | null
+  email?:  string | null
+}): Promise<CreateTenantStandaloneResult> {
+  const supabase = await createSupabaseServer()
+  const name = (input.name ?? '').trim()
+  if (!name) return { ok: false, error: 'El nombre no puede estar vacío.' }
+
+  const { data: admin } = await supabase.from('administrations').select('id').limit(1).maybeSingle()
+  if (!admin) return { ok: false, error: 'No hay administración configurada.' }
+
+  const { data: existing } = await supabase
+    .from('tenants').select('id')
+    .eq('administration_id', (admin as any).id).ilike('name', name).maybeSingle()
+  if (existing) {
+    return { ok: true, error: null, id: (existing as any).id }
+  }
+
+  const insertRow: Record<string, unknown> = { administration_id: (admin as any).id, name }
+  if (input.dni?.trim())   insertRow.dni   = input.dni.trim()
+  if (input.phone?.trim()) insertRow.phone = input.phone.trim()
+  if (input.email?.trim()) insertRow.email = input.email.trim()
+
+  const { data, error } = await supabase
+    .from('tenants').insert(insertRow).select('id').single()
+  if (error) return dbFailure(error)
+
+  revalidatePath('/inquilinos')
+  revalidatePath('/liquidacion')
+  return { ok: true, error: null, id: (data as any).id }
+}
+
 /** Create a new tenant. Redirects to the detail page on success. */
 export async function createTenant(formData: FormData): Promise<UpdateTenantResult> {
   const fields = {

@@ -138,12 +138,13 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
     W.admi + W.galicia + W.fr509 + W.fr516 + W.estado
 
   return (
-    <section className="bg-white border border-gray-300 overflow-hidden">
-      {/* Confined scroll viewport — keeps BOTH scrollbars (horizontal at
-          bottom, vertical at right) inside the visible area so the encargada
-          can scroll right without first scrolling the whole page down.
-          Height: viewport minus the header strip + filter bar above. */}
-      <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+    <section className="bg-white border border-gray-300 overflow-hidden h-full flex flex-col">
+      {/* The ONLY scrolling area on /liquidacion. The page itself doesn't
+          scroll — only this container does. Both scrollbars (horizontal at
+          the bottom, vertical at the right) live here. The header row is
+          sticky-top inside this container, and the sticky-left columns
+          form a frozen freeze-panes corner. */}
+      <div className="overflow-auto flex-1 min-h-0">
         <table className="w-full text-[12px] border-collapse" style={{ minWidth: tableMinWidth }}>
           <thead className="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-700 font-semibold">
             <tr className="border-b border-gray-300">
@@ -183,7 +184,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
               return (
                 <tr
                   key={`${r.contractId}-${r.landlordId}`}
-                  className={`${zebra} hover:bg-blue-50 transition-colors border-b border-gray-200`}
+                  className={`${zebra} hover:bg-blue-50 transition-colors border-b border-gray-200 [&:has([data-editing])]:bg-blue-100 [&:has([data-editing])]:ring-2 [&:has([data-editing])]:ring-info [&:has([data-editing])]:ring-inset`}
                 >
                   {/* 1. OBSERVACIÓN — sticky */}
                   <Td sticky left={STICKY_LEFTS.obs} width={W.obs} bg={zebra}>

@@ -95,13 +95,15 @@ export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProp
         <div className="print:hidden">
           <TopBar pendientes={pendingCount} userEmail={userEmail} onMenuClick={() => setOpen(true)} />
         </div>
-        <main className="flex-1 overflow-auto bg-watermark print:overflow-visible print:bg-paper">
+        <main className={`flex-1 bg-watermark print:overflow-visible print:bg-paper ${isWideRoute(pathname) ? 'overflow-hidden' : 'overflow-auto'}`}>
           {/* /liquidacion is a planilla page — it needs the full viewport
-              width to fit the 19-column grid without horizontal scrolling
-              eating into wasted gutters. Every other page keeps the
-              centered max-w-shell + comfortable padding. */}
+              width AND height to fit the 19-column grid with the table
+              being the only scrolling area. The inner flex column lets
+              the grid take all remaining space below the header. Every
+              other page keeps the centered max-w-shell + comfortable
+              padding (and uses page-level scrolling). */}
           <div className={isWideRoute(pathname)
-            ? 'w-full px-2 py-2 print:px-0 print:py-0'
+            ? 'w-full h-full flex flex-col px-2 pt-2 pb-0 print:px-0 print:py-0'
             : 'max-w-shell mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8 print:max-w-none print:px-0 print:py-0'}>
             {children}
           </div>

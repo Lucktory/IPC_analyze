@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { StickyHeader } from '@/components/ui/StickyHeader'
 import { listTransactionPeriods, listTransactions } from '@/lib/entities/queries'
 import { getCurrentPeriod, periodLabel, periodShort } from '@/lib/period'
 import { getLiquidacionGridForPeriod, type LiquidacionStatus } from '@/lib/liquidacion/queries'
@@ -81,7 +80,12 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
 
   return (
     <>
-      <StickyHeader>
+      {/* ─── Top section: ALWAYS-VISIBLE header. Filter strip lives here too
+              so it never scrolls away (the user complaint about the
+              `+ Nuevo contrato` row disappearing when scrolling). The
+              wrapper is `flex-none` inside the page's flex column, so it
+              takes its natural height and the grid below takes the rest. */}
+      <div className="flex-none">
         <div className="flex items-baseline justify-between gap-3 flex-wrap sm:flex-nowrap mb-1">
           <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
             <strong className="text-ink font-medium">Liquidación</strong>
@@ -90,8 +94,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        {/* Tabs — the four ways to look at the same period's liquidación.
-            The grilla is the daily-work view; the others are flows. */}
+        {/* Tabs */}
         <div className="flex items-center gap-1 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden mb-1.5">
           {VIEWS.map(v => (
             <Link
@@ -109,63 +112,62 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
           ))}
         </div>
 
-        {/* Compact KPI strip — passive metrics belong here, not in a hero
-            block. Only render on the views where they're useful. */}
+        {/* Compact KPI strip — passive metrics. */}
         {view !== 'movimientos' && view !== 'destinos' && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] mb-2">
             <MiniKpi label="Cobrados"       value={`${cobrados} / ${baseRows.length}`} hint={pendientes > 0 ? `${pendientes} sin cobrar` : 'todo cobrado'} tone={pendientes > 0 ? 'warn' : 'success'} />
             <MiniKpi label="Total cobrado"  value={fmt(totalIngresos)}                hint={`${periodShort(period)}`} tone="ink" />
             <MiniKpi label="Comisión"       value={fmt(totalAdmi)}                    hint={totalIngresos > 0 ? `${(totalAdmi / totalIngresos * 100).toFixed(1)}%` : '—'} tone="success" />
             <MiniKpi label="Aumentos ≤30d"  value={conAumento.toString()}             hint={conAumento > 0 ? 'avisos pendientes' : 'sin novedades'} tone={conAumento > 0 ? 'warn' : 'slate'} />
           </div>
         )}
-      </StickyHeader>
 
-      {/* Inline filter strip — no card chrome. Period always; Estado on grilla only. */}
-      <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px]">
-        <span className="label-cap text-slate shrink-0">Período</span>
-        <div className="flex items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-          {periods.map(p => (
-            <Link
-              key={p}
-              href={linkWith({ period: p })}
-              className={[
-                'inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium transition-colors shrink-0',
-                p === period
-                  ? 'bg-ink text-paper border-ink'
-                  : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
-              ].join(' ')}
-            >
-              {periodShort(p)}
-            </Link>
-          ))}
+        {/* Inline filter strip — Period always; Estado + Nuevo on grilla only. */}
+        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px] pb-2">
+          <span className="label-cap text-slate shrink-0">Período</span>
+          <div className="flex items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+            {periods.map(p => (
+              <Link
+                key={p}
+                href={linkWith({ period: p })}
+                className={[
+                  'inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium transition-colors shrink-0',
+                  p === period
+                    ? 'bg-ink text-paper border-ink'
+                    : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
+                ].join(' ')}
+              >
+                {periodShort(p)}
+              </Link>
+            ))}
+          </div>
+
+          {view === 'grilla' && (
+            <>
+              <span className="label-cap text-slate shrink-0 ml-3">Estado</span>
+              <div className="flex items-center gap-1 flex-wrap">
+                <StatusPill href={linkWith({ status: 'todas' })} active={statusFilter === 'todas'} label="Todas"    count={counts.todas} />
+                <StatusPill href={linkWith({ status: 'draft' })} active={statusFilter === 'draft'} label="Borrador" count={counts.draft} tone="slate" />
+                <StatusPill href={linkWith({ status: 'sent'  })} active={statusFilter === 'sent'}  label="Enviadas" count={counts.sent}  tone="success" />
+                <StatusPill href={linkWith({ status: 'paid'  })} active={statusFilter === 'paid'}  label="Pagadas"  count={counts.paid}  tone="info" />
+              </div>
+
+              <div className="ml-auto">
+                <NewContractModal landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
+              </div>
+            </>
+          )}
         </div>
-
-        {view === 'grilla' && (
-          <>
-            <span className="label-cap text-slate shrink-0 ml-3">Estado</span>
-            <div className="flex items-center gap-1 flex-wrap">
-              <StatusPill href={linkWith({ status: 'todas' })} active={statusFilter === 'todas'} label="Todas"    count={counts.todas} />
-              <StatusPill href={linkWith({ status: 'draft' })} active={statusFilter === 'draft'} label="Borrador" count={counts.draft} tone="slate" />
-              <StatusPill href={linkWith({ status: 'sent'  })} active={statusFilter === 'sent'}  label="Enviadas" count={counts.sent}  tone="success" />
-              <StatusPill href={linkWith({ status: 'paid'  })} active={statusFilter === 'paid'}  label="Pagadas"  count={counts.paid}  tone="info" />
-            </div>
-
-            {/* New-contract trigger — sits at the end of the filter strip so it
-                is always reachable above the planilla. */}
-            <div className="ml-auto">
-              <NewContractModal landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
-            </div>
-          </>
-        )}
       </div>
 
-      {/* Tab content — minimal top margin, the grid takes over the page. */}
-      <div className="mt-3">
+      {/* ─── Bottom section: the planilla / view content. Takes all remaining
+              vertical space (min-h-0 is required so the flex child can
+              shrink and contain its own scroll). */}
+      <div className="flex-1 min-h-0">
         {view === 'grilla'      && <LiquidacionGrid rows={rows} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />}
-        {view === 'resumen'     && <ResumenView    rows={allRows} period={period} />}
-        {view === 'movimientos' && <MovimientosView txns={txns}   period={period} />}
-        {view === 'destinos'    && <DestinosView   buckets={buckets} period={period} />}
+        {view === 'resumen'     && <div className="h-full overflow-auto"><ResumenView    rows={allRows} period={period} /></div>}
+        {view === 'movimientos' && <div className="h-full overflow-auto"><MovimientosView txns={txns}   period={period} /></div>}
+        {view === 'destinos'    && <div className="h-full overflow-auto"><DestinosView   buckets={buckets} period={period} /></div>}
       </div>
     </>
   )

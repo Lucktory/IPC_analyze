@@ -86,6 +86,7 @@ export function InlineDateCell({ contractId, period, typeCode, initialDate, defa
     return (
       <input
         ref={inputRef}
+        data-editing
         type="date"
         value={value}
         onChange={e => setValue(e.target.value)}

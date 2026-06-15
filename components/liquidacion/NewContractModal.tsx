@@ -2,22 +2,27 @@
 
 // ============================================================================
 // NewContractModal — quick-create form triggered by the "+ Nuevo contrato"
-// button above the planilla (and also from a floating button bottom-right
-// so it's always reachable).
+// button above the planilla AND by a floating button at the bottom-right
+// of the viewport so it stays reachable when scrolled.
 //
-// Uses the same autocomplete + new-name flow as the in-cell editors. When
-// the encargada types a name that doesn't match any existing record, a
-// clear "Nuevo X detectado" warning appears and the form expands to
-// capture the new entity's contact details (phone / email / DNI / CUIT).
-//
-// Submit calls createContractFromGrid which handles the create-if-new for
-// landlord/tenant (with the enriched fields) and auto-creates a placeholder
-// property.
+// New-entity flow MATCHES the in-cell flow EXACTLY:
+//   1. Type in Propietario / Inquilino field
+//   2. Autocomplete dropdown shows existing options
+//   3. If the typed name doesn't match anything → "+ Crear nuevo X" row at
+//      the bottom of the dropdown
+//   4. Click it → NewEntityModal opens (same modal the cells use)
+//   5. Fill name + DNI/CUIT + phone + email (and notes for landlords)
+//   6. Server creates the entity standalone (no redirect) and returns its id
+//   7. NewContractModal selects the new entity automatically
+//   8. User completes the rest of the form → contract created with existing ids
 // ============================================================================
 
-import { useMemo, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createContractFromGrid } from '@/lib/contract/junction-actions'
+import { createLandlordStandalone } from '@/lib/landlord/actions'
+import { createTenantStandalone } from '@/lib/tenant/actions'
+import { NewEntityModal, type NewEntityFields } from './NewEntityModal'
 import type { LandlordOption } from '@/lib/landlord/queries'
 import type { TenantOption } from '@/lib/tenant/queries'
 
@@ -36,27 +41,24 @@ const CADENCE_OPTIONS = [
   { value: 'anual',          label: 'Anual' },
 ] as const
 
-export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
+export function NewContractModal({ landlordOptions: initialLandlords, tenantOptions: initialTenants }: Props) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
 
-  // ── Form state ────────────────────────────────────────────────────────────
+  // We keep local option lists so that newly-created entities are visible
+  // in the autocomplete immediately, without needing a server round-trip
+  // to refresh the page.
+  const [landlords, setLandlords] = useState(initialLandlords)
+  const [tenants, setTenants]     = useState(initialTenants)
+
+  // Form state
   const [lfa, setLfa] = useState<string>('A')
   const [landlordInput, setLandlordInput] = useState('')
   const [landlordPickedId, setLandlordPickedId] = useState<string | null>(null)
-  // Extra fields shown when landlord is detected as a NEW entity
-  const [landlordDni,   setLandlordDni]   = useState('')
-  const [landlordPhone, setLandlordPhone] = useState('')
-  const [landlordEmail, setLandlordEmail] = useState('')
-
   const [tenantInput, setTenantInput] = useState('')
   const [tenantPickedId, setTenantPickedId] = useState<string | null>(null)
-  const [tenantDni,   setTenantDni]   = useState('')
-  const [tenantPhone, setTenantPhone] = useState('')
-  const [tenantEmail, setTenantEmail] = useState('')
-
   const [address, setAddress] = useState('')
   const [rent, setRent] = useState('')
   const [pct, setPct] = useState('8')
@@ -64,33 +66,17 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
   const [endDate, setEndDate] = useState('')
   const [cadence, setCadence] = useState<string>('trimestral')
 
-  // ── Derived: is this a new entity? ────────────────────────────────────────
-  const landlordIsNew = useMemo(() => {
-    if (landlordPickedId) return false
-    const t = landlordInput.trim().toLowerCase()
-    if (!t) return false
-    return !landlordOptions.some(o => o.name.trim().toLowerCase() === t)
-  }, [landlordPickedId, landlordInput, landlordOptions])
-
-  const tenantIsNew = useMemo(() => {
-    if (tenantPickedId) return false
-    const t = tenantInput.trim().toLowerCase()
-    if (!t) return false
-    return !tenantOptions.some(o => o.name.trim().toLowerCase() === t)
-  }, [tenantPickedId, tenantInput, tenantOptions])
+  // Which entity creation modal (if any) is currently open and the
+  // prefilled name (passed from the EntityCombo's "+ Crear nuevo" button).
+  const [creatingLandlord, setCreatingLandlord] = useState<string | null>(null)
+  const [creatingTenant,   setCreatingTenant]   = useState<string | null>(null)
 
   function reset() {
     setLfa('A')
     setLandlordInput('')
     setLandlordPickedId(null)
-    setLandlordDni('')
-    setLandlordPhone('')
-    setLandlordEmail('')
     setTenantInput('')
     setTenantPickedId(null)
-    setTenantDni('')
-    setTenantPhone('')
-    setTenantEmail('')
     setAddress('')
     setRent('')
     setPct('8')
@@ -110,33 +96,14 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
     e.preventDefault()
     setError(null)
 
-    const landlord = landlordPickedId
-      ? { kind: 'existing' as const, id: landlordPickedId }
-      : {
-          kind: 'new' as const,
-          name:      landlordInput.trim(),
-          dniOrCuit: landlordDni.trim() || null,
-          phone:     landlordPhone.trim() || null,
-          email:     landlordEmail.trim() || null,
-        }
-    const tenant = tenantPickedId
-      ? { kind: 'existing' as const, id: tenantPickedId }
-      : {
-          kind: 'new' as const,
-          name:  tenantInput.trim(),
-          dni:   tenantDni.trim() || null,
-          phone: tenantPhone.trim() || null,
-          email: tenantEmail.trim() || null,
-        }
-
-    if (landlord.kind === 'new' && !landlord.name) return setError('Ingresá el propietario.')
-    if (tenant.kind === 'new'   && !tenant.name)   return setError('Ingresá el inquilino.')
+    if (!landlordPickedId) return setError('Seleccioná o creá un propietario.')
+    if (!tenantPickedId)   return setError('Seleccioná o creá un inquilino.')
 
     startTransition(async () => {
       const res = await createContractFromGrid({
         lfaCode:       lfa || null,
-        landlord,
-        tenant,
+        landlord:      { kind: 'existing', id: landlordPickedId },
+        tenant:        { kind: 'existing', id: tenantPickedId },
         address:       address.trim() || null,
         currentRent:   Number(rent),
         commissionPct: Number(pct),
@@ -154,9 +121,50 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
     })
   }
 
+  // ── Entity create handlers — same UX as the cells: NewEntityModal pops
+  //    open, we save standalone, then auto-select the new entity in the
+  //    contract form.
+  function handleCreateLandlord(fields: NewEntityFields): Promise<{ ok: boolean; error?: string | null }> {
+    if (fields.kind !== 'landlord') return Promise.resolve({ ok: false, error: 'Tipo inválido.' })
+    return createLandlordStandalone({
+      name:       fields.name,
+      dniOrCuit:  fields.dniOrCuit || null,
+      phone:      fields.phone     || null,
+      email:      fields.email     || null,
+      notes:      fields.notes     || null,
+    }).then(res => {
+      if (res.ok && res.id) {
+        // Auto-select the new landlord and close the entity modal.
+        setLandlords(prev => [...prev, { id: res.id!, name: fields.name }])
+        setLandlordPickedId(res.id)
+        setLandlordInput(fields.name)
+        setCreatingLandlord(null)
+      }
+      return res
+    })
+  }
+
+  function handleCreateTenant(fields: NewEntityFields): Promise<{ ok: boolean; error?: string | null }> {
+    if (fields.kind !== 'tenant') return Promise.resolve({ ok: false, error: 'Tipo inválido.' })
+    return createTenantStandalone({
+      name:  fields.name,
+      dni:   fields.dni   || null,
+      phone: fields.phone || null,
+      email: fields.email || null,
+    }).then(res => {
+      if (res.ok && res.id) {
+        setTenants(prev => [...prev, { id: res.id!, name: fields.name }])
+        setTenantPickedId(res.id)
+        setTenantInput(fields.name)
+        setCreatingTenant(null)
+      }
+      return res
+    })
+  }
+
   return (
     <>
-      {/* Inline button — sits in the filter strip above the grid. */}
+      {/* Inline button in the filter strip (above the grid). */}
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -165,9 +173,7 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
         + Nuevo contrato
       </button>
 
-      {/* Floating fallback — always visible at the bottom-right of the
-          viewport, so the encargada can add a contract regardless of how
-          far down she has scrolled in the planilla. */}
+      {/* Floating bottom-right FAB — always reachable. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -183,7 +189,7 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-[1100] flex items-center justify-center px-4"
+          className="fixed inset-0 z-[1050] flex items-center justify-center px-4"
         >
           <button
             type="button"
@@ -194,7 +200,7 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
 
           <form
             onSubmit={handleSubmit}
-            className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[600px] max-h-[92vh] overflow-y-auto"
+            className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[560px] max-h-[92vh] overflow-y-auto"
           >
             <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
               <div>
@@ -206,9 +212,7 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
                 onClick={handleClose}
                 className="text-gray-500 hover:text-ink text-[18px] leading-none px-2"
                 aria-label="Cerrar"
-              >
-                ×
-              </button>
+              >×</button>
             </div>
 
             <div className="px-5 py-4 space-y-3">
@@ -225,57 +229,29 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
                 </Field>
               </div>
 
-              {/* ── Propietario ─────────────────────────────────────────── */}
               <Field label="Propietario">
                 <EntityCombo
                   value={landlordInput}
+                  pickedId={landlordPickedId}
                   onChange={(text, pickedId) => { setLandlordInput(text); setLandlordPickedId(pickedId) }}
-                  options={landlordOptions}
-                  placeholder="Buscá o escribí nombre nuevo…"
+                  onRequestCreate={(name) => setCreatingLandlord(name)}
+                  options={landlords}
+                  entityLabel="propietario"
+                  placeholder="Buscá o tocá «+ Crear nuevo propietario»…"
                 />
               </Field>
 
-              {landlordIsNew && (
-                <NewEntityBanner label="propietario" name={landlordInput.trim()}>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <SubField label="DNI / CUIT">
-                      <input type="text" value={landlordDni}   onChange={e => setLandlordDni(e.target.value)}   className={subInputCls} placeholder="Opcional" />
-                    </SubField>
-                    <SubField label="Teléfono">
-                      <input type="tel"  value={landlordPhone} onChange={e => setLandlordPhone(e.target.value)} className={subInputCls} placeholder="Opcional" />
-                    </SubField>
-                    <SubField label="Email" colSpan={2}>
-                      <input type="email" value={landlordEmail} onChange={e => setLandlordEmail(e.target.value)} className={subInputCls} placeholder="Opcional" />
-                    </SubField>
-                  </div>
-                </NewEntityBanner>
-              )}
-
-              {/* ── Inquilino ───────────────────────────────────────────── */}
               <Field label="Inquilino">
                 <EntityCombo
                   value={tenantInput}
+                  pickedId={tenantPickedId}
                   onChange={(text, pickedId) => { setTenantInput(text); setTenantPickedId(pickedId) }}
-                  options={tenantOptions}
-                  placeholder="Buscá o escribí nombre nuevo…"
+                  onRequestCreate={(name) => setCreatingTenant(name)}
+                  options={tenants}
+                  entityLabel="inquilino"
+                  placeholder="Buscá o tocá «+ Crear nuevo inquilino»…"
                 />
               </Field>
-
-              {tenantIsNew && (
-                <NewEntityBanner label="inquilino" name={tenantInput.trim()}>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <SubField label="DNI">
-                      <input type="text" value={tenantDni}   onChange={e => setTenantDni(e.target.value)}   className={subInputCls} placeholder="Opcional" />
-                    </SubField>
-                    <SubField label="Teléfono">
-                      <input type="tel"  value={tenantPhone} onChange={e => setTenantPhone(e.target.value)} className={subInputCls} placeholder="Opcional" />
-                    </SubField>
-                    <SubField label="Email" colSpan={2}>
-                      <input type="email" value={tenantEmail} onChange={e => setTenantEmail(e.target.value)} className={subInputCls} placeholder="Opcional" />
-                    </SubField>
-                  </div>
-                </NewEntityBanner>
-              )}
 
               <Field label="Dirección (opcional)">
                 <input
@@ -332,6 +308,24 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
           </form>
         </div>
       )}
+
+      {/* Entity-creation modals — same component the cells use. */}
+      {creatingLandlord !== null && (
+        <NewEntityModal
+          entityType="landlord"
+          defaultName={creatingLandlord}
+          onCancel={() => setCreatingLandlord(null)}
+          onCreate={handleCreateLandlord}
+        />
+      )}
+      {creatingTenant !== null && (
+        <NewEntityModal
+          entityType="tenant"
+          defaultName={creatingTenant}
+          onCancel={() => setCreatingTenant(null)}
+          onCreate={handleCreateTenant}
+        />
+      )}
     </>
   )
 }
@@ -340,7 +334,6 @@ export function NewContractModal({ landlordOptions, tenantOptions }: Props) {
 
 const inputCls    = 'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
 const selectCls   = 'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
-const subInputCls = 'w-full h-8 px-2 rounded border border-gray-300 bg-white text-[12px] outline-none focus:border-info transition-colors'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -351,44 +344,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-function SubField({ label, children, colSpan }: { label: string; children: React.ReactNode; colSpan?: number }) {
-  return (
-    <label className={`block ${colSpan === 2 ? 'col-span-2' : ''}`}>
-      <span className="text-[10px] uppercase tracking-wider text-gray-600 block mb-0.5">{label}</span>
-      {children}
-    </label>
-  )
-}
-
-// ── New-entity warning banner ──────────────────────────────────────────────
-// Shown directly under the autocomplete field when the typed name doesn't
-// match any existing record. Contains a clear "Nuevo X detectado" message
-// plus optional contact-detail fields the encargada can fill in.
-function NewEntityBanner({
-  label, name, children,
-}: { label: string; name: string; children: React.ReactNode }) {
-  return (
-    <div className="border-2 border-warn/60 bg-warn/10 rounded p-3 -mt-1">
-      <p className="text-[12px] text-ink font-medium flex items-center gap-1.5">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn" />
-        Nuevo {label} detectado{name ? `: «${name}»` : ''}
-      </p>
-      <p className="text-[11px] text-slate-dark mt-1 leading-snug">
-        Al crear el contrato se va a registrar este {label} como nuevo. Si tenés los datos a mano cargalos ahora, sino los podés completar después desde la ficha.
-      </p>
-      {children}
-    </div>
-  )
-}
-
-// ── EntityCombo: autocomplete input with always-visible dropdown ────────
+// ── EntityCombo with autocomplete + "+ Crear nuevo X" button. The button
+//    sits at the bottom of the dropdown and triggers the NewEntityModal
+//    via onRequestCreate (the parent renders the modal).
 function EntityCombo({
-  value, onChange, options, placeholder,
+  value, pickedId, onChange, onRequestCreate, options, entityLabel, placeholder,
 }: {
-  value:       string
-  onChange:    (text: string, pickedId: string | null) => void
-  options:     { id: string; name: string }[]
-  placeholder: string
+  value:           string
+  pickedId:        string | null
+  onChange:        (text: string, pickedId: string | null) => void
+  onRequestCreate: (name: string) => void
+  options:         { id: string; name: string }[]
+  entityLabel:     string
+  placeholder:     string
 }) {
   const [open, setOpen] = useState(false)
   const filtered = value.trim()
@@ -396,29 +364,28 @@ function EntityCombo({
     : options.slice(0, 8)
   const exact = options.find(o => o.name.trim().toLowerCase() === value.trim().toLowerCase())
 
-  // Show the dropdown whenever open is true — even with zero matches —
-  // because the "no exact match" warning row needs to be visible.
-  const showDropdown = open && (filtered.length > 0 || value.trim().length > 0)
-
   return (
     <div className="relative">
       <input
         type="text"
         value={value}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
         onChange={e => onChange(e.target.value, null)}
         placeholder={placeholder}
-        className={inputCls}
+        className={`${inputCls} ${pickedId ? 'border-success/60 bg-success/5' : ''}`}
       />
-      {showDropdown && (
+      {pickedId && (
+        <span className="absolute right-2 top-2 text-[10px] text-success font-medium" aria-hidden>✓ vinculado</span>
+      )}
+      {open && (
         <ul
           role="listbox"
-          className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-gray-300 rounded shadow-lg max-h-[220px] overflow-y-auto"
+          className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-gray-300 rounded shadow-lg max-h-[260px] overflow-y-auto"
         >
-          {filtered.length === 0 && value.trim() && (
+          {filtered.length === 0 && (
             <li className="px-3 py-1.5 text-[12px] text-gray-500 italic">
-              Sin coincidencias en la lista existente.
+              {value.trim() ? 'Sin coincidencias.' : `Escribí para buscar un ${entityLabel}…`}
             </li>
           )}
           {filtered.map(o => (
@@ -431,9 +398,16 @@ function EntityCombo({
               {o.name}
             </li>
           ))}
-          {!exact && value.trim() && (
-            <li className="px-3 py-1.5 text-[11.5px] text-ink bg-warn/15 border-t border-gray-200 font-medium">
-              ⚠ «{value.trim()}» no existe — se creará como nuevo al guardar
+          {/* Explicit "+ Crear nuevo X" button — always visible, identical
+              affordance to the in-cell flow. Opens NewEntityModal with the
+              currently typed name prefilled. */}
+          {!exact && (
+            <li
+              role="option"
+              onMouseDown={e => { e.preventDefault(); onRequestCreate(value.trim()); setOpen(false) }}
+              className="px-3 py-2 border-t border-gray-200 bg-warn/10 hover:bg-warn/20 text-[12.5px] text-ink font-medium cursor-pointer"
+            >
+              + Crear nuevo {entityLabel}{value.trim() ? `: «${value.trim()}»` : ''}
             </li>
           )}
         </ul>

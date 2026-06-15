@@ -37,6 +37,55 @@ export async function updateLandlord(
   return { ok: true, error: null }
 }
 
+/**
+ * Standalone create for the planilla's "+ Nuevo X" modal — does NOT redirect.
+ * Returns the new id so the caller (NewContractModal) can pre-select the
+ * landlord in its form after creation.
+ */
+export interface CreateLandlordStandaloneResult {
+  ok:    boolean
+  error: string | null
+  id?:   string
+}
+
+export async function createLandlordStandalone(input: {
+  name:       string
+  dniOrCuit?: string | null
+  phone?:     string | null
+  email?:     string | null
+  notes?:     string | null
+}): Promise<CreateLandlordStandaloneResult> {
+  const supabase = await createSupabaseServer()
+  const name = (input.name ?? '').trim()
+  if (!name) return { ok: false, error: 'El nombre no puede estar vacío.' }
+
+  // Pull administration_id from the first one (single-tenant for now).
+  const { data: admin } = await supabase.from('administrations').select('id').limit(1).maybeSingle()
+  if (!admin) return { ok: false, error: 'No hay administración configurada.' }
+
+  // Defensive de-dup: link to existing landlord if same name found.
+  const { data: existing } = await supabase
+    .from('landlords').select('id')
+    .eq('administration_id', (admin as any).id).ilike('name', name).maybeSingle()
+  if (existing) {
+    return { ok: true, error: null, id: (existing as any).id }
+  }
+
+  const insertRow: Record<string, unknown> = { administration_id: (admin as any).id, name }
+  if (input.dniOrCuit?.trim()) insertRow.dni_or_cuit = input.dniOrCuit.trim()
+  if (input.phone?.trim())     insertRow.phone       = input.phone.trim()
+  if (input.email?.trim())     insertRow.email       = input.email.trim()
+  if (input.notes?.trim())     insertRow.notes       = input.notes.trim()
+
+  const { data, error } = await supabase
+    .from('landlords').insert(insertRow).select('id').single()
+  if (error) return dbFailure(error)
+
+  revalidatePath('/propietarios')
+  revalidatePath('/liquidacion')
+  return { ok: true, error: null, id: (data as any).id }
+}
+
 /** Create a new landlord. Redirects to the detail page on success. */
 export async function createLandlord(formData: FormData): Promise<UpdateLandlordResult> {
   const fields = {

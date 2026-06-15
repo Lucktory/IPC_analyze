@@ -69,6 +69,7 @@ export function InlineSelectCell({ value, options, onSave, displayClassName, tit
       <button
         ref={buttonRef}
         type="button"
+        data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={title}
         className={`w-full text-center px-0 hover:bg-blue-50 transition-colors ${displayClassName ?? 'text-slate-dark'} ${pending ? 'opacity-60' : ''}`}

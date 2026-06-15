@@ -158,6 +158,7 @@ export function InlineEntityCell({
       <button
         ref={buttonRef}
         type="button"
+        data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={`Tocá para editar ${entityLabel}`}
         className={`w-full text-left px-0 hover:bg-blue-50 transition-colors truncate block ${displayClassName ?? 'text-slate-dark'} ${pendingPick ? 'opacity-60' : ''}`}
