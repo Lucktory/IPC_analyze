@@ -12,14 +12,35 @@ interface AppShellProps {
   pendingCount?: number
 }
 
+// localStorage key for the desktop sidenav collapsed state. We avoid SSR
+// hydration mismatches by reading lazily on mount, not during render.
+const COLLAPSED_KEY = 'sidenav.collapsed'
+
 export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProps) {
   const [open, setOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
 
   // Close drawer on route change.
   useEffect(() => {
     setOpen(false)
   }, [pathname])
+
+  // Restore collapsed state on mount.
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(COLLAPSED_KEY)
+      if (stored === '1') setCollapsed(true)
+    } catch { /* ignore — quota or disabled storage */ }
+  }, [])
+
+  function toggleCollapsed() {
+    setCollapsed(prev => {
+      const next = !prev
+      try { window.localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0') } catch { /* ignore */ }
+      return next
+    })
+  }
 
   // Lock body scroll when drawer is open.
   useEffect(() => {
@@ -38,12 +59,19 @@ export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProp
       <aside
         className={[
           'fixed lg:relative inset-y-0 left-0 z-50 print:hidden',
-          'w-[240px] shrink-0 bg-nav-bg text-nav-text flex flex-col',
-          'transition-transform duration-200 ease-out',
+          'shrink-0 bg-nav-bg text-nav-text flex flex-col',
+          'transition-[transform,width] duration-200 ease-out',
+          // Width: full drawer on mobile, configurable on lg+.
+          collapsed ? 'w-[240px] lg:w-[64px]' : 'w-[240px]',
           open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         ].join(' ')}
       >
-        <SideNav onNavigate={() => setOpen(false)} userEmail={userEmail} />
+        <SideNav
+          onNavigate={() => setOpen(false)}
+          userEmail={userEmail}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleCollapsed}
+        />
       </aside>
 
       {/* Backdrop only visible on small screens when drawer is open. */}

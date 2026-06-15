@@ -135,11 +135,20 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
 }
 
 interface SideNavProps {
-  onNavigate?: () => void
-  userEmail?:  string | null
+  onNavigate?:         () => void
+  userEmail?:          string | null
+  /** Desktop icons-only mode. Mobile drawer always renders full labels. */
+  collapsed?:          boolean
+  /** Toggle collapsed state — only effective on lg+ screens. */
+  onToggleCollapsed?:  () => void
 }
 
-export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
+export function SideNav({
+  onNavigate,
+  userEmail,
+  collapsed = false,
+  onToggleCollapsed,
+}: SideNavProps = {}) {
   const pathname = usePathname()
   const isActive = (to: string) => pathname === to || pathname.startsWith(to + '/')
 
@@ -149,13 +158,17 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
     : 'Sesión activa'
   const initial = displayName.charAt(0).toUpperCase() || 'P'
 
+  // Collapsed mode is a desktop-only concern (mobile = full drawer). Tailwind
+  // responsive classes hide the labels at lg+ when collapsed.
+  const hideAtCollapsed = collapsed ? 'lg:hidden' : ''
+
   return (
     <>
-      <div className="h-14 flex items-center gap-3 px-5 border-b border-nav-text/10">
+      <div className={`h-14 flex items-center gap-3 border-b border-nav-text/10 ${collapsed ? 'lg:justify-center lg:px-2 px-5' : 'px-5'}`}>
         <div className="h-7 w-7 rounded bg-nav-text/10 flex items-center justify-center font-display font-semibold text-nav-text text-[14px] shrink-0">
           {initial}
         </div>
-        <div className="flex flex-col leading-tight min-w-0">
+        <div className={`flex-col leading-tight min-w-0 flex ${hideAtCollapsed}`}>
           <span className="font-display font-medium text-[15px] text-nav-text tracking-tight truncate">
             {displayName}
           </span>
@@ -165,7 +178,7 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
         </div>
       </div>
 
-      <nav className="flex-1 px-3 pt-4 pb-4 overflow-y-auto">
+      <nav className={`flex-1 pt-4 pb-4 overflow-y-auto overflow-x-hidden ${collapsed ? 'lg:px-2 px-3' : 'px-3'}`}>
         <ul className="space-y-0.5">
           {mainItems.map((item) => {
             const active = isActive(item.to)
@@ -175,8 +188,10 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
                 <Link
                   href={item.to}
                   onClick={onNavigate}
+                  title={collapsed ? item.label : undefined}
                   className={[
-                    'relative flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium transition-colors',
+                    'relative flex items-center gap-3 py-2 rounded text-[13px] font-medium transition-colors',
+                    collapsed ? 'lg:justify-center lg:px-2 pl-3 pr-3' : 'pl-3 pr-3',
                     active
                       ? 'bg-nav-text/[0.08] text-nav-text'
                       : 'text-nav-text/60 hover:bg-nav-text/[0.04] hover:text-nav-text',
@@ -198,39 +213,63 @@ export function SideNav({ onNavigate, userEmail }: SideNavProps = {}) {
                   >
                     <NavIcon name={item.icon} />
                   </span>
-                  <span>{item.label}</span>
+                  <span className={hideAtCollapsed}>{item.label}</span>
                 </Link>
               </li>
             )
           })}
         </ul>
 
-        <p className="px-3 pt-7 pb-2 text-[10px] font-medium uppercase tracking-[0.16em] text-nav-text/40">
+        <p className={`px-3 pt-7 pb-2 text-[10px] font-medium uppercase tracking-[0.16em] text-nav-text/40 ${hideAtCollapsed}`}>
           Configuración
         </p>
         <ul className="space-y-0.5">
           <li>
-            <span className="flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium text-nav-text/35 cursor-not-allowed select-none">
+            <span
+              title={collapsed ? 'Usuarios' : undefined}
+              className={`flex items-center gap-3 py-2 rounded text-[13px] font-medium text-nav-text/35 cursor-not-allowed select-none ${collapsed ? 'lg:justify-center lg:px-2 pl-3 pr-3' : 'pl-3 pr-3'}`}
+            >
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="w-4 h-4 shrink-0">
                 <circle cx="10" cy="7.5" r="3" />
                 <path d="M3 17 Q3 12 10 12 Q17 12 17 17" />
               </svg>
-              <span>Usuarios</span>
+              <span className={hideAtCollapsed}>Usuarios</span>
             </span>
           </li>
           <li>
-            <span className="flex items-center gap-3 pl-3 pr-3 py-2 rounded text-[13px] font-medium text-nav-text/35 cursor-not-allowed select-none">
+            <span
+              title={collapsed ? 'Reglas IPC' : undefined}
+              className={`flex items-center gap-3 py-2 rounded text-[13px] font-medium text-nav-text/35 cursor-not-allowed select-none ${collapsed ? 'lg:justify-center lg:px-2 pl-3 pr-3' : 'pl-3 pr-3'}`}
+            >
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
                 <circle cx="10" cy="10" r="6" />
                 <path d="M10 7 V10 L12 11.5" />
               </svg>
-              <span>Reglas IPC</span>
+              <span className={hideAtCollapsed}>Reglas IPC</span>
             </span>
           </li>
         </ul>
       </nav>
 
-      <footer className="px-5 py-4 border-t border-nav-text/10 text-[10.5px] text-nav-text/45 leading-relaxed">
+      {/* Collapse toggle — desktop only, sits just above the footer. */}
+      {onToggleCollapsed && (
+        <button
+          type="button"
+          onClick={onToggleCollapsed}
+          title={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+          aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+          className="hidden lg:flex items-center justify-center gap-2 mx-3 mb-2 py-1.5 rounded text-[11px] font-medium text-nav-text/50 hover:text-nav-text hover:bg-nav-text/[0.06] transition-colors"
+        >
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+            {collapsed
+              ? <polyline points="7 4 13 10 7 16" />
+              : <polyline points="13 4 7 10 13 16" />}
+          </svg>
+          <span className={hideAtCollapsed}>Colapsar</span>
+        </button>
+      )}
+
+      <footer className={`py-4 border-t border-nav-text/10 text-[10.5px] text-nav-text/45 leading-relaxed ${collapsed ? 'lg:hidden px-5' : 'px-5'}`}>
         <p className="text-nav-text/80 font-medium">Pampa Administración</p>
         <p className="mt-0.5">IPC-ANALYZE</p>
         <p className="mt-2 text-nav-text/35 tabular-nums">v0.1.0</p>
