@@ -137,6 +137,10 @@ export interface LiquidacionGridRow {
   // ── Vigencia (for the CONTRATO column in the 19-col layout) ──
   startDate:         string | null
   endDate:           string | null
+
+  // ── Internal sort key — most-recently-modified contracts float to top.
+  //    Set to contracts.updated_at (falls back to created_at).
+  sortKey:           string
 }
 
 // ── Rich grid query — returns all 19 columns per row ───────────────────────
@@ -149,7 +153,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       .from('contracts')
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
-        cadence, start_date, end_date,
+        cadence, start_date, end_date, created_at, updated_at,
         contract_tenants(is_primary, tenants(name)),
         contract_landlords(ownership_pct, landlords(id, name))
       `)
@@ -283,14 +287,18 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       currentRent,
       startDate:     c.start_date ?? null,
       endDate:       c.end_date   ?? null,
+      sortKey:       c.updated_at ?? c.created_at ?? '',
     })
   }
 
-  // Sort: unpaid first (no fechaBanco), then by inquilino name
+  // Sort by "most recently added or modified" first — per Alejandro's
+  // request. Newly created contracts and any contract whose fields were
+  // just edited (LFA / expensas / pct / vigencia) float to the top.
+  // contracts.updated_at is bumped by a trigger on every UPDATE
+  // (migration-2026-06-16-contracts-updated-at.sql).
   return rows.sort((a, b) => {
-    if (!a.fechaBanco && b.fechaBanco) return -1
-    if (a.fechaBanco && !b.fechaBanco) return 1
-    return a.inquilino.localeCompare(b.inquilino)
+    if (a.sortKey === b.sortKey) return a.inquilino.localeCompare(b.inquilino)
+    return a.sortKey < b.sortKey ? 1 : -1
   })
 }
 

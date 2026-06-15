@@ -165,25 +165,14 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
 
   return (
     <>
-      {/* Inline button in the filter strip (above the grid). */}
+      {/* Inline button in the filter strip — always visible because the
+          filter strip itself sits in the non-scrolling top section. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-ink text-paper text-[11.5px] font-medium hover:opacity-90 transition-opacity shrink-0"
       >
         + Nuevo contrato
-      </button>
-
-      {/* Floating bottom-right FAB — always reachable. */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        title="Nuevo contrato"
-        aria-label="Nuevo contrato"
-        className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-ink text-paper text-[13px] font-medium shadow-lg hover:opacity-90 transition-opacity print:hidden"
-      >
-        <span className="text-[16px] leading-none">+</span>
-        <span>Nuevo contrato</span>
       </button>
 
       {open && (
@@ -266,10 +255,14 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Alquiler ($)">
-                  <input type="number" value={rent} onChange={e => setRent(e.target.value)} placeholder="500000" min={1} step={100} className={inputCls} />
+                  {/* step="any" — the browser won't reject "12354" or any
+                      other non-rounded amount. This silently blocked the
+                      form before, which is why new contracts never reached
+                      the database. */}
+                  <input type="number" value={rent} onChange={e => setRent(e.target.value)} placeholder="500000" min={1} step="any" className={inputCls} />
                 </Field>
                 <Field label="Comisión (%)">
-                  <input type="number" value={pct} onChange={e => setPct(e.target.value)} min={0} max={100} step={0.1} className={inputCls} />
+                  <input type="number" value={pct} onChange={e => setPct(e.target.value)} min={0} max={100} step="any" className={inputCls} />
                 </Field>
               </div>
 
