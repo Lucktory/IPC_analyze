@@ -13,6 +13,19 @@ export interface TenantDetail {
   contracts:     { id: string; status: string; currentRent: number; primaryLandlord: string | null }[]
 }
 
+// ── Lightweight lookup — used by the InlineEntityCell autocomplete on the
+//    /liquidacion grid. Returns just id + name, sorted by name.
+export interface TenantOption { id: string; name: string }
+
+export async function listTenantOptions(): Promise<TenantOption[]> {
+  const supabase = await createSupabaseServer()
+  const { data } = await supabase
+    .from('tenants')
+    .select('id, name')
+    .order('name', { ascending: true })
+  return (data ?? []) as TenantOption[]
+}
+
 export async function getTenantDetail(id: string): Promise<TenantDetail | null> {
   const supabase = await createSupabaseServer()
   const { data } = await supabase

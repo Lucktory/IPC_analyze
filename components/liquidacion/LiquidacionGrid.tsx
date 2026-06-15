@@ -22,13 +22,19 @@
 
 import Link from 'next/link'
 import type { LiquidacionGridRow, LiquidacionStatus } from '@/lib/liquidacion/queries'
+import type { LandlordOption } from '@/lib/landlord/queries'
+import type { TenantOption } from '@/lib/tenant/queries'
 import { fmtMoney } from '@/lib/format'
 import { InlineDateCell } from './InlineDateCell'
 import { InlineObservacionCell } from './InlineObservacionCell'
+import { InlineLandlordCell } from './InlineLandlordCell'
+import { InlineTenantCell } from './InlineTenantCell'
 
 interface Props {
-  rows:    LiquidacionGridRow[]
-  period:  string
+  rows:            LiquidacionGridRow[]
+  period:          string
+  landlordOptions: LandlordOption[]
+  tenantOptions:   TenantOption[]
 }
 
 const STATUS_DOT: Record<LiquidacionStatus, string> = {
@@ -63,7 +69,7 @@ function buildTransferenciaTooltip(r: LiquidacionGridRow): string {
   return parts.join('\n')
 }
 
-export function LiquidacionGrid({ rows, period }: Props) {
+export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }: Props) {
   if (rows.length === 0) {
     return (
       <section className="bg-paper border border-line rounded shadow-card p-10 text-center">
@@ -131,15 +137,32 @@ export function LiquidacionGrid({ rows, period }: Props) {
                     </span>
                   </Td>
                   <Td sticky left={80}  width={170} bg={zebra}>
-                    <Link href={`/liquidacion/${r.contractId}?period=${period}`} className="text-ink font-medium hover:underline truncate block">
-                      {r.inquilino}
-                    </Link>
-                    {r.hasMultipleLandlords && (
-                      <span className="text-[9px] text-slate">co-propiedad</span>
-                    )}
+                    <div className="flex items-start gap-1">
+                      <div className="flex-1 min-w-0">
+                        <InlineTenantCell
+                          contractId={r.contractId}
+                          currentName={r.inquilino}
+                          options={tenantOptions}
+                        />
+                      </div>
+                      {/* Detail-page affordance — kept as a separate ↗ link so click-to-edit
+                          remains the primary action on the cell (Excel reflex). */}
+                      <Link
+                        href={`/liquidacion/${r.contractId}?period=${period}`}
+                        title="Abrir detalle del contrato"
+                        className="text-slate hover:text-ink text-[11px] shrink-0 px-0.5"
+                      >
+                        ↗
+                      </Link>
+                    </div>
                   </Td>
                   <Td sticky left={250} width={170} bg={zebra}>
-                    <span className="text-slate-dark truncate block">{r.propietario}</span>
+                    <InlineLandlordCell
+                      contractId={r.contractId}
+                      currentName={r.propietario}
+                      options={landlordOptions}
+                      hint={r.hasMultipleLandlords ? 'co-propiedad' : undefined}
+                    />
                   </Td>
 
                   {/* Pct (effective commission %) — formula on hover */}

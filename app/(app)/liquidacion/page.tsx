@@ -6,6 +6,8 @@ import { listTransactionPeriods, listTransactions } from '@/lib/entities/queries
 import { getCurrentPeriod, periodLabel, periodShort } from '@/lib/period'
 import { getLiquidacionGridForPeriod, type LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { getReconciliationByDestination } from '@/lib/reconciliation/queries'
+import { listLandlordOptions } from '@/lib/landlord/queries'
+import { listTenantOptions } from '@/lib/tenant/queries'
 import { LiquidacionGrid } from '@/components/liquidacion/LiquidacionGrid'
 import { ResumenView } from '@/components/liquidacion/ResumenView'
 import { MovimientosView } from '@/components/liquidacion/MovimientosView'
@@ -39,13 +41,17 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
       : 'grilla'
 
   // The grid data is needed for the grid view AND for the resumen view
-  // (totals derive from the same rows). Periods always.
+  // (totals derive from the same rows). Periods always. Landlord/tenant
+  // option lists feed the autocomplete in the editable Propietario/Inquilino
+  // cells — only loaded when the grilla tab is active.
   const periods = await listTransactionPeriods()
   const needsGrid = view === 'grilla' || view === 'resumen'
-  const [allRows, txns, buckets] = await Promise.all([
-    needsGrid             ? getLiquidacionGridForPeriod(period)       : Promise.resolve([]),
-    view === 'movimientos' ? listTransactions(period)                  : Promise.resolve([]),
-    view === 'destinos'    ? getReconciliationByDestination(period)    : Promise.resolve([]),
+  const [allRows, txns, buckets, landlordOptions, tenantOptions] = await Promise.all([
+    needsGrid              ? getLiquidacionGridForPeriod(period)    : Promise.resolve([]),
+    view === 'movimientos' ? listTransactions(period)                : Promise.resolve([]),
+    view === 'destinos'    ? getReconciliationByDestination(period)  : Promise.resolve([]),
+    view === 'grilla'      ? listLandlordOptions()                   : Promise.resolve([]),
+    view === 'grilla'      ? listTenantOptions()                     : Promise.resolve([]),
   ])
 
   // Status filter — applies to the grid view (only)
@@ -183,7 +189,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
 
       {/* Tab content */}
       <div className="mt-6">
-        {view === 'grilla'      && <LiquidacionGrid rows={rows} period={period} />}
+        {view === 'grilla'      && <LiquidacionGrid rows={rows} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />}
         {view === 'resumen'     && <ResumenView    rows={allRows} period={period} />}
         {view === 'movimientos' && <MovimientosView txns={txns}   period={period} />}
         {view === 'destinos'    && <DestinosView   buckets={buckets} period={period} />}
