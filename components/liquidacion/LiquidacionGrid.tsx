@@ -43,6 +43,14 @@ import { InlineDateCell } from './InlineDateCell'
 import { InlineObservacionCell } from './InlineObservacionCell'
 import { InlineLandlordCell } from './InlineLandlordCell'
 import { InlineTenantCell } from './InlineTenantCell'
+import {
+  EditableLfaCell,
+  EditableExpensasCell,
+  EditableCommissionPctCell,
+  EditableVigenciaCell,
+  EditableTransactionCell,
+  EditableStatusCell,
+} from './EditableCells'
 
 interface Props {
   rows:            LiquidacionGridRow[]
@@ -184,11 +192,9 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     />
                   </Td>
 
-                  {/* 2. LFA — sticky */}
+                  {/* 2. LFA — sticky, editable dropdown */}
                   <Td sticky left={STICKY_LEFTS.lfa} width={W.lfa} bg={zebra} align="center">
-                    <span className={r.lfa ? 'text-ink font-medium' : 'text-slate'}>
-                      {r.lfa ?? '—'}
-                    </span>
+                    <EditableLfaCell contractId={r.contractId} value={r.lfa} />
                   </Td>
 
                   {/* 3. FECHA BANCO — sticky, click-to-edit (drives the RENT_IN cobro) */}
@@ -212,11 +218,13 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     />
                   </Td>
 
-                  {/* 5. EXPENSAS */}
+                  {/* 5. EXPENSAS — editable number */}
                   <Td width={W.expensas} align="right">
-                    <span className={`tabular-nums ${cellTextClass(cobrado)}`}>
-                      {fmtMoneyOr(r.expensas)}
-                    </span>
+                    <EditableExpensasCell
+                      contractId={r.contractId}
+                      value={r.expensas}
+                      cobrado={cobrado}
+                    />
                   </Td>
 
                   {/* 6. INQUILINO — autocomplete + new-name alert + ↗ detail link */}
@@ -239,24 +247,22 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     </div>
                   </Td>
 
-                  {/* 7. PCT (effective commission %) */}
-                  <Td
-                    width={W.pct}
-                    align="right"
-                    title={r.ingresos > 0
-                      ? `Pct = ADMI / Ingresos × 100 = ${fmtMoney(r.admi)} / ${fmtMoney(r.ingresos)} × 100 = ${r.pct.toFixed(2)}%`
-                      : undefined}
-                  >
-                    <span className={cellTextClass(cobrado)}>
-                      {r.ingresos > 0 ? `${r.pct.toFixed(1)}%` : '—'}
-                    </span>
+                  {/* 7. PCT — editable; persists contracts.commission_pct */}
+                  <Td width={W.pct} align="right">
+                    <EditableCommissionPctCell
+                      contractId={r.contractId}
+                      value={r.pct}
+                      cobrado={cobrado}
+                    />
                   </Td>
 
-                  {/* 8. CONTRATO (vigencia) */}
-                  <Td width={W.contrato} align="center" title={r.startDate || r.endDate ? `Vigencia: ${fmtVigencia(r.startDate, r.endDate)}` : 'Sin vigencia cargada'}>
-                    <span className={`tabular-nums text-[11px] ${r.startDate || r.endDate ? 'text-slate-dark' : 'text-slate/60'}`}>
-                      {fmtVigencia(r.startDate, r.endDate)}
-                    </span>
+                  {/* 8. CONTRATO (vigencia) — editable date range */}
+                  <Td width={W.contrato} align="center">
+                    <EditableVigenciaCell
+                      contractId={r.contractId}
+                      startDate={r.startDate}
+                      endDate={r.endDate}
+                    />
                   </Td>
 
                   {/* 9. DEUDA */}
@@ -279,40 +285,40 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     </span>
                   </Td>
 
-                  {/* 11. INGRESOS — gets the orange aumento-próximo highlight */}
-                  <Td
-                    width={W.ingresos}
-                    align="right"
-                    style={ingresosBg}
-                    title={r.hasUpcomingAdjustment
-                      ? `Ingresos = ${fmtMoney(r.ingresos)} · ⚠ Aumento de alquiler en ${r.daysUntilAdjustment} días`
-                      : (r.ingresos > 0
-                          ? `Ingresos = suma de cobros del período (RENT_IN + EXPENSAS_IN + recuperos) = ${fmtMoney(r.ingresos)}`
-                          : 'Ingresos = aún sin cobros registrados en el período')}
-                  >
-                    <span className={`tabular-nums font-medium ${cellTextClass(cobrado)}`}>
-                      {r.ingresos > 0 ? fmtMoney(r.ingresos) : '—'}
-                    </span>
+                  {/* 11. INGRESOS — editable; persists RENT_IN. Highlight on aumento próximo. */}
+                  <Td width={W.ingresos} align="right" style={ingresosBg}>
+                    <EditableTransactionCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="RENT_IN"
+                      value={r.ingresos}
+                      cobrado={cobrado}
+                      label={`Alquiler ${fmtPeriodo(r.periodo)}`}
+                    />
                   </Td>
 
-                  {/* 12. TRANSFERENCIA */}
-                  <Td
-                    width={W.transf}
-                    align="right"
-                    title={r.transferencia > 0
-                      ? buildTransferenciaTooltip(r)
-                      : 'Transferencia = Ingresos − ADMI − Otros (+ ajuste). Aún sin valor mientras no haya ingresos.'}
-                  >
-                    <span className={`tabular-nums font-medium ${cellTextClass(transferido)}`}>
-                      {r.transferencia > 0 ? fmtMoney(r.transferencia) : '—'}
-                    </span>
+                  {/* 12. TRANSFERENCIA — editable; persists LANDLORD_PAYOUT */}
+                  <Td width={W.transf} align="right">
+                    <EditableTransactionCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="LANDLORD_PAYOUT"
+                      value={r.transferencia}
+                      cobrado={transferido}
+                      label={`Transferencia ${fmtPeriodo(r.periodo)}`}
+                    />
                   </Td>
 
-                  {/* 13. OTROS */}
+                  {/* 13. OTROS — editable; persists OTHER_OUT */}
                   <Td width={W.otros} align="right">
-                    <span className={`tabular-nums ${cellTextClass(transferido)}`}>
-                      {fmtMoneyOr(r.otros)}
-                    </span>
+                    <EditableTransactionCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="OTHER_OUT"
+                      value={r.otros}
+                      cobrado={transferido}
+                      label={`Otros descuentos ${fmtPeriodo(r.periodo)}`}
+                    />
                   </Td>
 
                   {/* 14. DÍA TRANSFERENCIA — click-to-edit (drives LANDLORD_PAYOUT) */}
@@ -339,32 +345,52 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     </span>
                   </Td>
 
-                  {/* 16. ADM GALICIA */}
+                  {/* 16. ADM GALICIA — editable; upserts COMMISSION_OUT · ADM_GALICIA */}
                   <Td width={W.galicia} align="right">
-                    <span className={`tabular-nums text-[11px] ${cellTextClass(transferido)}`}>
-                      {fmtMoneyOr(r.admGalicia)}
-                    </span>
+                    <EditableTransactionCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="COMMISSION_OUT"
+                      destination="ADM_GALICIA"
+                      value={r.admGalicia}
+                      cobrado={transferido}
+                      label="Comisión → ADM_GALICIA"
+                    />
                   </Td>
 
-                  {/* 17. ADM FRANCÉS 50/9 */}
+                  {/* 17. ADM FRANCÉS 50/9 — editable */}
                   <Td width={W.fr509} align="right">
-                    <span className={`tabular-nums text-[11px] ${cellTextClass(transferido)}`}>
-                      {fmtMoneyOr(r.admFrances509)}
-                    </span>
+                    <EditableTransactionCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="COMMISSION_OUT"
+                      destination="ADM_FRANCES_50_9"
+                      value={r.admFrances509}
+                      cobrado={transferido}
+                      label="Comisión → ADM_FRANCES_50_9"
+                    />
                   </Td>
 
-                  {/* 18. ADM FRANCÉS 51/6 */}
+                  {/* 18. ADM FRANCÉS 51/6 — editable */}
                   <Td width={W.fr516} align="right">
-                    <span className={`tabular-nums text-[11px] ${cellTextClass(transferido)}`}>
-                      {fmtMoneyOr(r.admFrances516)}
-                    </span>
+                    <EditableTransactionCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="COMMISSION_OUT"
+                      destination="ADM_FRANCES_51_6"
+                      value={r.admFrances516}
+                      cobrado={transferido}
+                      label="Comisión → ADM_FRANCES_51_6"
+                    />
                   </Td>
 
-                  {/* 19. ESTADO (our addition — borrador / enviada / pagada) */}
+                  {/* 19. ESTADO — click cycles borrador → enviada → pagada → borrador */}
                   <Td width={W.estado} align="center">
-                    <span
-                      title={r.status}
-                      className={`inline-block w-2 h-2 rounded-full ${STATUS_DOT[r.status]}`}
+                    <EditableStatusCell
+                      contractId={r.contractId}
+                      landlordId={r.landlordId}
+                      period={r.periodo}
+                      status={r.status}
                     />
                   </Td>
                 </tr>
