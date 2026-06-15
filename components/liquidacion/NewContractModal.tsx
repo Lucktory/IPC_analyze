@@ -17,7 +17,8 @@
 //   8. User completes the rest of the form → contract created with existing ids
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createContractFromGrid } from '@/lib/contract/junction-actions'
 import { createLandlordStandalone } from '@/lib/landlord/actions'
@@ -344,9 +345,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-// ── EntityCombo with autocomplete + "+ Crear nuevo X" button. The button
-//    sits at the bottom of the dropdown and triggers the NewEntityModal
-//    via onRequestCreate (the parent renders the modal).
+// ── EntityCombo with autocomplete + always-visible "+ Crear nuevo X" banner.
+//
+// The dropdown is portal-rendered to document.body so it escapes the
+// modal form's overflow-y-auto context (the bug the user reported was
+// that the "+ Crear nuevo" button sat below the dropdown and got clipped
+// when the form scrolled). The banner sits INLINE below the input — never
+// clipped, always visible the moment the typed text matches nothing.
 function EntityCombo({
   value, pickedId, onChange, onRequestCreate, options, entityLabel, placeholder,
 }: {
@@ -359,14 +364,38 @@ function EntityCombo({
   placeholder:     string
 }) {
   const [open, setOpen] = useState(false)
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
   const filtered = value.trim()
     ? options.filter(o => o.name.toLowerCase().includes(value.trim().toLowerCase())).slice(0, 8)
     : options.slice(0, 8)
   const exact = options.find(o => o.name.trim().toLowerCase() === value.trim().toLowerCase())
+  // The "+ Crear nuevo" affordance only matters when she has actually typed
+  // something — an empty input doesn't need a Create button.
+  const showCreateBanner = !exact && value.trim().length > 0 && !pickedId
+
+  // Recompute dropdown position when open, on scroll, on resize.
+  useEffect(() => {
+    if (!open || !inputRef.current) return
+    const compute = () => {
+      const r = inputRef.current?.getBoundingClientRect()
+      if (!r) return
+      setRect({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width })
+    }
+    compute()
+    window.addEventListener('scroll', compute, true)
+    window.addEventListener('resize', compute)
+    return () => {
+      window.removeEventListener('scroll', compute, true)
+      window.removeEventListener('resize', compute)
+    }
+  }, [open])
 
   return (
     <div className="relative">
       <input
+        ref={inputRef}
         type="text"
         value={value}
         onFocus={() => setOpen(true)}
@@ -378,10 +407,29 @@ function EntityCombo({
       {pickedId && (
         <span className="absolute right-2 top-2 text-[10px] text-success font-medium" aria-hidden>✓ vinculado</span>
       )}
-      {open && (
+
+      {/* Always-visible "+ Crear nuevo" banner — sits inline directly under
+          the input so it can never be clipped by the modal form's overflow.
+          The cell flow uses an in-dropdown row; here the banner is safer
+          because the modal form has its own scrolling context. */}
+      {showCreateBanner && (
+        <button
+          type="button"
+          onMouseDown={e => { e.preventDefault(); onRequestCreate(value.trim()); setOpen(false) }}
+          className="mt-1 w-full text-left px-3 py-2 rounded border-2 border-warn/60 bg-warn/10 hover:bg-warn/20 text-[12.5px] text-ink font-medium cursor-pointer transition-colors flex items-center gap-2"
+        >
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-warn text-ink text-[12px] font-bold">+</span>
+          <span>Crear nuevo {entityLabel}: <span className="font-semibold">«{value.trim()}»</span></span>
+        </button>
+      )}
+
+      {/* Dropdown — portal-rendered so it escapes the form's overflow-y-auto
+          and shows on top of everything else inside the modal. */}
+      {open && rect && createPortal(
         <ul
           role="listbox"
-          className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-gray-300 rounded shadow-lg max-h-[260px] overflow-y-auto"
+          style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1080 }}
+          className="bg-white border border-gray-300 rounded shadow-lg max-h-[240px] overflow-y-auto"
         >
           {filtered.length === 0 && (
             <li className="px-3 py-1.5 text-[12px] text-gray-500 italic">
@@ -398,19 +446,8 @@ function EntityCombo({
               {o.name}
             </li>
           ))}
-          {/* Explicit "+ Crear nuevo X" button — always visible, identical
-              affordance to the in-cell flow. Opens NewEntityModal with the
-              currently typed name prefilled. */}
-          {!exact && (
-            <li
-              role="option"
-              onMouseDown={e => { e.preventDefault(); onRequestCreate(value.trim()); setOpen(false) }}
-              className="px-3 py-2 border-t border-gray-200 bg-warn/10 hover:bg-warn/20 text-[12.5px] text-ink font-medium cursor-pointer"
-            >
-              + Crear nuevo {entityLabel}{value.trim() ? `: «${value.trim()}»` : ''}
-            </li>
-          )}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   )
