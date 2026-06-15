@@ -7,6 +7,7 @@ import { getReconciliationByDestination } from '@/lib/reconciliation/queries'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
 import { LiquidacionGrid } from '@/components/liquidacion/LiquidacionGrid'
+import { NewContractModal } from '@/components/liquidacion/NewContractModal'
 import { ResumenView } from '@/components/liquidacion/ResumenView'
 import { MovimientosView } from '@/components/liquidacion/MovimientosView'
 import { DestinosView } from '@/components/liquidacion/DestinosView'
@@ -148,6 +149,12 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
               <StatusPill href={linkWith({ status: 'draft' })} active={statusFilter === 'draft'} label="Borrador" count={counts.draft} tone="slate" />
               <StatusPill href={linkWith({ status: 'sent'  })} active={statusFilter === 'sent'}  label="Enviadas" count={counts.sent}  tone="success" />
               <StatusPill href={linkWith({ status: 'paid'  })} active={statusFilter === 'paid'}  label="Pagadas"  count={counts.paid}  tone="info" />
+            </div>
+
+            {/* New-contract trigger — sits at the end of the filter strip so it
+                is always reachable above the planilla. */}
+            <div className="ml-auto">
+              <NewContractModal landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
             </div>
           </>
         )}
