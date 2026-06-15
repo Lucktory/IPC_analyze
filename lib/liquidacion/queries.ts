@@ -133,6 +133,10 @@ export interface LiquidacionGridRow {
 
   // ── Current contract rent (used to compute DEUDA) ──
   currentRent:       number
+
+  // ── Vigencia (for the CONTRATO column in the 19-col layout) ──
+  startDate:         string | null
+  endDate:           string | null
 }
 
 // ── Rich grid query — returns all 19 columns per row ───────────────────────
@@ -145,7 +149,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       .from('contracts')
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
-        cadence, start_date,
+        cadence, start_date, end_date,
         contract_tenants(is_primary, tenants(name)),
         contract_landlords(ownership_pct, landlords(id, name))
       `)
@@ -277,6 +281,8 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       sentAt:        liq?.sent_at ?? null,
       paidAt:        liq?.paid_at ?? null,
       currentRent,
+      startDate:     c.start_date ?? null,
+      endDate:       c.end_date   ?? null,
     })
   }
 

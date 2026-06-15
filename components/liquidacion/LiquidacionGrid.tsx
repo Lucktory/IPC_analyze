@@ -1,23 +1,37 @@
 // ============================================================================
 // LiquidacionGrid — the wide spreadsheet-style table for /liquidacion.
 //
-// Mirrors Alejandro's current Excel column structure (19 cols, same order)
-// so the encargada feels at home. Three visual rules:
+// Mirrors Alejandro's current Excel column structure EXACTLY (19 cols, same
+// order). The 20th column (ESTADO) is our addition for the borrador→enviada
+// →pagada workflow that doesn't exist in her Excel.
 //
-//   1. Default "gris tenue" — every value cell starts in text-slate.
-//      Only when the linked action is complete does it flip to text-ink.
+// Column order (matches her sheet left → right):
+//   1  OBSERVACIÓN              [sticky]
+//   2  LFA                      [sticky]
+//   3  FECHA BANCO              [sticky]
+//   4  PROPIETARIO              [sticky]
+//   5  EXPENSAS
+//   6  INQUILINO
+//   7  PCT
+//   8  CONTRATO (vigencia)
+//   9  DEUDA
+//   10 PERÍODO
+//   11 INGRESOS
+//   12 TRANSFERENCIA
+//   13 OTROS
+//   14 DÍA TRANSFERENCIA
+//   15 ADMI
+//   16 ADM GALICIA
+//   17 ADM FRANCÉS 50/9
+//   18 ADM FRANCÉS 51/6
+//   19 ESTADO (our addition — workflow status dot)
 //
-//   2. Light orange bg on INGRESOS cell when the contract's next rent
-//      adjustment is within 30 days (the inline aviso de aumento).
-//
-//   3. Cobro state: when FECHA BANCO has a value, INGRESOS / EXPENSAS /
-//      DEUDA all read as "cobrado" (dark gray).
-//      Transferencia state: when DIA TRANSF has a value, TRANSFERENCIA /
-//      OTROS / ADMI all read as "transferido" (dark gray).
-//
-// Read-only in this first version — click a row to open the detail page,
-// which has the embudo + status workflow + breakdown already built. Inline
-// editing of FECHA BANCO / DIA TRANSF / OBSERVACION will land next.
+// Three visual rules carry forward:
+//   • Default "gris tenue" — value cells start in text-slate; flip to text-ink
+//     only when the linked action is complete (fecha banco / día transf set).
+//   • Light orange bg on the INGRESOS cell when the contract's next rent
+//     adjustment is within 30 days (inline aviso de aumento).
+//   • Cobro state vs. transferencia state — see comments below.
 // ============================================================================
 
 import Link from 'next/link'
@@ -52,8 +66,41 @@ function cellTextClass(done: boolean): string {
   return done ? 'text-ink' : 'text-slate'
 }
 
-/** Human-readable formula tooltip for the Transferencia cell. Hover-only —
- *  helps the encargada (or the auditor) see how the value was computed. */
+// ── Column widths (in px). Sticky-left runs from col 1 → 4 (OBS, LFA,
+//    FECHA BANCO, PROPIETARIO) to mirror Excel "freeze through column E"
+//    behaviour. Left offsets are cumulative sums.
+const W = {
+  obs: 140, lfa: 50, fbanco: 70, prop: 150,
+  expensas: 80, inq: 150,
+  pct: 55, contrato: 115, deuda: 80, periodo: 70,
+  ingresos: 95, transf: 105, otros: 80, diatransf: 70,
+  admi: 90, galicia: 85, fr509: 85, fr516: 85,
+  estado: 55,
+}
+const STICKY_LEFTS = {
+  obs:    0,
+  lfa:    W.obs,
+  fbanco: W.obs + W.lfa,
+  prop:   W.obs + W.lfa + W.fbanco,
+}
+
+function fmtVigencia(start: string | null, end: string | null): string {
+  if (!start && !end) return '—'
+  const fmt = (s: string | null) => {
+    if (!s) return '—'
+    // YYYY-MM-DD → DD/MM/YY
+    return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(2, 4)}`
+  }
+  return `${fmt(start)} – ${fmt(end)}`
+}
+
+function fmtPeriodo(p: string): string {
+  // YYYY-MM-01 → MM/YYYY
+  if (!p || p.length < 7) return '—'
+  return `${p.slice(5, 7)}/${p.slice(0, 4)}`
+}
+
+/** Human-readable formula tooltip for the Transferencia cell. */
 function buildTransferenciaTooltip(r: LiquidacionGridRow): string {
   const adj = r.adjustmentAmount ?? 0
   const computed = Math.max(0, r.ingresos - r.admi - r.otros + adj)
@@ -62,7 +109,6 @@ function buildTransferenciaTooltip(r: LiquidacionGridRow): string {
     `= ${fmtMoney(r.ingresos)} − ${fmtMoney(r.admi)} − ${fmtMoney(r.otros)}${adj !== 0 ? ` + ${fmtMoney(adj)}` : ''}`,
     `= ${fmtMoney(computed)}`,
   ]
-  // If the actual LANDLORD_PAYOUT differs from the computed value, note the override
   if (r.diaTransf && Math.abs(r.transferencia - computed) > 1) {
     parts.push(`Valor registrado en banco: ${fmtMoney(r.transferencia)}`)
   }
@@ -78,33 +124,36 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
     )
   }
 
+  const tableMinWidth =
+    W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.contrato +
+    W.deuda + W.periodo + W.ingresos + W.transf + W.otros + W.diatransf +
+    W.admi + W.galicia + W.fr509 + W.fr516 + W.estado
+
   return (
     <section className="bg-paper border border-line overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-[12px] border-collapse min-w-[1860px]">
+        <table className="w-full text-[12px] border-collapse" style={{ minWidth: tableMinWidth }}>
           <thead className="bg-cream-2/60 text-[10px] uppercase tracking-wider text-slate-dark font-medium">
             <tr className="border-b border-line">
-              {/* Sticky-left identity columns. background must be opaque so
-                  data behind them stays hidden during horizontal scroll. */}
-              <Th sticky left={0}    width={80}>LFA</Th>
-              <Th sticky left={80}   width={170}>Inquilino</Th>
-              <Th sticky left={250}  width={170}>Propietario</Th>
-
-              <Th width={70}  align="right">Pct</Th>
-              <Th width={90}  align="right">Alquiler</Th>
-              <Th width={80}  align="right">Expensas</Th>
-              <Th width={70}  align="center">F. banco</Th>
-              <Th width={100} align="right">Ingresos</Th>
-              <Th width={80}  align="right">Deuda</Th>
-              <Th width={70}  align="center">D. transf</Th>
-              <Th width={110} align="right">Transferencia</Th>
-              <Th width={80}  align="right">Otros</Th>
-              <Th width={90}  align="right">ADMI</Th>
-              <Th width={90}  align="right">Galicia</Th>
-              <Th width={90}  align="right">BBVA 50/9</Th>
-              <Th width={90}  align="right">BBVA 51/6</Th>
-              <Th width={110}>Observación</Th>
-              <Th width={60}  align="center">Estado</Th>
+              {/* 1 */}<Th sticky left={STICKY_LEFTS.obs}    width={W.obs}>Observación</Th>
+              {/* 2 */}<Th sticky left={STICKY_LEFTS.lfa}    width={W.lfa}    align="center">LFA</Th>
+              {/* 3 */}<Th sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} align="center">F. banco</Th>
+              {/* 4 */}<Th sticky left={STICKY_LEFTS.prop}   width={W.prop}>Propietario</Th>
+              {/* 5 */}<Th width={W.expensas} align="right">Expensas</Th>
+              {/* 6 */}<Th width={W.inq}>Inquilino</Th>
+              {/* 7 */}<Th width={W.pct}      align="right">Pct</Th>
+              {/* 8 */}<Th width={W.contrato} align="center">Contrato</Th>
+              {/* 9 */}<Th width={W.deuda}    align="right">Deuda</Th>
+              {/* 10 */}<Th width={W.periodo}   align="center">Período</Th>
+              {/* 11 */}<Th width={W.ingresos}  align="right">Ingresos</Th>
+              {/* 12 */}<Th width={W.transf}    align="right">Transferencia</Th>
+              {/* 13 */}<Th width={W.otros}     align="right">Otros</Th>
+              {/* 14 */}<Th width={W.diatransf} align="center">D. transf</Th>
+              {/* 15 */}<Th width={W.admi}      align="right">ADMI</Th>
+              {/* 16 */}<Th width={W.galicia}   align="right">Galicia</Th>
+              {/* 17 */}<Th width={W.fr509}     align="right">BBVA 50/9</Th>
+              {/* 18 */}<Th width={W.fr516}     align="right">BBVA 51/6</Th>
+              {/* 19 */}<Th width={W.estado}    align="center">Estado</Th>
             </tr>
           </thead>
           <tbody>
@@ -112,9 +161,9 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
               const cobrado     = !!r.fechaBanco
               const transferido = !!r.diaTransf
               const zebra       = idx % 2 === 0 ? 'bg-cream/30' : 'bg-paper'
-              // The aumento ≤30d highlight goes on the Alquiler cell — a soft
+              // The aumento ≤30d highlight goes on the INGRESOS cell — soft
               // orange that doesn't dominate but is unmistakable on scan.
-              const alquilerBg = r.hasUpcomingAdjustment
+              const ingresosBg = r.hasUpcomingAdjustment
                 ? { backgroundColor: 'rgba(243,156,18,0.12)' }
                 : undefined
 
@@ -123,13 +172,54 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                   key={`${r.contractId}-${r.landlordId}`}
                   className={`${zebra} hover:bg-cream-2 transition-colors border-b border-line/30`}
                 >
-                  {/* Sticky-left identity */}
-                  <Td sticky left={0}   width={80}  bg={zebra}>
+                  {/* 1. OBSERVACIÓN — sticky */}
+                  <Td sticky left={STICKY_LEFTS.obs} width={W.obs} bg={zebra}>
+                    <InlineObservacionCell
+                      contractId={r.contractId}
+                      landlordId={r.landlordId}
+                      period={r.periodo}
+                      initialNotes={r.observacion}
+                      initialAdjustment={r.adjustmentAmount}
+                    />
+                  </Td>
+
+                  {/* 2. LFA — sticky */}
+                  <Td sticky left={STICKY_LEFTS.lfa} width={W.lfa} bg={zebra} align="center">
                     <span className={r.lfa ? 'text-ink font-medium' : 'text-slate'}>
                       {r.lfa ?? '—'}
                     </span>
                   </Td>
-                  <Td sticky left={80}  width={170} bg={zebra}>
+
+                  {/* 3. FECHA BANCO — sticky, click-to-edit (drives the RENT_IN cobro) */}
+                  <Td sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} bg={zebra} align="center">
+                    <InlineDateCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="RENT_IN"
+                      initialDate={r.fechaBanco}
+                      defaultAmount={r.currentRent}
+                    />
+                  </Td>
+
+                  {/* 4. PROPIETARIO — sticky, autocomplete + new-name alert */}
+                  <Td sticky left={STICKY_LEFTS.prop} width={W.prop} bg={zebra}>
+                    <InlineLandlordCell
+                      contractId={r.contractId}
+                      currentName={r.propietario}
+                      options={landlordOptions}
+                      hint={r.hasMultipleLandlords ? 'co-propiedad' : undefined}
+                    />
+                  </Td>
+
+                  {/* 5. EXPENSAS */}
+                  <Td width={W.expensas} align="right">
+                    <span className={`tabular-nums ${cellTextClass(cobrado)}`}>
+                      {fmtMoneyOr(r.expensas)}
+                    </span>
+                  </Td>
+
+                  {/* 6. INQUILINO — autocomplete + new-name alert + ↗ detail link */}
+                  <Td width={W.inq}>
                     <div className="flex items-start gap-1">
                       <div className="flex-1 min-w-0">
                         <InlineTenantCell
@@ -138,8 +228,6 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                           options={tenantOptions}
                         />
                       </div>
-                      {/* Detail-page affordance — kept as a separate ↗ link so click-to-edit
-                          remains the primary action on the cell (Excel reflex). */}
                       <Link
                         href={`/liquidacion/${r.contractId}?period=${period}`}
                         title="Abrir detalle del contrato"
@@ -149,18 +237,10 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       </Link>
                     </div>
                   </Td>
-                  <Td sticky left={250} width={170} bg={zebra}>
-                    <InlineLandlordCell
-                      contractId={r.contractId}
-                      currentName={r.propietario}
-                      options={landlordOptions}
-                      hint={r.hasMultipleLandlords ? 'co-propiedad' : undefined}
-                    />
-                  </Td>
 
-                  {/* Pct (effective commission %) — formula on hover */}
+                  {/* 7. PCT (effective commission %) */}
                   <Td
-                    width={70}
+                    width={W.pct}
                     align="right"
                     title={r.ingresos > 0
                       ? `Pct = ADMI / Ingresos × 100 = ${fmtMoney(r.admi)} / ${fmtMoney(r.ingresos)} × 100 = ${r.pct.toFixed(2)}%`
@@ -171,51 +251,16 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     </span>
                   </Td>
 
-                  {/* Alquiler — base rent, gets the orange highlight when aumento próximo */}
-                  <Td
-                    width={90}
-                    align="right"
-                    style={alquilerBg}
-                    title={r.hasUpcomingAdjustment
-                      ? `Alquiler actual: ${fmtMoney(r.currentRent)} · ⚠ Aumento en ${r.daysUntilAdjustment} días`
-                      : `Alquiler actual: ${fmtMoney(r.currentRent)} (contrato.current_rent)`}
-                  >
-                    <span className={`tabular-nums ${cellTextClass(cobrado)}`}>
-                      {fmtMoney(r.currentRent)}
+                  {/* 8. CONTRATO (vigencia) */}
+                  <Td width={W.contrato} align="center" title={r.startDate || r.endDate ? `Vigencia: ${fmtVigencia(r.startDate, r.endDate)}` : 'Sin vigencia cargada'}>
+                    <span className={`tabular-nums text-[11px] ${r.startDate || r.endDate ? 'text-slate-dark' : 'text-slate/60'}`}>
+                      {fmtVigencia(r.startDate, r.endDate)}
                     </span>
                   </Td>
 
-                  <Td width={80} align="right">
-                    <span className={`tabular-nums ${cellTextClass(cobrado)}`}>
-                      {fmtMoneyOr(r.expensas)}
-                    </span>
-                  </Td>
-
-                  {/* Fecha banco — click to record cobro (creates/updates RENT_IN) */}
-                  <Td width={70} align="center">
-                    <InlineDateCell
-                      contractId={r.contractId}
-                      period={r.periodo}
-                      typeCode="RENT_IN"
-                      initialDate={r.fechaBanco}
-                      defaultAmount={r.currentRent}
-                    />
-                  </Td>
-
+                  {/* 9. DEUDA */}
                   <Td
-                    width={100}
-                    align="right"
-                    title={r.ingresos > 0
-                      ? `Ingresos = suma de cobros del período (RENT_IN + EXPENSAS_IN + recuperos) = ${fmtMoney(r.ingresos)}`
-                      : 'Ingresos = aún sin cobros registrados en el período'}
-                  >
-                    <span className={`tabular-nums font-medium ${cellTextClass(cobrado)}`}>
-                      {r.ingresos > 0 ? fmtMoney(r.ingresos) : '—'}
-                    </span>
-                  </Td>
-
-                  <Td
-                    width={80}
+                    width={W.deuda}
                     align="right"
                     title={r.deuda > 0
                       ? `Deuda = Alquiler − Ingresos = ${fmtMoney(r.currentRent)} − ${fmtMoney(r.ingresos)} = ${fmtMoney(r.deuda)}`
@@ -226,19 +271,32 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     </span>
                   </Td>
 
-                  {/* Día transferencia — click to record LANDLORD_PAYOUT */}
-                  <Td width={70} align="center">
-                    <InlineDateCell
-                      contractId={r.contractId}
-                      period={r.periodo}
-                      typeCode="LANDLORD_PAYOUT"
-                      initialDate={r.diaTransf}
-                      defaultAmount={Math.max(0, r.transferencia)}
-                    />
+                  {/* 10. PERÍODO */}
+                  <Td width={W.periodo} align="center">
+                    <span className="tabular-nums text-slate-dark text-[11px]">
+                      {fmtPeriodo(r.periodo)}
+                    </span>
                   </Td>
 
+                  {/* 11. INGRESOS — gets the orange aumento-próximo highlight */}
                   <Td
-                    width={110}
+                    width={W.ingresos}
+                    align="right"
+                    style={ingresosBg}
+                    title={r.hasUpcomingAdjustment
+                      ? `Ingresos = ${fmtMoney(r.ingresos)} · ⚠ Aumento de alquiler en ${r.daysUntilAdjustment} días`
+                      : (r.ingresos > 0
+                          ? `Ingresos = suma de cobros del período (RENT_IN + EXPENSAS_IN + recuperos) = ${fmtMoney(r.ingresos)}`
+                          : 'Ingresos = aún sin cobros registrados en el período')}
+                  >
+                    <span className={`tabular-nums font-medium ${cellTextClass(cobrado)}`}>
+                      {r.ingresos > 0 ? fmtMoney(r.ingresos) : '—'}
+                    </span>
+                  </Td>
+
+                  {/* 12. TRANSFERENCIA */}
+                  <Td
+                    width={W.transf}
                     align="right"
                     title={r.transferencia > 0
                       ? buildTransferenciaTooltip(r)
@@ -249,15 +307,27 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     </span>
                   </Td>
 
-                  <Td width={80} align="right">
+                  {/* 13. OTROS */}
+                  <Td width={W.otros} align="right">
                     <span className={`tabular-nums ${cellTextClass(transferido)}`}>
                       {fmtMoneyOr(r.otros)}
                     </span>
                   </Td>
 
-                  {/* ADMI total + the three destination splits */}
+                  {/* 14. DÍA TRANSFERENCIA — click-to-edit (drives LANDLORD_PAYOUT) */}
+                  <Td width={W.diatransf} align="center">
+                    <InlineDateCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      typeCode="LANDLORD_PAYOUT"
+                      initialDate={r.diaTransf}
+                      defaultAmount={Math.max(0, r.transferencia)}
+                    />
+                  </Td>
+
+                  {/* 15. ADMI (total comisión = Galicia + BBVA 50/9 + BBVA 51/6) */}
                   <Td
-                    width={90}
+                    width={W.admi}
                     align="right"
                     title={r.admi > 0
                       ? `ADMI = Galicia + BBVA 50/9 + BBVA 51/6 = ${fmtMoney(r.admGalicia)} + ${fmtMoney(r.admFrances509)} + ${fmtMoney(r.admFrances516)} = ${fmtMoney(r.admi)}`
@@ -267,53 +337,30 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       {fmtMoneyOr(r.admi)}
                     </span>
                   </Td>
-                  <Td
-                    width={90}
-                    align="right"
-                    title={r.admGalicia > 0
-                      ? `Comisión cobrada en cuenta ADM Galicia: ${fmtMoney(r.admGalicia)}`
-                      : 'Sin comisión clasificada como ADM_GALICIA'}
-                  >
+
+                  {/* 16. ADM GALICIA */}
+                  <Td width={W.galicia} align="right">
                     <span className={`tabular-nums text-[11px] ${cellTextClass(transferido)}`}>
                       {fmtMoneyOr(r.admGalicia)}
                     </span>
                   </Td>
-                  <Td
-                    width={90}
-                    align="right"
-                    title={r.admFrances509 > 0
-                      ? `Comisión cobrada en BBVA Francés 50/9: ${fmtMoney(r.admFrances509)}`
-                      : 'Sin comisión clasificada como ADM_FRANCES_50_9'}
-                  >
+
+                  {/* 17. ADM FRANCÉS 50/9 */}
+                  <Td width={W.fr509} align="right">
                     <span className={`tabular-nums text-[11px] ${cellTextClass(transferido)}`}>
                       {fmtMoneyOr(r.admFrances509)}
                     </span>
                   </Td>
-                  <Td
-                    width={90}
-                    align="right"
-                    title={r.admFrances516 > 0
-                      ? `Comisión cobrada en BBVA Francés 51/6: ${fmtMoney(r.admFrances516)}`
-                      : 'Sin comisión clasificada como ADM_FRANCES_51_6'}
-                  >
+
+                  {/* 18. ADM FRANCÉS 51/6 */}
+                  <Td width={W.fr516} align="right">
                     <span className={`tabular-nums text-[11px] ${cellTextClass(transferido)}`}>
                       {fmtMoneyOr(r.admFrances516)}
                     </span>
                   </Td>
 
-                  {/* Observaciones — click to edit notes + signed adjustment */}
-                  <Td width={110}>
-                    <InlineObservacionCell
-                      contractId={r.contractId}
-                      landlordId={r.landlordId}
-                      period={r.periodo}
-                      initialNotes={r.observacion}
-                      initialAdjustment={r.adjustmentAmount}
-                    />
-                  </Td>
-
-                  {/* Estado liquidación — small dot */}
-                  <Td width={60} align="center">
+                  {/* 19. ESTADO (our addition — borrador / enviada / pagada) */}
+                  <Td width={W.estado} align="center">
                     <span
                       title={r.status}
                       className={`inline-block w-2 h-2 rounded-full ${STATUS_DOT[r.status]}`}
@@ -382,4 +429,3 @@ function Td({ children, width, align = 'left', sticky, left, bg, title, style }:
     </td>
   )
 }
-
