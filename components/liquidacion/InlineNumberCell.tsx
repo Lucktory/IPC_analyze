@@ -35,6 +35,14 @@ interface Props {
   title?:       string
   /** Optional placeholder for the empty case. */
   placeholder?: string
+  /**
+   * Optional pre-commit validator — runs after the user hits Enter / blurs.
+   * Return `{ warn, message }` to surface an inline "are you sure?" dialog
+   * before the value is sent to the server. Return `null` for no warning.
+   * Use cases: detect amount that's far off the expected rent, or a
+   * commission that exceeds what's plausible for the period.
+   */
+  validate?:    (value: number) => { warn: boolean; message: string } | null
 }
 
 function format(value: number | null, fmt: 'money' | 'percent' | 'plain'): string {
@@ -46,13 +54,18 @@ function format(value: number | null, fmt: 'money' | 'percent' | 'plain'): strin
 
 export function InlineNumberCell({
   value, format: fmt = 'money', min, max, unit, onSave,
-  displayClassName, title, placeholder = '—',
+  displayClassName, title, placeholder = '—', validate,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<string>(value != null ? value.toString() : '')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [optimistic, setOptimistic] = useState<number | null>(null)
+  // When the validator flags a value, the popover swaps to a confirm panel
+  // with the warning + Confirmar / Cancelar buttons. The pending value sits
+  // here until the user resolves the warning.
+  const [pendingValue, setPendingValue]     = useState<number | null>(null)
+  const [warnMessage, setWarnMessage]       = useState<string | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const inputRef  = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -81,9 +94,24 @@ export function InlineNumberCell({
       setOpen(false)
       return
     }
-    // Optimistic: close immediately, show new value, fire server in background.
+    // Pre-commit validation: if the validator flags this value, pause and
+    // ask the encargada to confirm before the server call goes through.
+    if (validate) {
+      const v = validate(next)
+      if (v?.warn) {
+        setPendingValue(next)
+        setWarnMessage(v.message)
+        return
+      }
+    }
+    finalizeCommit(next)
+  }
+
+  function finalizeCommit(next: number) {
     setOptimistic(next)
     setOpen(false)
+    setPendingValue(null)
+    setWarnMessage(null)
     setPending(true)
     onSave(next)
       .then(res => {
@@ -122,27 +150,57 @@ export function InlineNumberCell({
           className="bg-white border border-gray-300 rounded shadow-lg p-2"
           onMouseDown={e => e.stopPropagation()}
         >
-          <div className="flex items-center gap-1">
-            {unit && <span className="text-[12px] text-gray-500">{unit}</span>}
-            <input
-              ref={inputRef}
-              type="number"
-              value={draft}
-              step="0.01"
-              onChange={e => { setDraft(e.target.value); setError(null) }}
-              onKeyDown={e => {
-                if (e.key === 'Enter')  { e.preventDefault(); commit() }
-                if (e.key === 'Escape') { e.preventDefault(); cancel() }
-              }}
-              onBlur={() => {
-                // Defer in case the user clicks a popover button.
-                setTimeout(() => commit(), 50)
-              }}
-              className="flex-1 h-8 px-2 text-[13px] border border-gray-300 rounded outline-none focus:border-info tabular-nums text-ink"
-            />
-          </div>
-          {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
-          <p className="text-[10px] text-gray-500 mt-1 italic">Enter para guardar · Esc para cancelar</p>
+          {warnMessage && pendingValue !== null ? (
+            // Validation warning panel — appears in place of the input when
+            // the validator returns warn:true. User confirms or goes back.
+            <div className="space-y-2">
+              <p className="text-[12px] text-ink font-medium flex items-start gap-1.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn mt-1.5 shrink-0" />
+                <span>¿Confirmar el monto?</span>
+              </p>
+              <p className="text-[11.5px] text-slate-dark leading-snug">{warnMessage}</p>
+              <div className="flex items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => { setPendingValue(null); setWarnMessage(null); inputRef.current?.focus() }}
+                  className="px-2 py-1 text-[11.5px] rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                >
+                  Volver a editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => finalizeCommit(pendingValue)}
+                  className="px-2 py-1 text-[11.5px] rounded bg-warn text-ink font-medium hover:opacity-90"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1">
+                {unit && <span className="text-[12px] text-gray-500">{unit}</span>}
+                <input
+                  ref={inputRef}
+                  type="number"
+                  value={draft}
+                  step="0.01"
+                  onChange={e => { setDraft(e.target.value); setError(null) }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter')  { e.preventDefault(); commit() }
+                    if (e.key === 'Escape') { e.preventDefault(); cancel() }
+                  }}
+                  onBlur={() => {
+                    // Defer in case the user clicks a popover button.
+                    setTimeout(() => commit(), 50)
+                  }}
+                  className="flex-1 h-8 px-2 text-[13px] border border-gray-300 rounded outline-none focus:border-info tabular-nums text-ink"
+                />
+              </div>
+              {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
+              <p className="text-[10px] text-gray-500 mt-1 italic">Enter para guardar · Esc para cancelar</p>
+            </>
+          )}
         </div>,
         document.body,
       )}

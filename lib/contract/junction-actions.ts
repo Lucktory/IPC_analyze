@@ -45,8 +45,12 @@ export interface CreateFromGridResult {
 
 export interface CreateFromGridInput {
   lfaCode:    string | null
-  landlord:   { kind: 'existing'; id: string } | { kind: 'new'; name: string }
-  tenant:     { kind: 'existing'; id: string } | { kind: 'new'; name: string }
+  landlord:
+    | { kind: 'existing'; id: string }
+    | { kind: 'new'; name: string; dniOrCuit?: string | null; phone?: string | null; email?: string | null; notes?: string | null }
+  tenant:
+    | { kind: 'existing'; id: string }
+    | { kind: 'new'; name: string; dni?: string | null; phone?: string | null; email?: string | null }
   address:    string | null
   currentRent:    number
   commissionPct:  number
@@ -102,8 +106,13 @@ export async function createContractFromGrid(input: CreateFromGridInput): Promis
     if (existing) {
       landlordId = (existing as any).id
     } else {
+      const insertRow: Record<string, unknown> = { administration_id, name }
+      if (input.landlord.dniOrCuit?.trim()) insertRow.dni_or_cuit = input.landlord.dniOrCuit.trim()
+      if (input.landlord.phone?.trim())     insertRow.phone       = input.landlord.phone.trim()
+      if (input.landlord.email?.trim())     insertRow.email       = input.landlord.email.trim()
+      if (input.landlord.notes?.trim())     insertRow.notes       = input.landlord.notes.trim()
       const { data: ins, error: insErr } = await supabase
-        .from('landlords').insert({ administration_id, name }).select('id').single()
+        .from('landlords').insert(insertRow).select('id').single()
       if (insErr) return dbFailure(insErr)
       landlordId = (ins as any).id
     }
@@ -122,8 +131,12 @@ export async function createContractFromGrid(input: CreateFromGridInput): Promis
     if (existing) {
       tenantId = (existing as any).id
     } else {
+      const insertRow: Record<string, unknown> = { administration_id, name }
+      if (input.tenant.dni?.trim())   insertRow.dni   = input.tenant.dni.trim()
+      if (input.tenant.phone?.trim()) insertRow.phone = input.tenant.phone.trim()
+      if (input.tenant.email?.trim()) insertRow.email = input.tenant.email.trim()
       const { data: ins, error: insErr } = await supabase
-        .from('tenants').insert({ administration_id, name }).select('id').single()
+        .from('tenants').insert(insertRow).select('id').single()
       if (insErr) return dbFailure(insErr)
       tenantId = (ins as any).id
     }

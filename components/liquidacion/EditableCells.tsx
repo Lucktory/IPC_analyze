@@ -25,6 +25,43 @@ import {
   type DestinationCode,
 } from '@/lib/contract/inline-field-actions'
 import type { LiquidacionStatus } from '@/lib/liquidacion/queries'
+import { fmtMoney } from '@/lib/format'
+
+// ── Money-cell validators ──────────────────────────────────────────────────
+// Returned by the EditableTransactionCell wrapper to flag amounts that look
+// "off" before the encargada commits them. Each returns:
+//   • null            → no warning, commit silently
+//   • { warn, message } → surface inline "confirmar?" panel in the popover
+//
+// Tolerance: 15% off-target counts as a real warning. Tighter than that
+// triggers on every minor late-fee adjustment; looser misses big typos.
+
+const TOLERANCE = 0.15
+
+function validateRentIn(currentRent: number) {
+  return (n: number) => {
+    if (currentRent <= 0) return null
+    const diff = Math.abs(n - currentRent) / currentRent
+    if (diff < TOLERANCE) return null
+    const pct = (diff * 100).toFixed(0)
+    const dir = n > currentRent ? 'mayor' : 'menor'
+    return {
+      warn:    true,
+      message: `El monto ingresado (${fmtMoney(n)}) es ${pct}% ${dir} que el alquiler vigente (${fmtMoney(currentRent)}). Verificá que no sea un error de tipeo.`,
+    }
+  }
+}
+
+function validateCommissionAmount(maxPlausible: number) {
+  return (n: number) => {
+    if (maxPlausible <= 0) return null
+    if (n <= maxPlausible) return null
+    return {
+      warn:    true,
+      message: `El monto (${fmtMoney(n)}) supera la comisión total esperada para el período (${fmtMoney(maxPlausible)}). Confirmá antes de guardar.`,
+    }
+  }
+}
 
 const LFA_OPTIONS = [
   { value: 'L',  label: 'L (Lisa)'     },
@@ -98,17 +135,37 @@ export function EditableVigenciaCell({
 }
 
 // ── Transaction amount (Ingresos / Otros / ADM Galicia / 50-9 / 51-6) ──────
+//
+// Two optional context props enable the per-cell validator:
+//   • expectedRent     — for RENT_IN cells: flags amounts >15% off contract rent
+//   • maxPlausibleComm — for COMMISSION_OUT cells: flags amounts greater than
+//                         the expected total commission for the period
+//                         (computed by the caller as ingresos × pct/100)
+//
+// Validation runs locally before the server call. The encargada either
+// confirms or returns to editing. Either way the data is never silently
+// committed when it falls outside reasonable bounds.
 export function EditableTransactionCell({
   contractId, period, typeCode, destination = null, value, cobrado, label,
+  expectedRent, maxPlausibleComm,
 }: {
-  contractId:  string
-  period:      string
-  typeCode:    string
-  destination?: DestinationCode
-  value:       number
-  cobrado:     boolean
-  label?:      string
+  contractId:        string
+  period:            string
+  typeCode:          string
+  destination?:      DestinationCode
+  value:             number
+  cobrado:           boolean
+  label?:            string
+  expectedRent?:     number
+  maxPlausibleComm?: number
 }) {
+  const validate =
+    typeCode === 'RENT_IN' && expectedRent != null && expectedRent > 0
+      ? validateRentIn(expectedRent)
+      : typeCode === 'COMMISSION_OUT' && maxPlausibleComm != null && maxPlausibleComm > 0
+        ? validateCommissionAmount(maxPlausibleComm)
+        : undefined
+
   return (
     <InlineNumberCell
       value={value > 0 ? value : null}
@@ -118,6 +175,7 @@ export function EditableTransactionCell({
       onSave={(n) => upsertCellTransaction(contractId, period, typeCode, n, null, label ?? null, destination)}
       displayClassName={cobrado ? 'text-ink' : 'text-slate'}
       title={label}
+      validate={validate}
     />
   )
 }

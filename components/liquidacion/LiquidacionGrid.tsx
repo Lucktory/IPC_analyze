@@ -139,7 +139,11 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
 
   return (
     <section className="bg-white border border-gray-300 overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Confined scroll viewport — keeps BOTH scrollbars (horizontal at
+          bottom, vertical at right) inside the visible area so the encargada
+          can scroll right without first scrolling the whole page down.
+          Height: viewport minus the header strip + filter bar above. */}
+      <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
         <table className="w-full text-[12px] border-collapse" style={{ minWidth: tableMinWidth }}>
           <thead className="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-700 font-semibold">
             <tr className="border-b border-gray-300">
@@ -285,7 +289,8 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     </span>
                   </Td>
 
-                  {/* 11. INGRESOS — editable; persists RENT_IN. Highlight on aumento próximo. */}
+                  {/* 11. INGRESOS — editable; persists RENT_IN. Highlight on aumento próximo.
+                       Validator compares against contracts.current_rent (>15% off → confirm). */}
                   <Td width={W.ingresos} align="right" style={ingresosBg}>
                     <EditableTransactionCell
                       contractId={r.contractId}
@@ -294,6 +299,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       value={r.ingresos}
                       cobrado={cobrado}
                       label={`Alquiler ${fmtPeriodo(r.periodo)}`}
+                      expectedRent={r.currentRent}
                     />
                   </Td>
 
@@ -345,7 +351,11 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     </span>
                   </Td>
 
-                  {/* 16. ADM GALICIA — editable; upserts COMMISSION_OUT · ADM_GALICIA */}
+                  {/* 16-18. ADM destinations — each one validates against the
+                       total commission expected for the period: ingresos × pct.
+                       Single destination > expected total triggers a confirm. */}
+
+                  {/* 16. ADM GALICIA */}
                   <Td width={W.galicia} align="right">
                     <EditableTransactionCell
                       contractId={r.contractId}
@@ -355,10 +365,11 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       value={r.admGalicia}
                       cobrado={transferido}
                       label="Comisión → ADM_GALICIA"
+                      maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
                     />
                   </Td>
 
-                  {/* 17. ADM FRANCÉS 50/9 — editable */}
+                  {/* 17. ADM FRANCÉS 50/9 */}
                   <Td width={W.fr509} align="right">
                     <EditableTransactionCell
                       contractId={r.contractId}
@@ -368,10 +379,11 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       value={r.admFrances509}
                       cobrado={transferido}
                       label="Comisión → ADM_FRANCES_50_9"
+                      maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
                     />
                   </Td>
 
-                  {/* 18. ADM FRANCÉS 51/6 — editable */}
+                  {/* 18. ADM FRANCÉS 51/6 */}
                   <Td width={W.fr516} align="right">
                     <EditableTransactionCell
                       contractId={r.contractId}
@@ -381,6 +393,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       value={r.admFrances516}
                       cobrado={transferido}
                       label="Comisión → ADM_FRANCES_51_6"
+                      maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
                     />
                   </Td>
 
@@ -417,10 +430,14 @@ interface ThProps {
 
 function Th({ children, width, sticky, left, align = 'left' }: ThProps) {
   const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-  // Sticky headers use a solid gray-100 so the row beneath cannot bleed through.
+  // EVERY header cell is sticky-top so the column titles stay visible during
+  // vertical scroll inside the confined grid viewport. Cells that are ALSO
+  // sticky-left (Observación / LFA / F. banco / Propietario) get an extra
+  // left offset and a higher z-index so they form the "frozen corner" of
+  // the freeze-panes layout.
   const stickyStyle: React.CSSProperties = sticky
-    ? { position: 'sticky', left, zIndex: 20, backgroundColor: '#f3f4f6' /* gray-100 */ }
-    : {}
+    ? { position: 'sticky', top: 0, left, zIndex: 30, backgroundColor: '#f3f4f6' /* gray-100 */ }
+    : { position: 'sticky', top: 0,        zIndex: 20, backgroundColor: '#f3f4f6' }
   return (
     <th
       style={{ width, minWidth: width, ...stickyStyle }}
