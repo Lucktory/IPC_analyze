@@ -16,6 +16,13 @@ interface AppShellProps {
 // hydration mismatches by reading lazily on mount, not during render.
 const COLLAPSED_KEY = 'sidenav.collapsed'
 
+// Routes that opt out of the centered max-w-shell layout and use the full
+// viewport width. Currently just the planilla — its 19 cols don't fit in
+// the standard shell. Detail pages (e.g. /liquidacion/[id]) stay centered.
+function isWideRoute(pathname: string): boolean {
+  return pathname === '/liquidacion'
+}
+
 export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProps) {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
@@ -89,7 +96,13 @@ export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProp
           <TopBar pendientes={pendingCount} userEmail={userEmail} onMenuClick={() => setOpen(true)} />
         </div>
         <main className="flex-1 overflow-auto bg-watermark print:overflow-visible print:bg-paper">
-          <div className="max-w-shell mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8 print:max-w-none print:px-0 print:py-0">
+          {/* /liquidacion is a planilla page — it needs the full viewport
+              width to fit the 19-column grid without horizontal scrolling
+              eating into wasted gutters. Every other page keeps the
+              centered max-w-shell + comfortable padding. */}
+          <div className={isWideRoute(pathname)
+            ? 'w-full px-2 py-2 print:px-0 print:py-0'
+            : 'max-w-shell mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8 print:max-w-none print:px-0 print:py-0'}>
             {children}
           </div>
         </main>

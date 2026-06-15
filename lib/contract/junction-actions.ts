@@ -202,7 +202,9 @@ function cleanName(name: string): string {
 // ============================================================================
 export async function setContractPrimaryLandlord(
   contractId:  string,
-  payload:     { kind: 'existing'; landlordId: string } | { kind: 'new'; name: string },
+  payload:
+    | { kind: 'existing'; landlordId: string }
+    | { kind: 'new'; name: string; dniOrCuit?: string | null; phone?: string | null; email?: string | null; notes?: string | null },
 ): Promise<JunctionResult> {
   const supabase = await createSupabaseServer()
 
@@ -235,9 +237,19 @@ export async function setContractPrimaryLandlord(
     if (existing) {
       landlordId = (existing as any).id
     } else {
+      const insertRow: Record<string, unknown> = {
+        administration_id: (contract as any).administration_id,
+        name,
+      }
+      // Optional fields — only included if provided + non-empty.
+      if (payload.dniOrCuit?.trim()) insertRow.dni_or_cuit = payload.dniOrCuit.trim()
+      if (payload.phone?.trim())     insertRow.phone       = payload.phone.trim()
+      if (payload.email?.trim())     insertRow.email       = payload.email.trim()
+      if (payload.notes?.trim())     insertRow.notes       = payload.notes.trim()
+
       const { data: inserted, error: insErr } = await supabase
         .from('landlords')
-        .insert({ administration_id: (contract as any).administration_id, name })
+        .insert(insertRow)
         .select('id')
         .single()
       if (insErr) return dbFailure(insErr)
@@ -301,7 +313,9 @@ export async function setContractPrimaryLandlord(
 // ============================================================================
 export async function setContractPrimaryTenant(
   contractId:  string,
-  payload:     { kind: 'existing'; tenantId: string } | { kind: 'new'; name: string },
+  payload:
+    | { kind: 'existing'; tenantId: string }
+    | { kind: 'new'; name: string; dni?: string | null; phone?: string | null; email?: string | null },
 ): Promise<JunctionResult> {
   const supabase = await createSupabaseServer()
 
@@ -329,9 +343,17 @@ export async function setContractPrimaryTenant(
     if (existing) {
       tenantId = (existing as any).id
     } else {
+      const insertRow: Record<string, unknown> = {
+        administration_id: (contract as any).administration_id,
+        name,
+      }
+      if (payload.dni?.trim())   insertRow.dni   = payload.dni.trim()
+      if (payload.phone?.trim()) insertRow.phone = payload.phone.trim()
+      if (payload.email?.trim()) insertRow.email = payload.email.trim()
+
       const { data: inserted, error: insErr } = await supabase
         .from('tenants')
-        .insert({ administration_id: (contract as any).administration_id, name })
+        .insert(insertRow)
         .select('id')
         .single()
       if (insErr) return dbFailure(insErr)

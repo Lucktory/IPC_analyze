@@ -130,11 +130,11 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
     W.admi + W.galicia + W.fr509 + W.fr516 + W.estado
 
   return (
-    <section className="bg-paper border border-line overflow-hidden">
+    <section className="bg-white border border-gray-300 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-[12px] border-collapse" style={{ minWidth: tableMinWidth }}>
-          <thead className="bg-cream-2/60 text-[10px] uppercase tracking-wider text-slate-dark font-medium">
-            <tr className="border-b border-line">
+          <thead className="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-700 font-semibold">
+            <tr className="border-b border-gray-300">
               {/* 1 */}<Th sticky left={STICKY_LEFTS.obs}    width={W.obs}>Observación</Th>
               {/* 2 */}<Th sticky left={STICKY_LEFTS.lfa}    width={W.lfa}    align="center">LFA</Th>
               {/* 3 */}<Th sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} align="center">F. banco</Th>
@@ -160,7 +160,8 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
             {rows.map((r, idx) => {
               const cobrado     = !!r.fechaBanco
               const transferido = !!r.diaTransf
-              const zebra       = idx % 2 === 0 ? 'bg-cream/30' : 'bg-paper'
+              // Excel-style alternating banding: pure white / very pale gray.
+              const zebra       = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
               // The aumento ≤30d highlight goes on the INGRESOS cell — soft
               // orange that doesn't dominate but is unmistakable on scan.
               const ingresosBg = r.hasUpcomingAdjustment
@@ -170,7 +171,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
               return (
                 <tr
                   key={`${r.contractId}-${r.landlordId}`}
-                  className={`${zebra} hover:bg-cream-2 transition-colors border-b border-line/30`}
+                  className={`${zebra} hover:bg-blue-50 transition-colors border-b border-gray-200`}
                 >
                   {/* 1. OBSERVACIÓN — sticky */}
                   <Td sticky left={STICKY_LEFTS.obs} width={W.obs} bg={zebra}>
@@ -390,13 +391,14 @@ interface ThProps {
 
 function Th({ children, width, sticky, left, align = 'left' }: ThProps) {
   const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
+  // Sticky headers use a solid gray-100 so the row beneath cannot bleed through.
   const stickyStyle: React.CSSProperties = sticky
-    ? { position: 'sticky', left, zIndex: 20, backgroundColor: 'rgb(var(--color-cream-2))' }
+    ? { position: 'sticky', left, zIndex: 20, backgroundColor: '#f3f4f6' /* gray-100 */ }
     : {}
   return (
     <th
       style={{ width, minWidth: width, ...stickyStyle }}
-      className={`px-2 py-2 border-r border-line/40 ${alignCls}`}
+      className={`px-2 py-1.5 border-r border-gray-300 ${alignCls}`}
     >
       {children}
     </th>
@@ -422,7 +424,7 @@ function Td({ children, width, align = 'left', sticky, left, bg, title, style }:
   return (
     <td
       style={{ width, minWidth: width, ...stickyStyle, ...style }}
-      className={`px-2 py-1.5 border-r border-line/30 ${alignCls} ${sticky ? bg ?? '' : ''}`}
+      className={`px-2 py-1 border-r border-gray-200 ${alignCls} ${sticky ? bg ?? '' : ''}`}
       title={title}
     >
       {children}
