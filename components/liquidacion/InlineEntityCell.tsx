@@ -3,30 +3,36 @@
 // ============================================================================
 // InlineEntityCell — click-to-edit cell with autocomplete + new-name alert.
 //
-// Used for the Propietario and Inquilino columns of the /liquidacion grid.
+// Used by the Propietario and Inquilino columns of the /liquidacion grid.
 // Goal: prevent typos from creating duplicate landlords/tenants. The
 // encargada either picks an existing entity from the dropdown, or — if her
-// typed text matches nothing — sees an alert before a new entity is created.
+// typed text matches nothing — confirms before a new entity is created.
+//
+// Why portal rendering: the grid lives inside a horizontally-scrolling
+// container, and several cells are `position: sticky`. Both create stacking
+// + clipping contexts that would chop an `absolute`-positioned dropdown.
+// Rendering the dropdown into `document.body` and positioning via the
+// input's getBoundingClientRect escapes those boundaries entirely.
 //
 // States:
-//   1. Display       — shows the current name (truncate); click to edit.
-//   2. Editing       — input + dropdown of matches as she types.
-//   3. New-name confirm — shown when she presses Enter/Tab on text that
-//                         doesn't match any existing option.
+//   1. Display       — current name + click to edit
+//   2. Editing       — input + dropdown of matches (always shown on focus)
+//   3. New-name confirm — when she commits text that doesn't match any
+//                         option, a warning dialog appears
 //
 // Behaviour:
-//   • Type ahead — case-insensitive substring match over `options`.
-//   • Arrow keys + Enter to select from the dropdown.
-//   • Esc to cancel (no save).
-//   • Enter/Tab/blur with text that EXACTLY matches an option → link silent.
-//   • Enter/Tab/blur with text that doesn't match → confirm new-name dialog.
-//
-// Server side: parent passes `onPickExisting(id)` and `onCreateNew(name)`
-// callbacks. Both return `Promise<{ ok; error? }>` so the cell can show
-// errors inline.
+//   • Enter edit mode → input auto-selects all text (first keystroke replaces)
+//                       and dropdown opens with ALL options (sorted, capped)
+//   • Type-ahead       → case-insensitive substring match over `options`
+//   • Arrow keys ↑↓    → move highlight
+//   • Enter            → pick highlighted option (or commit current text)
+//   • Esc              → cancel
+//   • Tab / blur       → commit
+//   • Commit with text not in options → confirm-new dialog
 // ============================================================================
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 
 export interface EntityOption {
@@ -35,23 +41,23 @@ export interface EntityOption {
 }
 
 interface Props {
-  /** Current display value (the linked entity's name). */
-  currentName: string
-  /** All candidates the encargada can pick from. */
-  options:     EntityOption[]
-  /** Human-readable label: "propietario" / "inquilino" — used in the alert. */
-  entityLabel: string
-  /** Called when the encargada picks an existing option from the dropdown. */
+  currentName:    string
+  options:        EntityOption[]
+  entityLabel:    string
   onPickExisting: (id: string) => Promise<{ ok: boolean; error?: string | null }>
-  /** Called when she confirms creating a new entity. */
   onCreateNew:    (name: string) => Promise<{ ok: boolean; error?: string | null }>
-  /** Optional class overrides for the display state (e.g. font weight). */
   displayClassName?: string
-  /** Optional secondary line (e.g. "co-propiedad" hint). */
-  hint?: string
+  hint?:             string
 }
 
 const MAX_DROPDOWN = 8
+const DROPDOWN_MIN_WIDTH = 320
+
+interface OverlayRect {
+  top:   number
+  left:  number
+  width: number
+}
 
 export function InlineEntityCell({
   currentName,
@@ -67,15 +73,12 @@ export function InlineEntityCell({
   const [highlight, setHighlight]   = useState(0)
   const [error, setError]           = useState<string | null>(null)
   const [confirmNew, setConfirmNew] = useState<string | null>(null)
+  const [rect, setRect]             = useState<OverlayRect | null>(null)
   const [pending, startTransition]  = useTransition()
   const inputRef = useRef<HTMLInputElement>(null)
   const router   = useRouter()
 
-  useEffect(() => {
-    if (editing) inputRef.current?.focus()
-  }, [editing])
-
-  // Filtered options — case-insensitive substring on the cleaned value.
+  // ── Filtered / exact-match logic ──────────────────────────────────────────
   const matches = useMemo(() => {
     const q = value.trim().toLowerCase()
     if (!q) return options.slice(0, MAX_DROPDOWN)
@@ -84,16 +87,54 @@ export function InlineEntityCell({
       .slice(0, MAX_DROPDOWN)
   }, [value, options])
 
-  // Exact match — case-insensitive trim equality.
   const exactMatch = useMemo(() => {
     const q = value.trim().toLowerCase()
     if (!q) return null
     return options.find(o => o.name.trim().toLowerCase() === q) ?? null
   }, [value, options])
 
+  // ── Focus + select-all when entering edit mode. useLayoutEffect runs
+  //    before the browser paints so the user never sees an un-selected state.
+  useLayoutEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+      // Highlight the row matching the current value, if present.
+      const idx = matches.findIndex(m => m.id === exactMatch?.id)
+      setHighlight(idx >= 0 ? idx : 0)
+      computeRect()
+    }
+    // Intentionally only on editing transition. Mid-edit recomputation is
+    // handled by recomputeOnReflow below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing])
+
+  // ── Reposition the overlay on scroll / resize while editing.
+  useEffect(() => {
+    if (!editing) return
+    const onReflow = () => computeRect()
+    window.addEventListener('scroll', onReflow, true)  // capture-phase: catch inner scrollers
+    window.addEventListener('resize', onReflow)
+    return () => {
+      window.removeEventListener('scroll', onReflow, true)
+      window.removeEventListener('resize', onReflow)
+    }
+  }, [editing])
+
+  function computeRect() {
+    const el = inputRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setRect({
+      top:   r.bottom + window.scrollY + 2,
+      left:  r.left   + window.scrollX,
+      width: Math.max(r.width, DROPDOWN_MIN_WIDTH),
+    })
+  }
+
+  // ── Commit / cancel / save flows ──────────────────────────────────────────
   function commit() {
     const v = value.trim()
-    // No change → just leave editing mode without a server round-trip.
     if (v === currentName.trim()) {
       setEditing(false)
       setError(null)
@@ -107,7 +148,6 @@ export function InlineEntityCell({
       saveExisting(exactMatch.id)
       return
     }
-    // No match — show the confirm-new dialog.
     setConfirmNew(v)
   }
 
@@ -164,7 +204,7 @@ export function InlineEntityCell({
 
   // ── Editing state ─────────────────────────────────────────────────────────
   return (
-    <div className="relative">
+    <>
       <input
         ref={inputRef}
         type="text"
@@ -179,7 +219,6 @@ export function InlineEntityCell({
             setHighlight(h => Math.max(h - 1, 0))
           } else if (e.key === 'Enter') {
             e.preventDefault()
-            // If a dropdown row is highlighted AND user has typed something, prefer the highlight.
             if (matches[highlight] && value.trim()) {
               saveExisting(matches[highlight].id)
             } else {
@@ -189,55 +228,85 @@ export function InlineEntityCell({
             e.preventDefault()
             cancel()
           } else if (e.key === 'Tab') {
-            // Don't preventDefault — let Tab move focus naturally; commit on blur.
             commit()
           }
         }}
         onBlur={() => {
-          // If the new-name dialog opens, blur will fire — but we don't want
-          // to cancel; we want the dialog to remain. Detect that via confirmNew.
-          if (!confirmNew) commit()
+          // Defer the blur commit by a tick so a mousedown on a dropdown
+          // item can win (its onMouseDown already preventDefaults focus loss).
+          setTimeout(() => {
+            if (!confirmNew && editing && document.activeElement !== inputRef.current) {
+              commit()
+            }
+          }, 50)
         }}
         disabled={pending}
         placeholder={`Escribí nombre del ${entityLabel}…`}
         className="w-full px-1.5 py-0.5 text-[12px] border border-ink rounded bg-paper outline-none text-ink"
       />
 
-      {/* Dropdown — only when editing AND we have matches AND no confirm dialog */}
-      {!confirmNew && matches.length > 0 && (
+      {/* Dropdown — portal-rendered to escape the table's overflow + sticky contexts. */}
+      {rect && !confirmNew && matches.length > 0 && createPortal(
         <ul
           role="listbox"
-          className="absolute left-0 right-0 top-full mt-1 z-40 bg-paper border border-line rounded shadow-card max-h-[220px] overflow-y-auto"
+          style={{
+            position: 'absolute',
+            top:      rect.top,
+            left:     rect.left,
+            width:    rect.width,
+            zIndex:   1000,
+          }}
+          className="bg-paper border border-line rounded shadow-lg max-h-[260px] overflow-y-auto py-0.5"
         >
-          {matches.map((m, i) => (
-            <li
-              key={m.id}
-              role="option"
-              aria-selected={i === highlight}
-              onMouseDown={e => { e.preventDefault(); saveExisting(m.id) }}
-              onMouseEnter={() => setHighlight(i)}
-              className={`px-2 py-1 text-[12px] cursor-pointer ${i === highlight ? 'bg-cream-2 text-ink' : 'text-slate-dark hover:bg-cream'}`}
-            >
-              {m.name}
-            </li>
-          ))}
+          {matches.map((m, i) => {
+            const isCurrent = m.id === exactMatch?.id
+            const isHL      = i === highlight
+            return (
+              <li
+                key={m.id}
+                role="option"
+                aria-selected={isHL}
+                onMouseDown={e => { e.preventDefault(); saveExisting(m.id) }}
+                onMouseEnter={() => setHighlight(i)}
+                className={[
+                  'relative pl-3 pr-2 py-1.5 text-[12.5px] cursor-pointer transition-colors',
+                  isHL  ? 'bg-info/10 text-ink' : 'text-slate-dark hover:bg-cream',
+                ].join(' ')}
+              >
+                {/* Left accent — visible when highlighted */}
+                {isHL && <span className="absolute left-0 top-1 bottom-1 w-[2px] bg-info rounded-r" aria-hidden />}
+                <span className="truncate block">
+                  {m.name}
+                  {isCurrent && <span className="text-[10px] text-slate ml-2">· actual</span>}
+                </span>
+              </li>
+            )
+          })}
           {!exactMatch && value.trim() && (
             <li
-              className="px-2 py-1 text-[11px] text-ink bg-warn/10 border-t border-line italic"
+              className="px-3 py-1.5 text-[11px] text-ink bg-warn/15 border-t border-line italic"
               title="Sin coincidencias — al confirmar, se creará una nueva entrada"
             >
-              ⚠ No existe — al guardar se pedirá confirmación
+              ⚠ &ldquo;{value.trim()}&rdquo; no existe — Enter para crear nuevo
             </li>
           )}
-        </ul>
+        </ul>,
+        document.body,
       )}
 
-      {/* New-name confirm dialog */}
-      {confirmNew && (
+      {/* New-name confirm dialog — also portal-rendered. */}
+      {rect && confirmNew && createPortal(
         <div
           role="dialog"
           aria-modal="true"
-          className="absolute left-0 top-full mt-1 z-50 bg-paper border-2 border-warn rounded shadow-card p-3 min-w-[260px]"
+          style={{
+            position: 'absolute',
+            top:      rect.top,
+            left:     rect.left,
+            width:    rect.width,
+            zIndex:   1001,
+          }}
+          className="bg-paper border-2 border-warn rounded shadow-lg p-3"
         >
           <p className="text-[12px] text-ink font-medium mb-1">⚠ Nuevo {entityLabel}</p>
           <p className="text-[11.5px] text-slate-dark mb-2 leading-snug">
@@ -263,8 +332,9 @@ export function InlineEntityCell({
               {pending ? 'Creando…' : 'Crear nuevo'}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   )
 }
