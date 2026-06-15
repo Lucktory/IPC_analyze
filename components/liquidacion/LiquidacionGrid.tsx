@@ -72,21 +72,14 @@ function buildTransferenciaTooltip(r: LiquidacionGridRow): string {
 export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }: Props) {
   if (rows.length === 0) {
     return (
-      <section className="bg-paper border border-line rounded shadow-card p-10 text-center">
-        <p className="text-[14px] text-slate">No hay contratos activos para este período.</p>
+      <section className="bg-paper border border-line p-6 text-center">
+        <p className="text-[13px] text-slate">No hay contratos activos para este período.</p>
       </section>
     )
   }
 
   return (
-    <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
-      <div className="px-5 py-4 border-b border-line">
-        <h2 className="font-display text-[15px] font-medium text-ink">Liquidación por contrato</h2>
-        <p className="text-[12px] text-slate mt-0.5">
-          {rows.length} contratos · scroll horizontal para ver todas las columnas
-        </p>
-      </div>
-
+    <section className="bg-paper border border-line overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-[12px] border-collapse min-w-[1860px]">
           <thead className="bg-cream-2/60 text-[10px] uppercase tracking-wider text-slate-dark font-medium">

@@ -1,7 +1,5 @@
 import Link from 'next/link'
-import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
-import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
 import { listTransactionPeriods, listTransactions } from '@/lib/entities/queries'
 import { getCurrentPeriod, periodLabel, periodShort } from '@/lib/period'
 import { getLiquidacionGridForPeriod, type LiquidacionStatus } from '@/lib/liquidacion/queries'
@@ -83,7 +81,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
   return (
     <>
       <StickyHeader>
-        <div className="flex items-baseline justify-between gap-3 flex-wrap sm:flex-nowrap mb-2">
+        <div className="flex items-baseline justify-between gap-3 flex-wrap sm:flex-nowrap mb-1">
           <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
             <strong className="text-ink font-medium">Liquidación</strong>
             {' · '}
@@ -93,13 +91,13 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
 
         {/* Tabs — the four ways to look at the same period's liquidación.
             The grilla is the daily-work view; the others are flows. */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden mb-3">
+        <div className="flex items-center gap-1 overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden mb-1.5">
           {VIEWS.map(v => (
             <Link
               key={v.key}
               href={linkWith({ view: v.key })}
               className={[
-                'inline-flex items-center px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors shrink-0 border',
+                'inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-medium transition-colors shrink-0 border',
                 v.key === view
                   ? 'bg-ink text-paper border-ink'
                   : 'bg-paper text-slate-dark border-line hover:bg-cream-2 hover:text-ink',
@@ -110,52 +108,28 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
           ))}
         </div>
 
-        <StickyKPIStrip cols={4}>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Cobrados este mes"
-              value={`${cobrados} / ${baseRows.length}`}
-              delta={pendientes > 0 ? `${pendientes} sin cobrar` : 'todo cobrado'}
-              deltaTone={pendientes > 0 ? 'negative' : 'positive'}
-            />
-          </StickyKPIStripItem>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Total cobrado"
-              value={fmt(totalIngresos)}
-              delta={`${periodShort(period)} · ingresos`}
-              deltaTone="neutral"
-            />
-          </StickyKPIStripItem>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Comisión administración"
-              value={fmt(totalAdmi)}
-              delta={totalIngresos > 0 ? `${(totalAdmi / totalIngresos * 100).toFixed(1)}% efectivo` : '—'}
-              deltaTone="positive"
-            />
-          </StickyKPIStripItem>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Avisos de aumento"
-              value={conAumento.toString()}
-              delta={conAumento > 0 ? 'contratos con aumento ≤30d' : 'sin aumentos próximos'}
-              deltaTone={conAumento > 0 ? 'positive' : 'neutral'}
-            />
-          </StickyKPIStripItem>
-        </StickyKPIStrip>
+        {/* Compact KPI strip — passive metrics belong here, not in a hero
+            block. Only render on the views where they're useful. */}
+        {view !== 'movimientos' && view !== 'destinos' && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+            <MiniKpi label="Cobrados"       value={`${cobrados} / ${baseRows.length}`} hint={pendientes > 0 ? `${pendientes} sin cobrar` : 'todo cobrado'} tone={pendientes > 0 ? 'warn' : 'success'} />
+            <MiniKpi label="Total cobrado"  value={fmt(totalIngresos)}                hint={`${periodShort(period)}`} tone="ink" />
+            <MiniKpi label="Comisión"       value={fmt(totalAdmi)}                    hint={totalIngresos > 0 ? `${(totalAdmi / totalIngresos * 100).toFixed(1)}%` : '—'} tone="success" />
+            <MiniKpi label="Aumentos ≤30d"  value={conAumento.toString()}             hint={conAumento > 0 ? 'avisos pendientes' : 'sin novedades'} tone={conAumento > 0 ? 'warn' : 'slate'} />
+          </div>
+        )}
       </StickyHeader>
 
-      {/* Period selector (always visible). Status filter only on the Grilla view. */}
-      <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
-        <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
-          <span className="label-cap text-slate mr-1 shrink-0">Período</span>
+      {/* Inline filter strip — no card chrome. Period always; Estado on grilla only. */}
+      <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px]">
+        <span className="label-cap text-slate shrink-0">Período</span>
+        <div className="flex items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
           {periods.map(p => (
             <Link
               key={p}
               href={linkWith({ period: p })}
               className={[
-                'inline-flex items-center px-3 py-1.5 rounded-full border text-[12px] font-medium transition-colors shrink-0',
+                'inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium transition-colors shrink-0',
                 p === period
                   ? 'bg-ink text-paper border-ink'
                   : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
@@ -168,27 +142,19 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
 
         {view === 'grilla' && (
           <>
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <span className="label-cap text-slate mr-1">Estado</span>
-              <StatusPill href={linkWith({ status: 'todas' })} active={statusFilter === 'todas'} label="Todas"     count={counts.todas} />
-              <StatusPill href={linkWith({ status: 'draft' })} active={statusFilter === 'draft'} label="Borrador"  count={counts.draft} tone="slate" />
-              <StatusPill href={linkWith({ status: 'sent'  })} active={statusFilter === 'sent'}  label="Enviadas"  count={counts.sent}  tone="success" />
-              <StatusPill href={linkWith({ status: 'paid'  })} active={statusFilter === 'paid'}  label="Pagadas"   count={counts.paid}  tone="info" />
+            <span className="label-cap text-slate shrink-0 ml-3">Estado</span>
+            <div className="flex items-center gap-1 flex-wrap">
+              <StatusPill href={linkWith({ status: 'todas' })} active={statusFilter === 'todas'} label="Todas"    count={counts.todas} />
+              <StatusPill href={linkWith({ status: 'draft' })} active={statusFilter === 'draft'} label="Borrador" count={counts.draft} tone="slate" />
+              <StatusPill href={linkWith({ status: 'sent'  })} active={statusFilter === 'sent'}  label="Enviadas" count={counts.sent}  tone="success" />
+              <StatusPill href={linkWith({ status: 'paid'  })} active={statusFilter === 'paid'}  label="Pagadas"  count={counts.paid}  tone="info" />
             </div>
-            <p className="mt-3 text-[11px] text-slate">
-              <span className="inline-block w-2 h-2 rounded-full bg-warn mr-1.5 align-middle" />
-              Celdas naranjas = contrato con aumento de alquiler en ≤30 días.
-              {' · '}
-              <span className="text-slate-dark">Texto gris</span> = pendiente.
-              {' · '}
-              <span className="text-ink font-medium">Texto oscuro</span> = cobrado/transferido.
-            </p>
           </>
         )}
-      </section>
+      </div>
 
-      {/* Tab content */}
-      <div className="mt-6">
+      {/* Tab content — minimal top margin, the grid takes over the page. */}
+      <div className="mt-3">
         {view === 'grilla'      && <LiquidacionGrid rows={rows} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />}
         {view === 'resumen'     && <ResumenView    rows={allRows} period={period} />}
         {view === 'movimientos' && <MovimientosView txns={txns}   period={period} />}
@@ -228,5 +194,32 @@ function StatusPill({
         {count}
       </span>
     </Link>
+  )
+}
+
+// Compact KPI tile — passive metric for the sticky header. Smaller than
+// the KPICard used elsewhere in the app; tuned for /liquidacion where
+// vertical real estate is at a premium and the planilla is the focus.
+function MiniKpi({
+  label, value, hint, tone,
+}: {
+  label: string
+  value: string
+  hint:  string
+  tone:  'ink' | 'success' | 'warn' | 'slate'
+}) {
+  const valueColor =
+    tone === 'success' ? 'text-success' :
+    tone === 'warn'    ? 'text-warn'    :
+    tone === 'slate'   ? 'text-slate-dark' :
+                         'text-ink'
+  return (
+    <div className="flex items-baseline justify-between gap-2 bg-paper/70 border border-line/60 rounded px-2 py-1 min-w-0">
+      <div className="min-w-0">
+        <p className="text-[9px] uppercase tracking-wider text-slate truncate">{label}</p>
+        <p className="text-[10px] text-slate truncate">{hint}</p>
+      </div>
+      <p className={`font-display font-medium tabular-nums text-[14px] shrink-0 ${valueColor}`}>{value}</p>
+    </div>
   )
 }
