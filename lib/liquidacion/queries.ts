@@ -14,6 +14,9 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { classifyDestination } from '@/lib/reconciliation/queries'
+import { validateRow, type ValidationIssue } from './validations'
+
+export type { ValidationIssue }
 
 // ── Cadence helpers — mirrors the function in lib/pending/queries.ts so
 // the orange-highlight rule (aumento ≤30d) uses the SAME logic as the
@@ -156,6 +159,11 @@ export interface LiquidacionGridRow {
   //    Ingresos cell renders the sum as before AND opens a popover that
   //    edits each line individually.
   ingresosLines:     IngresosLine[]
+
+  // ── Per-row validation issues (Phase 7A). Empty array = all checks
+  //    passed → green ✓ in the Check column. Non-empty → yellow / red
+  //    badge with click-to-popover details.
+  validationIssues:  ValidationIssue[]
 }
 
 export interface IngresosLine {
@@ -168,6 +176,11 @@ export interface IngresosLine {
   bankDate:      string | null
 }
 
+// ── Validation issues for the row (Phase 7A — discrepancy verification).
+//    Populated by validateRow() in lib/liquidacion/validations.ts.
+//    Empty array means all checks passed; otherwise the badge in the
+//    "Check" column lights up yellow/red depending on highest severity. */
+
 // ── Rich grid query — returns all 19 columns per row ───────────────────────
 export async function getLiquidacionGridForPeriod(period: string): Promise<LiquidacionGridRow[]> {
   const supabase = await createSupabaseServer()
@@ -178,7 +191,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       .from('contracts')
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
-        cadence, start_date, end_date, created_at, updated_at,
+        cadence, start_date, end_date, created_at, updated_at, commission_pct,
         contract_tenants(is_primary, tenants(name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
@@ -346,6 +359,29 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         if (x.typeCode !== 'RENT_IN' && y.typeCode === 'RENT_IN') return 1
         return y.amount - x.amount
       }),
+      // Phase 7A validations: pure-function checks over the row data.
+      // The contract's commission_pct is passed so the commission
+      // deviation check has the expected % to compare against.
+      validationIssues: validateRow(
+        {
+          ingresos:         a.ingresos,
+          admi:             a.admi,
+          otros:            a.otros,
+          transferencia,
+          adjustmentAmount: adjustment,
+          admGalicia:       a.galicia,
+          admFrances509:    a.frances509,
+          admFrances516:    a.frances516,
+          currentRent,
+          pct,
+          deuda,
+          status:           (liq?.status ?? 'draft') as LiquidacionStatus,
+          fechaBanco:       a.fechaBanco,
+          diaTransf:        a.diaTransf,
+          ingresosLines:    a.ingresosLines,
+        },
+        c.commission_pct != null ? Number(c.commission_pct) : undefined,
+      ),
     })
   }
 

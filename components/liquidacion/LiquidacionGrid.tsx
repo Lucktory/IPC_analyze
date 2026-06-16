@@ -53,6 +53,7 @@ import {
 } from './EditableCells'
 import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 import { InlineIngresosCell } from './InlineIngresosCell'
+import { ValidationBadgeCell } from './ValidationBadgeCell'
 
 interface Props {
   rows:            LiquidacionGridRow[]
@@ -89,6 +90,10 @@ const W = {
   // Column 20: Mail — per-row "Liquidar y enviar" action button.
   // Alejandro: "faltaría agregarle al final liquidar contrato y mandarle el mail."
   mail: 75,
+  // Column 21: Check — per-row validation badge (Phase 7A).
+  // Green ✓ if all checks pass; yellow / red count badge if there are
+  // warnings / errors. Click → popover with the issue details.
+  check: 55,
 }
 const STICKY_LEFTS = {
   obs:    0,
@@ -140,7 +145,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
   const tableMinWidth =
     W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.contrato +
     W.deuda + W.periodo + W.ingresos + W.transf + W.otros + W.diatransf +
-    W.admi + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail
+    W.admi + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
 
   return (
     <section className="bg-white border border-gray-300 overflow-hidden h-full flex flex-col">
@@ -173,6 +178,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
               {/* 18 */}<Th width={W.fr516}     align="right">BBVA 51/6</Th>
               {/* 19 */}<Th width={W.estado}    align="center">Estado</Th>
               {/* 20 */}<Th width={W.mail}      align="center">Mail</Th>
+              {/* 21 */}<Th width={W.check}     align="center">Check</Th>
             </tr>
           </thead>
           <tbody>
@@ -442,6 +448,15 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       landlordEmail={r.propietarioEmail}
                       status={r.status}
                     />
+                  </Td>
+
+                  {/* 21. CHECK — per-row validation badge (Phase 7A).
+                       Green ✓ if all 7 cross-cell checks pass. Yellow/red
+                       count badge if there are warnings/errors. Click →
+                       popover with each issue's message, expected, actual,
+                       and difference. */}
+                  <Td width={W.check} align="center">
+                    <ValidationBadgeCell issues={r.validationIssues} />
                   </Td>
                 </tr>
               )
