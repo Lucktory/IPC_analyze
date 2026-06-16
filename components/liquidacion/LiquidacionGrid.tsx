@@ -362,6 +362,12 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                        total commission expected for the period: ingresos × pct.
                        Single destination > expected total triggers a confirm. */}
 
+                  {/* 16-18. ADM destinations: labels are now plain text. The
+                       destination marker (ADM_GALICIA / ADM_FRANCES_50_9 /
+                       ADM_FRANCES_51_6) is appended automatically by
+                       upsertCellTransaction at INSERT time — preventing the
+                       double-suffix bug that came from labels containing the
+                       destination code already. */}
                   {/* 16. ADM GALICIA */}
                   <Td width={W.galicia} align="right">
                     <EditableTransactionCell
@@ -371,7 +377,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       destination="ADM_GALICIA"
                       value={r.admGalicia}
                       cobrado={transferido}
-                      label="Comisión → ADM_GALICIA"
+                      label="Comisión administración"
                       maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
                     />
                   </Td>
@@ -385,7 +391,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       destination="ADM_FRANCES_50_9"
                       value={r.admFrances509}
                       cobrado={transferido}
-                      label="Comisión → ADM_FRANCES_50_9"
+                      label="Comisión administración"
                       maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
                     />
                   </Td>
@@ -399,7 +405,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       destination="ADM_FRANCES_51_6"
                       value={r.admFrances516}
                       cobrado={transferido}
-                      label="Comisión → ADM_FRANCES_51_6"
+                      label="Comisión administración"
                       maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
                     />
                   </Td>

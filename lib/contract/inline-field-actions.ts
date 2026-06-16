@@ -138,28 +138,31 @@ export async function upsertCellTransaction(
   const typeId          = (typeRow  as any).id as string
   const administrationId = (contract as any).administration_id as string
 
-  // Build the description with the destination marker (for COMMISSION_OUT).
-  // The grid query parses these markers to attribute the commission to one
-  // of the three destinations.
-  let finalDescription = description ?? null
+  // Build the description for INSERT (only used when creating a new row).
+  // For COMMISSION_OUT we append a destination marker (ADM_GALICIA / ...)
+  // unless the caller's label already contains it — avoids the
+  // double-suffix bug "Comisión → ADM_GALICIA · ADM_GALICIA" that came
+  // from EditableTransactionCell sometimes passing a label that already
+  // included the destination code.
+  const baseDescription = (description ?? '').trim()
+  let insertDescription: string | null = baseDescription || null
   if (destination) {
-    const marker = destination
-    const base   = (description ?? '').trim()
-    finalDescription = base ? `${base} · ${marker}` : marker
+    insertDescription = baseDescription.includes(destination)
+      ? (baseDescription || destination)
+      : (baseDescription ? `${baseDescription} · ${destination}` : destination)
   }
 
   // Find existing transaction for (contract, period, type [+ destination marker]).
-  let query = supabase
+  const { data: existing, error: findErr } = await supabase
     .from('transactions')
     .select('id, description')
     .eq('contract_id', contractId)
     .eq('period', period)
     .eq('transaction_type_id', typeId)
-  const { data: existing, error: findErr } = await query
   if (findErr) return dbFailure(findErr)
 
-  // For COMMISSION_OUT, match by destination marker; for others, any single
-  // row for the (contract, period, type) is "the" one we keep updated.
+  // For COMMISSION_OUT, match by destination marker; for others, the most
+  // recent row for (contract, period, type) is "the" one we keep updated.
   let target: { id: string } | null = null
   if ((existing ?? []).length > 0) {
     if (destination) {
@@ -178,13 +181,17 @@ export async function upsertCellTransaction(
   }
 
   if (target) {
-    // Update amount (and bank_date / description if provided).
+    // UPDATE — only touch amount (and bank_date if the caller explicitly
+    // provided one). The description is intentionally PRESERVED: the row
+    // was tagged with the correct marker at INSERT time, and overwriting
+    // on every edit would lose context the encargada may have added and
+    // re-introduce the double-suffix bug for destination cells.
     const update: Record<string, unknown> = { amount }
-    if (bankDate !== null)         update.bank_date   = bankDate
-    if (finalDescription !== null) update.description = finalDescription
+    if (bankDate !== null) update.bank_date = bankDate
     const { error: upErr } = await supabase.from('transactions').update(update).eq('id', target.id)
     if (upErr) return dbFailure(upErr)
   } else if (amount > 0) {
+    // INSERT — fresh row, use the full description.
     const { error: insErr } = await supabase
       .from('transactions')
       .insert({
@@ -194,7 +201,7 @@ export async function upsertCellTransaction(
         amount,
         period,
         bank_date:            bankDate,
-        description:          finalDescription,
+        description:          insertDescription,
       })
     if (insErr) return dbFailure(insErr)
   }
