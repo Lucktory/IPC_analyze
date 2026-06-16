@@ -48,14 +48,32 @@ import { PREMIUM, fmtCompactARS } from '@/components/charts/theme'
 // both light + dark surfaces. Categories carry MEANING — red = urgent —
 // so these stay fixed regardless of theme.
 //
-// `key` MATCHES the StreamType emitted by getPendientesDigest, and `href`
-// uses ?type= (not ?tipo=) so the link actually filters /pendientes when
-// clicked. Both were wrong before this commit — silent UI breakage.
-const PENDIENTES_CATEGORIES = [
-  { key: 'cobranza' as const, label: 'Cobranza',     sublabel: 'vencidas',    color: '#E63946', href: '/pendientes?type=cobranza' },
-  { key: 'aumento'  as const, label: 'Aumentos',     sublabel: 'a notificar', color: '#F39C12', href: '/pendientes?type=aumento'  },
-  { key: 'contrato' as const, label: 'Renovaciones', sublabel: 'a confirmar', color: '#3B82F6', href: '/pendientes?type=contrato' },
+// Categorization rules:
+//   • `key` MATCHES the StreamType emitted by getPendientesDigest. For
+//     'otros' (the catch-all) we sum validacion + workflow + datos.
+//   • `href` uses ?type= (the /pendientes page reads ?type=, not ?tipo=).
+//     'otros' has no single type → link goes to the bare /pendientes.
+//
+// Why FOUR categories instead of three: the previous three-card layout
+// silently dropped the 16-or-so urgent+important items from validacion +
+// workflow + datos. That made the donut center (sum of visible buckets)
+// disagree with the widget subtitle (sum of ALL actionable items, =
+// bell). With "Otros" present, every actionable item lands in exactly
+// one bucket and the three numbers agree.
+type PendienteBucketKey = 'cobranza' | 'aumento' | 'contrato' | 'otros'
+const PENDIENTES_CATEGORIES: Array<{
+  key:      PendienteBucketKey
+  label:    string
+  sublabel: string
+  color:    string
+  href:     string
+}> = [
+  { key: 'cobranza', label: 'Cobranza',     sublabel: 'vencidas',    color: '#E63946', href: '/pendientes?type=cobranza' },
+  { key: 'aumento',  label: 'Aumentos',     sublabel: 'a notificar', color: '#F39C12', href: '/pendientes?type=aumento'  },
+  { key: 'contrato', label: 'Renovaciones', sublabel: 'a confirmar', color: '#3B82F6', href: '/pendientes?type=contrato' },
+  { key: 'otros',    label: 'Otros',        sublabel: 'val. + sist.', color: '#7E8696', href: '/pendientes'              },
 ]
+const OTROS_TYPES = new Set(['validacion', 'workflow', 'datos'])
 
 /** % change from `from` to `to`. Returns null when the base is zero so we
  *  don't render misleading "∞%" trends. */
@@ -94,21 +112,22 @@ export default async function DashboardPage() {
   ])
 
   // Pendientes counts — count ONLY actionable items (urgente + importante),
-  // grouped by the digest's `type` field. This is the same definition the
-  // topbar bell badge uses (lib/pending/queries.ts → getPendingCount),
-  // so the dashboard total now matches the bell.
+  // grouped into the four buckets shown in the donut + cards. This is the
+  // SAME definition the topbar bell badge uses (lib/pending/queries.ts →
+  // getPendingCount), so the dashboard total now matches the bell.
   //
-  // The three categories shown in the donut are the operational ones
-  // (cobranza, aumento, contrato-lifecycle). validación / workflow / datos
-  // items are surfaced on /pendientes but kept out of the donut to avoid
-  // overloading what is meant to be a glanceable summary widget.
+  // The four buckets are exhaustive: every actionable digest item lands in
+  // exactly one. Cobranza / Aumentos / Renovaciones are the operational
+  // streams Alejandro thinks about; "Otros" holds the smaller validacion
+  // + workflow + datos hygiene items so the donut sum equals the total.
   const actionableItems = digest.items.filter(
     i => i.severity === 'urgente' || i.severity === 'importante',
   )
-  const pendingCounts = {
+  const pendingCounts: Record<PendienteBucketKey, number> & { total: number } = {
     cobranza: actionableItems.filter(i => i.type === 'cobranza').length,
     aumento:  actionableItems.filter(i => i.type === 'aumento').length,
     contrato: actionableItems.filter(i => i.type === 'contrato').length,
+    otros:    actionableItems.filter(i => OTROS_TYPES.has(i.type)).length,
     total:    actionableItems.length,
   }
 
@@ -267,9 +286,11 @@ export default async function DashboardPage() {
                 legendPosition="bottom"
                 totalUnit={pendingCounts.total === 1 ? 'pendiente' : 'pendientes'}
               />
-              {/* Three vibrant per-category cards — each clicks through
-                  to the filtered Pendientes list. */}
-              <div className="grid grid-cols-3 gap-2 mt-4">
+              {/* Four vibrant per-category cards — each clicks through
+                  to the filtered Pendientes list. The fourth ("Otros")
+                  covers validación + workflow + datos so the per-card
+                  numbers sum to the donut total and the widget subtitle. */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
                 {PENDIENTES_CATEGORIES.map(cat => (
                   <TintCard
                     key={cat.key}
