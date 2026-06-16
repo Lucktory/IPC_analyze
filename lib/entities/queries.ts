@@ -27,15 +27,17 @@ export interface LandlordRow {
 export async function listLandlords(): Promise<LandlordRow[]> {
   const supabase = await createSupabaseServer()
 
+  // Defensive: if the updated_at migration hasn't been applied yet, fall
+  // back to a name-only order so the /propietarios page doesn't go blank.
+  const landlordsSelect = 'id, name, email, phone, dni_or_cuit'
+  const landlordsOrderedP = supabase
+    .from('landlords')
+    .select(landlordsSelect)
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('name')
+
   const [landlordsRes, contractJunctionRes, propertyJunctionRes, transactionsRes] = await Promise.all([
-    supabase
-      .from('landlords')
-      .select('id, name, email, phone, dni_or_cuit')
-      // Sort by most recently updated first — Alejandro's spec for the
-      // master entity pages. Trigger touch_updated_at bumps the row on
-      // every UPDATE (migration-2026-06-16-entities-updated-at.sql).
-      .order('updated_at', { ascending: false, nullsFirst: false })
-      .order('name'),
+    landlordsOrderedP,
     // Contract-level co-ownership (drives the monthly revenue split + contract count)
     supabase
       .from('contract_landlords')
@@ -54,6 +56,14 @@ export async function listLandlords(): Promise<LandlordRow[]> {
       .eq('transaction_types.code', 'RENT_IN')
       .eq('period', getCurrentPeriod()),
   ])
+
+  // Fall back for landlordsRes if the updated_at column doesn't exist yet.
+  let landlordsData = landlordsRes.data
+  if (landlordsRes.error) {
+    console.warn('[listLandlords] updated_at order failed; falling back to name-only:', landlordsRes.error.message)
+    const fallback = await supabase.from('landlords').select(landlordsSelect).order('name')
+    landlordsData = fallback.data
+  }
 
   // Build a contract_id → landlord_ids map (a contract may have multiple co-owners)
   const contractToLandlords = new Map<string, string[]>()
@@ -86,7 +96,7 @@ export async function listLandlords(): Promise<LandlordRow[]> {
     propCount.set(j.landlord_id, (propCount.get(j.landlord_id) ?? 0) + 1)
   }
 
-  return (landlordsRes.data ?? []).map(l => {
+  return (landlordsData ?? []).map(l => {
     const id        = (l as any).id as string
     const s         = stats.get(id) ?? { contracts: new Set<string>(), revenue: 0 }
     const props     = propCount.get(id) ?? 0
@@ -145,10 +155,11 @@ export interface TenantRow {
 export async function listTenants(): Promise<TenantRow[]> {
   const supabase = await createSupabaseServer()
 
+  const tenantsSelect = 'id, name, email, phone, dni'
   const [tenantsRes, junctionRes, contractsRes] = await Promise.all([
     supabase
       .from('tenants')
-      .select('id, name, email, phone, dni')
+      .select(tenantsSelect)
       // Sort by most recently updated first; name as tiebreaker.
       .order('updated_at', { ascending: false, nullsFirst: false })
       .order('name'),
@@ -159,6 +170,14 @@ export async function listTenants(): Promise<TenantRow[]> {
       .from('contracts')
       .select('id, current_rent, status'),
   ])
+
+  // Fall back for tenantsRes if the updated_at column doesn't exist yet.
+  let tenantsData = tenantsRes.data
+  if (tenantsRes.error) {
+    console.warn('[listTenants] updated_at order failed; falling back to name-only:', tenantsRes.error.message)
+    const fallback = await supabase.from('tenants').select(tenantsSelect).order('name')
+    tenantsData = fallback.data
+  }
 
   const rentByContract = new Map<string, { rent: number; active: boolean }>()
   for (const c of (contractsRes.data ?? []) as any[]) {
@@ -175,7 +194,7 @@ export async function listTenants(): Promise<TenantRow[]> {
     stats.set(j.tenant_id, entry)
   }
 
-  return (tenantsRes.data ?? []).map(t => {
+  return (tenantsData ?? []).map(t => {
     const id     = (t as any).id as string
     const s      = stats.get(id) ?? { contracts: new Set<string>(), rent: 0 }
     const email  = (t as any).email as string | null
@@ -285,12 +304,20 @@ export interface BankRow {
 
 export async function listBanks(): Promise<BankRow[]> {
   const supabase = await createSupabaseServer()
-  // Sort by most recently updated first; name as tiebreaker.
-  const { data } = await supabase
+  // Try sorting by updated_at first; fall back to name-only if the column
+  // doesn't exist yet (migration-2026-06-16-entities-updated-at.sql not
+  // applied). The previous version silently returned an empty array on
+  // the schema error, which made the /bancos page look broken.
+  let { data, error } = await supabase
     .from('banks')
     .select('id, name, short_code')
     .order('updated_at', { ascending: false, nullsFirst: false })
     .order('name')
+  if (error) {
+    console.warn('[listBanks] updated_at order failed; falling back to name-only:', error.message)
+    const fallback = await supabase.from('banks').select('id, name, short_code').order('name')
+    data = fallback.data
+  }
   return (data ?? []).map(b => ({
     id:        (b as any).id,
     name:      (b as any).name,
@@ -316,15 +343,17 @@ export interface BankInstitutionRow {
 
 export async function listBankInstitutions(): Promise<BankInstitutionRow[]> {
   const supabase = await createSupabaseServer()
-  const [banksRes, accountsRes] = await Promise.all([
-    supabase
-      .from('banks')
-      .select(`
+  const select = `
         id, name, short_code,
         monthly_fee, transfer_fee_pct, transfer_fee_fixed,
         contact_name, contact_phone, contact_email, notes
-      `)
-      // Same sort policy as the basic listBanks — most recently updated first.
+      `
+  // Same defensive pattern as listBanks: try updated_at-first, fall back to
+  // name-only if the migration hasn't been applied yet.
+  const [banksRes, accountsRes] = await Promise.all([
+    supabase
+      .from('banks')
+      .select(select)
       .order('updated_at', { ascending: false, nullsFirst: false })
       .order('name'),
     supabase
@@ -332,12 +361,19 @@ export async function listBankInstitutions(): Promise<BankInstitutionRow[]> {
       .select('bank_id'),
   ])
 
+  let banksData = banksRes.data
+  if (banksRes.error) {
+    console.warn('[listBankInstitutions] updated_at order failed; falling back to name-only:', banksRes.error.message)
+    const fallback = await supabase.from('banks').select(select).order('name')
+    banksData = fallback.data
+  }
+
   const countByBank = new Map<string, number>()
   for (const a of (accountsRes.data ?? []) as any[]) {
     countByBank.set(a.bank_id, (countByBank.get(a.bank_id) ?? 0) + 1)
   }
 
-  return (banksRes.data ?? []).map(b => {
+  return (banksData ?? []).map(b => {
     const row = b as any
     return {
       id:               row.id,
