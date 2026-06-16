@@ -53,14 +53,41 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
   // (totals derive from the same rows). Periods always. Landlord/tenant
   // option lists feed the autocomplete in the editable Propietario/Inquilino
   // cells — only loaded when the grilla tab is active.
-  const periods = await listTransactionPeriods()
+  //
+  // Each fetch is wrapped in its OWN try/catch so that:
+  //   1. One failing query doesn't take down the whole page (the planilla
+  //      can still render with the data that DID load).
+  //   2. The actual error message + stack survive into the UI. Next.js's
+  //      default error boundary strips messages in production builds; by
+  //      catching here we bypass that and can show Alejandro / us exactly
+  //      what threw.
+  //
+  // `pageErrors` collects {source, message, stack} for any failed fetch.
+  // The render block displays them in a bright red banner at the top of
+  // the page so a single broken query is obvious and actionable.
+  type PageError = { source: string; message: string; stack: string | null }
+  const pageErrors: PageError[] = []
+
+  async function safe<T>(source: string, fallback: T, fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      const stack   = err instanceof Error ? (err.stack ?? null) : null
+      pageErrors.push({ source, message, stack })
+      console.error(`[/liquidacion] ${source} threw:`, err)
+      return fallback
+    }
+  }
+
   const needsGrid = view === 'grilla' || view === 'resumen'
-  const [allRows, txns, buckets, landlordOptions, tenantOptions] = await Promise.all([
-    needsGrid              ? getLiquidacionGridForPeriod(period)    : Promise.resolve([]),
-    view === 'movimientos' ? listTransactions(period)                : Promise.resolve([]),
-    view === 'destinos'    ? getReconciliationByDestination(period)  : Promise.resolve([]),
-    view === 'grilla'      ? listLandlordOptions()                   : Promise.resolve([]),
-    view === 'grilla'      ? listTenantOptions()                     : Promise.resolve([]),
+  const [periods, allRows, txns, buckets, landlordOptions, tenantOptions] = await Promise.all([
+    safe('listTransactionPeriods',    [],   () => listTransactionPeriods()),
+    safe('getLiquidacionGridForPeriod', [], () => needsGrid              ? getLiquidacionGridForPeriod(period)   : Promise.resolve([])),
+    safe('listTransactions',          [],   () => view === 'movimientos' ? listTransactions(period)               : Promise.resolve([])),
+    safe('getReconciliationByDestination', [], () => view === 'destinos' ? getReconciliationByDestination(period) : Promise.resolve([])),
+    safe('listLandlordOptions',       [],   () => view === 'grilla'      ? listLandlordOptions()                  : Promise.resolve([])),
+    safe('listTenantOptions',         [],   () => view === 'grilla'      ? listTenantOptions()                    : Promise.resolve([])),
   ])
 
   // Status filter — applies to the grid view (only)
@@ -91,6 +118,35 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
 
   return (
     <>
+      {/* ─── Diagnostic banner: visible only when one of the data fetches
+              threw. Surfaces the real error message + stack (which
+              Next.js's default production error page strips) so the
+              actual bug is one click away — instead of a cryptic digest. */}
+      {pageErrors.length > 0 && (
+        <div className="bg-danger/10 border border-danger/40 rounded p-3 mb-3 text-[12px]">
+          <p className="font-medium text-danger mb-1">
+            ⚠ {pageErrors.length} {pageErrors.length === 1 ? 'consulta falló' : 'consultas fallaron'} al armar esta página
+          </p>
+          <ul className="space-y-2">
+            {pageErrors.map((e, i) => (
+              <li key={i} className="border-t border-danger/20 pt-2 first:border-t-0 first:pt-0">
+                <p className="font-mono text-[11px] text-ink">
+                  <strong>{e.source}:</strong> {e.message}
+                </p>
+                {e.stack && (
+                  <details className="mt-1">
+                    <summary className="text-[10px] text-slate cursor-pointer">stack trace</summary>
+                    <pre className="text-[10px] text-slate-dark whitespace-pre-wrap break-words mt-1 max-h-40 overflow-auto">
+                      {e.stack}
+                    </pre>
+                  </details>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* ─── Top section: ALWAYS-VISIBLE header. Filter strip lives here too
               so it never scrolls away (the user complaint about the
               `+ Nuevo contrato` row disappearing when scrolling). The
