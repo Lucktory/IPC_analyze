@@ -25,8 +25,8 @@ import {
   createIngresosLine,
   updateIngresosLine,
   deleteIngresosLine,
-  INGRESOS_LINE_TYPES,
 } from '@/lib/liquidacion/ingresos-line-actions'
+import { INGRESOS_LINE_TYPES } from '@/lib/liquidacion/ingresos-line-types'
 
 // Human-readable labels for the dropdown — taken straight from the seeded
 // transaction_types.label values so the popover and the dropdown agree.

@@ -19,30 +19,15 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
+import { isAllowedIngresosLineType } from './ingresos-line-types'
 
+// Files marked 'use server' in Next.js can only export async functions.
+// The result interface is TypeScript-only (erased at compile time), so
+// it doesn't violate that rule. The canonical type list + type-guard
+// live in ./ingresos-line-types.ts where non-function exports are legal.
 export interface IngresosLineResult {
   ok:    boolean
   error: string | null
-}
-
-// Allowed transaction type codes for an Ingresos line. Anything else is
-// rejected at the server boundary so the popover dropdown stays canonical.
-export const INGRESOS_LINE_TYPES = [
-  'RENT_IN',
-  'EXPENSAS_IN',
-  'LATE_FEE_IN',
-  'RECUPERO_ABL_IN',
-  'RECUPERO_AYSA_IN',
-  'RECUPERO_METROGAS_IN',
-  'RECUPERO_EDESUR_IN',
-  'RECUPERO_OTRO_IN',
-  'UTILITY_REFUND_IN',
-  'OTHER_IN',
-] as const
-type IngresosLineType = typeof INGRESOS_LINE_TYPES[number]
-
-function isAllowedType(s: string): s is IngresosLineType {
-  return (INGRESOS_LINE_TYPES as readonly string[]).includes(s)
 }
 
 // ── Create a new line ──────────────────────────────────────────────────────
@@ -54,7 +39,7 @@ export async function createIngresosLine(input: {
   bankDate?:   string | null
   description?: string | null
 }): Promise<IngresosLineResult> {
-  if (!isAllowedType(input.typeCode)) {
+  if (!isAllowedIngresosLineType(input.typeCode)) {
     return { ok: false, error: `Tipo de ingreso inválido: ${input.typeCode}.` }
   }
   if (!isFinite(input.amount) || input.amount <= 0) {
@@ -105,7 +90,7 @@ export async function updateIngresosLine(input: {
   if (input.amount !== undefined && (!isFinite(input.amount) || input.amount <= 0)) {
     return { ok: false, error: 'El monto debe ser mayor a 0.' }
   }
-  if (input.typeCode !== undefined && !isAllowedType(input.typeCode)) {
+  if (input.typeCode !== undefined && !isAllowedIngresosLineType(input.typeCode)) {
     return { ok: false, error: `Tipo de ingreso inválido: ${input.typeCode}.` }
   }
   if (input.bankDate !== undefined && input.bankDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(input.bankDate)) {
