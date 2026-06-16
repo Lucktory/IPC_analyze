@@ -20,6 +20,7 @@
 -- 1. DROP EXISTING (reverse order of create due to FKs)
 -- ----------------------------------------------------------------------------
 drop table if exists pending_actions_sent cascade;
+drop table if exists contract_events cascade;
 drop table if exists liquidacion_lines cascade;
 drop table if exists liquidaciones cascade;
 drop table if exists recibos cascade;
@@ -288,6 +289,29 @@ create table contract_period_notes (
   primary key (contract_id, period)
 );
 create index idx_contract_period_notes_period on contract_period_notes(period);
+
+-- ----------------------------------------------------------------------------
+-- 13b-bis. CONTRACT_EVENTS — unified per-contract timeline / dossier (Phase 11).
+--      One row per situation that happens during a contract's life:
+--      arreglos (pintura, plomería), aumentos aplicados, mails enviados,
+--      observaciones libres, cambios de estado. Distinguished by `kind`,
+--      queried by `contract_id` and ordered by `occurred_at`.
+--      Designed minimal: six business columns. New kinds can be added in
+--      the application layer without a schema change.
+-- ----------------------------------------------------------------------------
+create table contract_events (
+  id            bigserial   primary key,
+  contract_id   uuid        not null references contracts(id) on delete cascade,
+  occurred_at   timestamptz not null default now(),
+  kind          text        not null,        -- arreglo | aumento | mail_enviado | observacion | status_change | ...
+  description   text,
+  amount        numeric(14,2),               -- repair cost / new rent / NULL for non-monetary kinds
+  payer         text        check (payer is null or payer in ('landlord', 'tenant')),
+  created_by    uuid,                        -- auth.users id (loose link, not FK)
+  created_at    timestamptz not null default now()
+);
+create index idx_contract_events_contract_occurred
+  on contract_events (contract_id, occurred_at desc);
 
 -- ----------------------------------------------------------------------------
 -- 13c. PENDING_ACTIONS_SENT — bell/pendientes snooze tracker.
