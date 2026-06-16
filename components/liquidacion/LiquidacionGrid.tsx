@@ -54,6 +54,7 @@ import {
 import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 import { InlineIngresosCell } from './InlineIngresosCell'
 import { ValidationBadgeCell } from './ValidationBadgeCell'
+import { highestSeverity } from '@/lib/liquidacion/validations'
 
 interface Props {
   rows:            LiquidacionGridRow[]
@@ -185,14 +186,24 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
             {rows.map((r, idx) => {
               const cobrado     = !!r.fechaBanco
               const transferido = !!r.diaTransf
-              // Excel-style alternating banding: pure white / very pale gray.
-              // Recently-edited rows override the banding with a yellow tint
-              // so the encargada can see what she just touched without the
-              // table re-sorting under her (default sort stays alphabetical
-              // by propietario per Alejandro's spec).
-              const zebra       = r.wasRecentlyEdited
-                ? 'bg-yellow-50'
-                : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
+
+              // Row background priority (high → low):
+              //   1. Validation ERROR   → pale red tint   (most urgent)
+              //   2. Validation WARNING → pale orange tint
+              //   3. Recently edited    → pale yellow tint
+              //   4. Excel-style zebra  → white / very pale gray alternating
+              //
+              // Editing focus (`[&:has([data-editing])]:bg-blue-100` further
+              // down) overrides all of these — clicking into a cell wins
+              // visually regardless of validation state.
+              const severity = highestSeverity(r.validationIssues)
+              const zebra = severity === 'error'
+                ? 'bg-danger/10'
+                : severity === 'warning'
+                  ? 'bg-warn/10'
+                  : r.wasRecentlyEdited
+                    ? 'bg-yellow-50'
+                    : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
               // The aumento ≤30d highlight goes on the INGRESOS cell — soft
               // orange that doesn't dominate but is unmistakable on scan.
               const ingresosBg = r.hasUpcomingAdjustment
