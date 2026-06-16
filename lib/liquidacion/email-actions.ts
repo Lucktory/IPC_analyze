@@ -1,20 +1,25 @@
 'use server'
 
 // ============================================================================
-// "Liquidar y enviar mail" — server action.
+// "Liquidar y enviar mail" — split into two server actions.
 //
-// Phase 4 of Alejandro's June-16 spec. The encargada clicks "Liquidar y
-// enviar" on a row → confirmation modal opens → on Enviar the app:
-//   1. Computes the period's liquidación summary (gross, comisión, otros, neto)
-//   2. Builds a Spanish email body + subject from a template
-//   3. Transitions the liquidación status to "sent"
-//   4. Returns the prepared subject/body/recipient to the caller, which
-//      opens a mailto: link so the encargada's own email client sends
-//      the message
+//   prepareEmailDraft(...)        — PURE READ. Computes the period summary +
+//                                   drafts subject/body. NO state change.
+//                                   Called when the modal opens so the
+//                                   encargada sees the preview.
 //
-// IMPORTANT — respects the saved communication-model rule: drafting and
-// recipient recommendation are automated; the decision to send stays
-// with the encargada. The server never actually dispatches an email.
+//   markLiquidacionAsSent(...)    — Transitions the liquidación row to
+//                                   'sent' and bumps the contract's
+//                                   updated_at. Called ONLY when she
+//                                   actually clicks one of the Send
+//                                   buttons in the modal. Splitting these
+//                                   prevents the bug where "Cancelar"
+//                                   left the row marked as sent.
+//
+// Respects the saved communication-model rule: drafting and recipient
+// recommendation are automated; the decision to send stays with the
+// encargada. The server never actually dispatches an email; the UI
+// hands off to Gmail compose / mailto: in her own browser.
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
@@ -23,14 +28,12 @@ import { transitionLiquidacionStatus } from './actions'
 import { fmtMoney } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
 
-export interface LiquidarAndEmailResult {
+export interface PrepareEmailResult {
   ok:    boolean
   error: string | null
-  /** Pre-filled email envelope — caller uses these to build the mailto: URL. */
-  recipient?:  string | null    // landlord email, may be null if not on file
+  recipient?:  string | null
   subject?:    string
   body?:       string
-  /** Useful for the UI: short summary the encargada can sanity-check. */
   summary?:    {
     landlordName:  string
     period:        string
@@ -41,14 +44,17 @@ export interface LiquidarAndEmailResult {
   }
 }
 
-export async function liquidarAndPrepareEmail(
+export async function prepareEmailDraft(
   contractId: string,
   landlordId: string,
   period:     string,
-): Promise<LiquidarAndEmailResult> {
+  /** Optional sender — included in the body signature so the propietario
+   *  knows who's writing. Pure presentational; doesn't affect server state. */
+  senderEmail: string | null = null,
+): Promise<PrepareEmailResult> {
   const supabase = await createSupabaseServer()
 
-  // 1. Compute the period's aggregates from current transactions.
+  // Aggregate period transactions to compute the summary.
   const { data: txns, error: txnsErr } = await supabase
     .from('transactions')
     .select('amount, transaction_types!inner(direction, affects_liquidacion, code)')
@@ -60,18 +66,13 @@ export async function liquidarAndPrepareEmail(
   for (const t of (txns ?? []) as any[]) {
     const typ = t.transaction_types
     if (!typ.affects_liquidacion) continue
-    if (typ.direction === 'IN') {
-      gross += Number(t.amount)
-    } else if (typ.code === 'COMMISSION_OUT') {
-      commission += Number(t.amount)
-    } else {
-      otros += Number(t.amount)
-    }
+    if (typ.direction === 'IN') gross += Number(t.amount)
+    else if (typ.code === 'COMMISSION_OUT') commission += Number(t.amount)
+    else otros += Number(t.amount)
   }
   const netToLandlord = gross - commission - otros
 
-  // 2. Fetch landlord (for the recipient email + name) and primary tenant
-  //    (for context in the body).
+  // Landlord (for recipient + name) + primary tenant (for body context).
   const [landlordRes, contractRes] = await Promise.all([
     supabase.from('landlords').select('name, email').eq('id', landlordId).maybeSingle(),
     supabase
@@ -83,15 +84,14 @@ export async function liquidarAndPrepareEmail(
   if (landlordRes.error) return dbFailure(landlordRes.error)
   if (!landlordRes.data) return { ok: false, error: 'Propietario no encontrado.' }
 
-  const landlordName = (landlordRes.data as any).name as string
+  const landlordName  = (landlordRes.data as any).name as string
   const landlordEmail = (landlordRes.data as any).email as string | null
 
   const tenant = (contractRes.data as any)?.contract_tenants?.find((ct: any) => ct.is_primary)
               ?? (contractRes.data as any)?.contract_tenants?.[0]
   const tenantName = tenant?.tenants?.name ?? '(sin inquilino)'
 
-  // 3. Build email subject + body in Spanish, with the typical
-  //    "estimado/a + summary" template the encargada would write by hand.
+  // Build subject + body.
   const monthLabel = periodLabel(period)
   const subject = `Liquidación ${monthLabel} — ${landlordName}`
 
@@ -102,23 +102,15 @@ export async function liquidarAndPrepareEmail(
   lines.push('')
   lines.push(`  • Total cobrado:        ${fmtMoney(gross)}`)
   lines.push(`  • Comisión de admin.:   ${fmtMoney(commission)}`)
-  if (otros > 0) {
-    lines.push(`  • Otros descuentos:     ${fmtMoney(otros)}`)
-  }
+  if (otros > 0) lines.push(`  • Otros descuentos:     ${fmtMoney(otros)}`)
   lines.push(`  • Neto a transferir:    ${fmtMoney(netToLandlord)}`)
   lines.push('')
   lines.push('Realizaremos la transferencia en los próximos días hábiles. Cualquier consulta, quedamos a disposición.')
   lines.push('')
   lines.push('Saludos cordiales,')
   lines.push('Pampa Administración')
-
+  if (senderEmail?.trim()) lines.push(senderEmail.trim())
   const body = lines.join('\n')
-
-  // 4. Transition the liquidación to "sent" — this also fires the
-  //    liquidaciones→contracts trigger which bumps the parent contract's
-  //    updated_at, so the row gets the recently-edited tint after sending.
-  const trans = await transitionLiquidacionStatus(contractId, landlordId, period, 'sent')
-  if (!trans.ok) return { ok: false, error: trans.error }
 
   return {
     ok:        true,
@@ -135,4 +127,24 @@ export async function liquidarAndPrepareEmail(
       netToLandlord,
     },
   }
+}
+
+// ============================================================================
+// Transition the liquidación row to 'sent'. Called only when the encargada
+// actually clicks a Send button in the modal (Gmail compose or mailto).
+// ============================================================================
+
+export interface MarkSentResult {
+  ok:    boolean
+  error: string | null
+}
+
+export async function markLiquidacionAsSent(
+  contractId: string,
+  landlordId: string,
+  period:     string,
+): Promise<MarkSentResult> {
+  const res = await transitionLiquidacionStatus(contractId, landlordId, period, 'sent')
+  if (!res.ok) return { ok: false, error: res.error ?? 'Error al marcar como enviada' }
+  return { ok: true, error: null }
 }

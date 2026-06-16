@@ -1,75 +1,95 @@
 'use client'
 
 // ============================================================================
-// LiquidarYEnviarButton — per-row action that prepares + sends the
-// liquidación email to the propietario.
+// LiquidarYEnviarButton — per-row "Liquidar y enviar mail" action.
 //
-// Flow:
-//   1. Click button on a row → confirm modal opens with computed summary.
-//   2. The modal shows: propietario name, period, gross/comisión/otros/neto,
-//      editable subject + body (so the encargada can adjust before sending).
-//   3. Click "Enviar" → app calls liquidarAndPrepareEmail which:
-//        a. Transitions the liquidación status to "sent" on the server.
-//        b. Returns the prepared subject/body/recipient.
-//      Then the browser opens a mailto: link with the prefilled content,
-//      using the encargada's OWN email client. She reviews and clicks
-//      Send inside her mail program — the system never sends an email
-//      on its own.
+// Flow (after the redesign):
+//   1. Click button on a row → modal opens.
+//   2. Server prepares the email draft (PURE READ — no state change yet).
+//      The summary, subject, body, and recipient fill the modal.
+//   3. Encargada reviews / edits:
+//        • Mi email (firma)   — her own address; persists in localStorage so
+//                                she only types it once. Used as the
+//                                authuser hint for Gmail and as a signature
+//                                line in the body.
+//        • Email del propietario — the recipient (prefilled if on file).
+//        • Asunto y cuerpo    — both editable.
+//   4. She clicks ONE of two Send buttons:
+//        • "Abrir en Gmail" (PRIMARY) — opens Gmail compose in a new tab
+//          via https://mail.google.com/mail/?view=cm&...&authuser=<senderEmail>
+//          Works on any browser/OS without OS configuration.
+//        • "Abrir programa de mail" (SECONDARY) — mailto: handoff for
+//          encargadas with Outlook/Thunderbird configured.
+//   5. The instant she clicks one of those buttons, markLiquidacionAsSent
+//      fires on the server (status → sent + sent_at stamp). Cancelar does
+//      NOT mark anything as sent — the fix for the previous bug.
 //
 // Respects the saved communication-model rule: drafting + recommendation
-// are automated; the decision to send stays with the encargada.
+// are automated; sending is always done by the encargada in her own mail UI.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { liquidarAndPrepareEmail } from '@/lib/liquidacion/email-actions'
+import {
+  prepareEmailDraft,
+  markLiquidacionAsSent,
+} from '@/lib/liquidacion/email-actions'
 import { fmtMoney } from '@/lib/format'
+
+const SENDER_EMAIL_KEY = 'liquidacion.senderEmail'
 
 interface Props {
   contractId:   string
   landlordId:   string
   period:       string
-  /** Propietario name — used in the confirm modal title. */
   landlordName: string
-  /** Already-known landlord email; null if not on file. The confirm modal
-   *  surfaces this to the encargada so she can correct it. */
   landlordEmail: string | null
-  /** Display status — button hides itself when status is already paid. */
   status:       'draft' | 'sent' | 'paid'
 }
 
 export function LiquidarYEnviarButton({
   contractId, landlordId, period, landlordName, landlordEmail, status,
 }: Props) {
-  const [open, setOpen]                       = useState(false)
-  const [pending, startTransition]            = useTransition()
-  const [error, setError]                     = useState<string | null>(null)
-  const [recipientDraft, setRecipientDraft]   = useState(landlordEmail ?? '')
-  const [subjectDraft, setSubjectDraft]       = useState('')
-  const [bodyDraft, setBodyDraft]             = useState('')
-  const [summary, setSummary]                 = useState<{
+  const [open, setOpen]                     = useState(false)
+  const [pending, startTransition]          = useTransition()
+  const [error, setError]                   = useState<string | null>(null)
+  const [senderEmail, setSenderEmail]       = useState('')
+  const [recipientDraft, setRecipientDraft] = useState(landlordEmail ?? '')
+  const [subjectDraft, setSubjectDraft]     = useState('')
+  const [bodyDraft, setBodyDraft]           = useState('')
+  const [summary, setSummary]               = useState<{
     gross: number; commission: number; otros: number; netToLandlord: number
   } | null>(null)
   const router = useRouter()
 
+  // Hydrate sender email from localStorage on mount.
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(SENDER_EMAIL_KEY)
+      if (stored) setSenderEmail(stored)
+    } catch { /* ignore disabled storage */ }
+  }, [])
+
+  // Persist sender email whenever it changes (debounced via natural typing).
+  useEffect(() => {
+    if (!senderEmail) return
+    try { window.localStorage.setItem(SENDER_EMAIL_KEY, senderEmail) } catch { /* ignore */ }
+  }, [senderEmail])
+
   function openModal() {
     setError(null)
     setOpen(true)
-    // Compute & prepare immediately on open so the encargada sees the
-    // summary right away — even before she clicks Send. The transition
-    // is reversible (cancel doesn't undo it on the server side; that's
-    // a known trade-off for the MVP. Phase 5 can defer the transition
-    // until the actual click).
     setSubjectDraft('')
     setBodyDraft('')
     setSummary(null)
     startTransition(async () => {
-      const res = await liquidarAndPrepareEmail(contractId, landlordId, period)
+      // prepareEmailDraft is pure READ — does NOT transition the liquidación.
+      const res = await prepareEmailDraft(contractId, landlordId, period, senderEmail || null)
       if (!res.ok) {
         setError(res.error ?? 'Error al preparar el email.')
         return
       }
-      setRecipientDraft(res.recipient ?? '')
+      setRecipientDraft(res.recipient ?? landlordEmail ?? '')
       setSubjectDraft(res.subject ?? '')
       setBodyDraft(res.body ?? '')
       setSummary(res.summary ?? null)
@@ -81,41 +101,51 @@ export function LiquidarYEnviarButton({
     setOpen(false)
   }
 
-  function send() {
+  // Common send sequence: validate, mark as sent on the server, open the
+  // chosen mail UI, close the modal, refresh.
+  function send(mode: 'gmail' | 'mailto') {
     if (!recipientDraft.trim()) {
-      setError('Faltan el email del propietario.')
+      setError('Falta el email del propietario.')
       return
     }
-    // Build the mailto: URL with prefilled subject + body.
-    //
-    // Important encoding notes (the previous version silently failed):
-    //   • URLSearchParams encodes spaces as "+" (HTML form-encoding) —
-    //     mailto: follows RFC 6068 which wants standard URI escapes (%20).
-    //     Use encodeURIComponent instead.
-    //   • window.open(href, '_blank') is unreliable for mailto:; many
-    //     browsers ignore the _blank target AND popup-style window.open
-    //     may be silently blocked. location.href is the right tool — it
-    //     delegates the URL scheme to the OS, which routes mailto: to
-    //     the user's default mail handler.
-    //
-    // If the OS has no mail handler registered nothing visible happens
-    // — that's an OS configuration issue, not a code bug.
-    const to      = encodeURIComponent(recipientDraft.trim())
-    const subject = encodeURIComponent(subjectDraft)
-    const body    = encodeURIComponent(bodyDraft)
-    const href    = `mailto:${to}?subject=${subject}&body=${body}`
-    window.location.href = href
-    setOpen(false)
-    // The liquidación was already transitioned to "sent" when the modal
-    // opened. Refresh to reflect the new status dot on the row.
-    router.refresh()
+    setError(null)
+    startTransition(async () => {
+      // Mark sent only NOW — not when the modal opened. Cancel preserves
+      // the draft status as it should.
+      const sentRes = await markLiquidacionAsSent(contractId, landlordId, period)
+      if (!sentRes.ok) {
+        setError(sentRes.error ?? 'Error al marcar como enviada')
+        return
+      }
+      // Open the chosen mail UI.
+      if (mode === 'gmail') {
+        // Gmail compose URL. Works on any browser/OS. Pre-fills to, subject,
+        // body. authuser lets Gmail pick the right account when she has
+        // multiple logged in.
+        const url = new URL('https://mail.google.com/mail/')
+        url.searchParams.set('view', 'cm')
+        url.searchParams.set('fs', '1')
+        url.searchParams.set('to', recipientDraft.trim())
+        url.searchParams.set('su', subjectDraft)
+        url.searchParams.set('body', bodyDraft)
+        if (senderEmail.trim()) url.searchParams.set('authuser', senderEmail.trim())
+        window.open(url.toString(), '_blank', 'noopener,noreferrer')
+      } else {
+        // mailto: fallback for Outlook / Thunderbird users.
+        const href =
+          `mailto:${encodeURIComponent(recipientDraft.trim())}` +
+          `?subject=${encodeURIComponent(subjectDraft)}` +
+          `&body=${encodeURIComponent(bodyDraft)}`
+        window.location.href = href
+      }
+      setOpen(false)
+      router.refresh()
+    })
   }
 
-  // Don't show the button on already-paid liquidaciones.
+  // Hide the button on already-paid liquidaciones.
   if (status === 'paid') {
-    return (
-      <span className="text-[10px] text-info" title="Liquidación ya pagada">●</span>
-    )
+    return <span className="text-[10px] text-info" title="Liquidación ya pagada">●</span>
   }
 
   return (
@@ -171,6 +201,21 @@ export function LiquidarYEnviarButton({
                 </div>
               )}
 
+              {/* ── Sender (remitente) — persists in localStorage ── */}
+              <label className="block">
+                <span className="text-[10px] uppercase tracking-wider text-gray-600 block mb-1">
+                  Tu email (remitente / firma)
+                  <span className="text-gray-400 ml-1 normal-case font-normal">— se guarda para la próxima vez</span>
+                </span>
+                <input
+                  type="email"
+                  value={senderEmail}
+                  onChange={e => setSenderEmail(e.target.value)}
+                  placeholder="tu-email@gmail.com"
+                  className="w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info"
+                />
+              </label>
+
               <label className="block">
                 <span className="text-[10px] uppercase tracking-wider text-gray-600 block mb-1">
                   Email del propietario {!landlordEmail && <span className="text-warn">(no estaba cargado — ingresá uno)</span>}
@@ -199,7 +244,7 @@ export function LiquidarYEnviarButton({
                 <textarea
                   value={bodyDraft}
                   onChange={e => setBodyDraft(e.target.value)}
-                  rows={12}
+                  rows={11}
                   className="w-full px-2 py-2 rounded border border-gray-300 bg-white text-[12.5px] outline-none focus:border-info font-mono leading-relaxed resize-y"
                 />
               </label>
@@ -211,12 +256,15 @@ export function LiquidarYEnviarButton({
               )}
 
               <p className="text-[10.5px] text-gray-500 italic leading-snug">
-                Al tocar <strong>Enviar</strong> se va a abrir tu programa de mail con el mensaje precargado.
-                El sistema NUNCA manda mails por su cuenta — vos confirmás el envío desde tu mail.
+                <strong>Abrir en Gmail</strong> abre Gmail web en una pestaña nueva con el mensaje listo — funciona sin configurar nada.
+                <br />
+                <strong>Abrir programa de mail</strong> usa el programa de mail del sistema (Outlook, Thunderbird) si está configurado.
+                <br />
+                En ambos casos vos confirmás el envío desde tu mail. El sistema nunca manda mails por su cuenta.
               </p>
             </div>
 
-            <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-end gap-2 bg-gray-50 sticky bottom-0">
+            <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-end gap-2 bg-gray-50 sticky bottom-0 flex-wrap">
               <button
                 type="button"
                 onClick={closeModal}
@@ -227,11 +275,21 @@ export function LiquidarYEnviarButton({
               </button>
               <button
                 type="button"
-                onClick={send}
+                onClick={() => send('mailto')}
                 disabled={pending || !summary}
+                title="Abrir Outlook / Thunderbird / programa de mail predeterminado"
+                className="px-3 py-1.5 rounded border border-gray-400 text-[12px] text-slate-dark hover:bg-gray-100 disabled:opacity-60 transition-colors"
+              >
+                Abrir programa de mail
+              </button>
+              <button
+                type="button"
+                onClick={() => send('gmail')}
+                disabled={pending || !summary}
+                title="Abrir Gmail en una pestaña nueva"
                 className="px-3 py-1.5 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 disabled:opacity-60 transition-opacity inline-flex items-center gap-1.5"
               >
-                ✉ Abrir mail y enviar
+                ✉ Abrir en Gmail
               </button>
             </div>
           </div>
