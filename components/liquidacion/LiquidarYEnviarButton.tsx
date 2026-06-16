@@ -86,14 +86,25 @@ export function LiquidarYEnviarButton({
       setError('Faltan el email del propietario.')
       return
     }
-    // Build the mailto: URL with prefilled subject + body. The encargada's
-    // mail client opens with everything ready; she reviews and hits Send.
-    const params = new URLSearchParams({
-      subject: subjectDraft,
-      body:    bodyDraft,
-    })
-    const href = `mailto:${encodeURIComponent(recipientDraft.trim())}?${params.toString()}`
-    window.open(href, '_blank')
+    // Build the mailto: URL with prefilled subject + body.
+    //
+    // Important encoding notes (the previous version silently failed):
+    //   • URLSearchParams encodes spaces as "+" (HTML form-encoding) —
+    //     mailto: follows RFC 6068 which wants standard URI escapes (%20).
+    //     Use encodeURIComponent instead.
+    //   • window.open(href, '_blank') is unreliable for mailto:; many
+    //     browsers ignore the _blank target AND popup-style window.open
+    //     may be silently blocked. location.href is the right tool — it
+    //     delegates the URL scheme to the OS, which routes mailto: to
+    //     the user's default mail handler.
+    //
+    // If the OS has no mail handler registered nothing visible happens
+    // — that's an OS configuration issue, not a code bug.
+    const to      = encodeURIComponent(recipientDraft.trim())
+    const subject = encodeURIComponent(subjectDraft)
+    const body    = encodeURIComponent(bodyDraft)
+    const href    = `mailto:${to}?subject=${subject}&body=${body}`
+    window.location.href = href
     setOpen(false)
     // The liquidación was already transitioned to "sent" when the modal
     // opened. Refresh to reflect the new status dot on the row.
