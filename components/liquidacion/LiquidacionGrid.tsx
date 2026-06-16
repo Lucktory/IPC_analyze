@@ -405,14 +405,18 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                             ? 'text-danger'
                             : ''
                       }
-                      renderButton={(sum) => {
-                        if (sum === 0) return <span className="text-gray-400">—</span>
-                        // Show sign explicitly so encargada sees instantly
-                        // whether the extras line is a recupero (+) or a
-                        // discount (-).
-                        const sign = sum > 0 ? '+' : ''
-                        return `${sign}${fmtMoney(sum)}`
-                      }}
+                      displayOverride={
+                        // Pre-rendered server-side so we never pass a
+                        // function across the RSC boundary — that throws
+                        // an opaque "Server Components render" error
+                        // whose message is stripped in production builds.
+                        // Show the +/- sign explicitly so the encargada
+                        // sees instantly whether the extras line is a
+                        // recupero (+) or a discount (-).
+                        extrasSum === 0
+                          ? <span className="text-gray-400">—</span>
+                          : <>{extrasSum > 0 ? '+' : ''}{fmtMoney(extrasSum)}</>
+                      }
                       buttonTitle={
                         extrasSum > 0
                           ? 'Recuperos cobrados — click para ver / editar'

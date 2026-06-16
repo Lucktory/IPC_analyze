@@ -65,8 +65,12 @@ interface Props {
   popoverTitle?: string
   /** Default new-line type code (must be in onlyTypes if provided). */
   defaultNewLineType?: string
-  /** Optional renderer for the cell button (override default sum formatting). */
-  renderButton?: (sum: number) => React.ReactNode
+  /** Optional pre-rendered display node (override default sum formatting).
+   *  MUST be a serializable React node — never a function. Passing a
+   *  function across the server→client boundary throws an opaque RSC
+   *  render error whose message is stripped in production. The grid
+   *  pre-builds the +/- formatted node and passes it as a node. */
+  displayOverride?: React.ReactNode
   /** Optional title attribute (tooltip) on the cell button. */
   buttonTitle?: string
   /** Extra Tailwind classes for the cell button background (e.g., orange
@@ -102,7 +106,7 @@ const emptyNewLine = (): DraftLine => ({
 export function InlineIngresosCell({
   contractId, period, lines, total, cobrado, upcomingAdjustment,
   onlyTypes, excludeTypes, popoverTitle, defaultNewLineType,
-  renderButton, buttonTitle, cellBgClass,
+  displayOverride, buttonTitle, cellBgClass,
 }: Props) {
   const [open, setOpen]   = useState(false)
   const [drafts, setDrafts] = useState<DraftLine[]>([])
@@ -273,10 +277,10 @@ export function InlineIngresosCell({
         style={cellStyle}
         className={`w-full text-right px-0 hover:bg-blue-50 transition-colors tabular-nums truncate font-medium ${cobrado ? 'text-ink' : 'text-slate'} ${cellBgClass ?? ''}`}
       >
-        {renderButton
-          ? renderButton(total)
+        {displayOverride !== undefined
+          ? displayOverride
           : (total !== 0 ? fmtMoney(total) : '—')}
-        {!renderButton && filteredLines.length > 1 && (
+        {displayOverride === undefined && filteredLines.length > 1 && (
           <span className="block text-[9px] text-slate normal-case font-normal">
             {filteredLines.length} conceptos
           </span>
