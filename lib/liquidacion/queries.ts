@@ -23,6 +23,49 @@ import {
 
 export type { ValidationIssue, ContractEndStatus }
 
+// ── Phase 9B: planilla footer totals — sums across every visible row,
+//    rendered as a sticky <tfoot> at the bottom of the grid so Alejandro
+//    can see "this month I earned X in admin, transferred Y, took in Z."
+//
+//    Pure function — fails closed: any error in summing returns zeroes
+//    so a single bad row never breaks the footer.
+export interface LiquidacionGridTotals {
+  expensas:      number
+  deuda:         number
+  ingresos:      number
+  transferencia: number
+  otros:         number
+  admi:          number
+  admGalicia:    number
+  admFrances509: number
+  admFrances516: number
+}
+
+const ZERO_TOTALS: LiquidacionGridTotals = {
+  expensas: 0, deuda: 0, ingresos: 0, transferencia: 0, otros: 0,
+  admi: 0, admGalicia: 0, admFrances509: 0, admFrances516: 0,
+}
+
+export function sumGridTotals(rows: LiquidacionGridRow[]): LiquidacionGridTotals {
+  try {
+    const t: LiquidacionGridTotals = { ...ZERO_TOTALS }
+    for (const r of rows) {
+      t.expensas      += Number(r.expensas      ?? 0) || 0
+      t.deuda         += Number(r.deuda         ?? 0) || 0
+      t.ingresos      += Number(r.ingresos      ?? 0) || 0
+      t.transferencia += Number(r.transferencia ?? 0) || 0
+      t.otros         += Number(r.otros         ?? 0) || 0
+      t.admi          += Number(r.admi          ?? 0) || 0
+      t.admGalicia    += Number(r.admGalicia    ?? 0) || 0
+      t.admFrances509 += Number(r.admFrances509 ?? 0) || 0
+      t.admFrances516 += Number(r.admFrances516 ?? 0) || 0
+    }
+    return t
+  } catch {
+    return { ...ZERO_TOTALS }
+  }
+}
+
 // ── Contract-end tier helper (Phase 9A). Pure function — fails closed:
 //    any error (malformed date, missing data) returns 'normal' so a single
 //    bad row can never crash the grid.

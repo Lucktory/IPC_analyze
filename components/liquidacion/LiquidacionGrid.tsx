@@ -35,7 +35,7 @@
 // ============================================================================
 
 import Link from 'next/link'
-import type { LiquidacionGridRow, LiquidacionStatus } from '@/lib/liquidacion/queries'
+import type { LiquidacionGridRow, LiquidacionStatus, LiquidacionGridTotals } from '@/lib/liquidacion/queries'
 import type { LandlordOption } from '@/lib/landlord/queries'
 import type { TenantOption } from '@/lib/tenant/queries'
 import { fmtMoney } from '@/lib/format'
@@ -59,6 +59,8 @@ import { CONTRACT_END_TIER_CLASSES } from '@/lib/liquidacion/thresholds'
 
 interface Props {
   rows:            LiquidacionGridRow[]
+  /** Phase 9B: column sums rendered as a sticky footer row. */
+  totals:          LiquidacionGridTotals
   period:          string
   landlordOptions: LandlordOption[]
   tenantOptions:   TenantOption[]
@@ -135,7 +137,7 @@ function buildTransferenciaTooltip(r: LiquidacionGridRow): string {
   return parts.join('\n')
 }
 
-export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }: Props) {
+export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantOptions }: Props) {
   if (rows.length === 0) {
     return (
       <section className="bg-paper border border-line p-6 text-center">
@@ -493,6 +495,36 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
               )
             })}
           </tbody>
+
+          {/* Phase 9B: sticky-bottom footer with column sums. Alejandro:
+              "al fin de la columna poner el monto que da de suma total."
+              Each <Tf> tracks its column's width so the total lines up
+              exactly under the data. Empty cells render blank. */}
+          <tfoot className="bg-gray-100 text-[11px] font-medium text-ink">
+            <tr className="border-t-2 border-gray-300">
+              <Tf sticky left={STICKY_LEFTS.obs}    width={W.obs}    align="left">TOTAL</Tf>
+              <Tf sticky left={STICKY_LEFTS.lfa}    width={W.lfa}    align="center" />
+              <Tf sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} align="center" />
+              <Tf sticky left={STICKY_LEFTS.prop}   width={W.prop}   align="right">{`${rows.length} contratos`}</Tf>
+              <Tf width={W.expensas}  align="right" tabular>{footerMoney(totals.expensas)}</Tf>
+              <Tf width={W.inq}                         />
+              <Tf width={W.pct}       align="right"     />
+              <Tf width={W.contrato}  align="center"    />
+              <Tf width={W.deuda}     align="right" tabular>{footerMoney(totals.deuda)}</Tf>
+              <Tf width={W.periodo}   align="center"    />
+              <Tf width={W.ingresos}  align="right" tabular>{footerMoney(totals.ingresos)}</Tf>
+              <Tf width={W.transf}    align="right" tabular>{footerMoney(totals.transferencia)}</Tf>
+              <Tf width={W.otros}     align="right" tabular>{footerMoney(totals.otros)}</Tf>
+              <Tf width={W.diatransf} align="center"    />
+              <Tf width={W.admi}      align="right" tabular>{footerMoney(totals.admi)}</Tf>
+              <Tf width={W.galicia}   align="right" tabular>{footerMoney(totals.admGalicia)}</Tf>
+              <Tf width={W.fr509}     align="right" tabular>{footerMoney(totals.admFrances509)}</Tf>
+              <Tf width={W.fr516}     align="right" tabular>{footerMoney(totals.admFrances516)}</Tf>
+              <Tf width={W.estado}    align="center"    />
+              <Tf width={W.mail}      align="center"    />
+              <Tf width={W.check}     align="center"    />
+            </tr>
+          </tfoot>
         </table>
       </div>
     </section>
@@ -559,4 +591,45 @@ function Td({ children, width, align = 'left', sticky, left, bg, title, style, c
       {children}
     </td>
   )
+}
+
+// ── Phase 9B: footer-cell primitive ────────────────────────────────────────
+//
+// Same width / sticky semantics as Td but with a fixed bg (so vertical
+// sticky doesn't bleed) and bottom: 0 sticky positioning so the totals
+// row stays glued to the bottom of the scroll viewport. Numeric cells
+// receive `tabular` to align columns of money exactly under their data.
+
+interface TfProps {
+  children?: React.ReactNode
+  width:     number
+  align?:    'left' | 'right' | 'center'
+  sticky?:   boolean
+  left?:     number
+  tabular?:  boolean
+}
+
+function Tf({ children, width, align = 'left', sticky, left, tabular }: TfProps) {
+  const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
+  // Stick to the bottom of the scroll viewport always. Sticky-left cells
+  // (Observación / LFA / F. banco / Propietario) ALSO stick to the left
+  // to form the frozen freeze-panes corner that matches the header.
+  const stickyStyle: React.CSSProperties = sticky
+    ? { position: 'sticky', bottom: 0, left, zIndex: 25, backgroundColor: '#f3f4f6' }
+    : { position: 'sticky', bottom: 0,        zIndex: 15, backgroundColor: '#f3f4f6' }
+  return (
+    <td
+      style={{ width, minWidth: width, ...stickyStyle }}
+      className={`px-2 py-1.5 border-r border-gray-300 border-t-2 border-t-gray-400 ${alignCls} ${tabular ? 'tabular-nums' : ''}`}
+    >
+      {children}
+    </td>
+  )
+}
+
+/** Display zero as a muted "—" in the footer so the row isn't a wall of
+ *  $0 noise. Any non-zero value uses the standard money formatter. */
+function footerMoney(n: number): React.ReactNode {
+  if (n === 0) return <span className="text-gray-400">—</span>
+  return fmtMoney(n)
 }

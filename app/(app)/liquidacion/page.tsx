@@ -11,7 +11,7 @@ import { listTransactionPeriods, listTransactions } from '@/lib/entities/queries
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 import { getCurrentPeriod, periodLabel, periodShort } from '@/lib/period'
-import { getLiquidacionGridForPeriod, type LiquidacionStatus } from '@/lib/liquidacion/queries'
+import { getLiquidacionGridForPeriod, sumGridTotals, type LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { getReconciliationByDestination } from '@/lib/reconciliation/queries'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
@@ -180,7 +180,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
             {/* Reads ?highlight=<contractId> on mount and scrolls/pulses
                 that row. Used by the "Ver fila →" jumps from /pendientes. */}
             <HighlightScroller />
-            <LiquidacionGrid rows={rows} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
+            <LiquidacionGrid rows={rows} totals={sumGridTotals(rows)} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
           </>
         )}
         {view === 'resumen'     && <div className="h-full overflow-auto"><ResumenView    rows={allRows} period={period} /></div>}
