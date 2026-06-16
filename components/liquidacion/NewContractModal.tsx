@@ -116,9 +116,15 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
         setError(res.error ?? 'Error al crear el contrato')
         return
       }
+
+      // Refresh FIRST, so the new RSC payload is being fetched while the
+      // modal is closing — by the time the modal animates out, the grid
+      // is already showing the new contract. Calling refresh outside the
+      // transition (via queueMicrotask) avoids being deferred together
+      // with the modal state updates.
+      queueMicrotask(() => router.refresh())
       setOpen(false)
       reset()
-      router.refresh()
     })
   }
 

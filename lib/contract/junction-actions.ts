@@ -196,8 +196,11 @@ export async function createContractFromGrid(input: CreateFromGridInput): Promis
     .insert({ contract_id: contractId, landlord_id: landlordId, ownership_pct: 100 })
   if (clErr) return dbFailure(clErr)
 
-  revalidatePath('/liquidacion')
-  revalidatePath('/contratos')
+  // Aggressive cache invalidation — Next.js 15 sometimes serves stale data
+  // after a plain `revalidatePath('/liquidacion')` when the route is inside
+  // a route group like (app). Invalidating the root layout forces every
+  // route to re-render on the next navigation including router.refresh().
+  revalidatePath('/', 'layout')
   return { ok: true, error: null, contractId }
 }
 

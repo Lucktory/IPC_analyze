@@ -1,5 +1,15 @@
 import Link from 'next/link'
 import { listTransactionPeriods, listTransactions } from '@/lib/entities/queries'
+
+// Force dynamic rendering on every request — the planilla shows the
+// encargada's edits, and Next.js 15's default RSC cache occasionally
+// serves stale data after `router.refresh()` even when revalidatePath
+// has been called from a Server Action. Marking this page explicitly
+// dynamic guarantees a fresh server query every time the route is
+// requested. The page already uses await searchParams + cookies, but
+// the explicit directive is a defensive guard.
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 import { getCurrentPeriod, periodLabel, periodShort } from '@/lib/period'
 import { getLiquidacionGridForPeriod, type LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { getReconciliationByDestination } from '@/lib/reconciliation/queries'
