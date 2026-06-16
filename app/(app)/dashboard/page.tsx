@@ -26,7 +26,12 @@ import {
   getOperationalTrends,
   getTopLandlords,
 } from '@/lib/dashboard/queries'
-import { listPendingActions } from '@/lib/pending/queries'
+// Pendientes data is now sourced from the SAME digest the topbar bell and
+// /pendientes page use — Phase 8 unification. The legacy listPendingActions
+// classified things differently (only cobranza/aumento/renovacion) and
+// produced a total that disagreed with the bell badge (e.g. bell showed
+// 114 while the dashboard donut showed 128). Single source of truth now.
+import { getPendientesDigest } from '@/lib/pending/digest'
 import { getCurrentPeriodLabel } from '@/lib/period'
 import { fmtMoney, fmtTime } from '@/lib/format'
 import { DashboardCard }    from '@/components/charts/panel/DashboardCard'
@@ -42,10 +47,14 @@ import { PREMIUM, fmtCompactARS } from '@/components/charts/theme'
 // so they render through ECharts cleanly and read with equal weight on
 // both light + dark surfaces. Categories carry MEANING — red = urgent —
 // so these stay fixed regardless of theme.
+//
+// `key` MATCHES the StreamType emitted by getPendientesDigest, and `href`
+// uses ?type= (not ?tipo=) so the link actually filters /pendientes when
+// clicked. Both were wrong before this commit — silent UI breakage.
 const PENDIENTES_CATEGORIES = [
-  { key: 'cobranza'   as const, label: 'Cobranza',     sublabel: 'vencidas',     color: '#E63946', href: '/pendientes?tipo=cobranza'   },
-  { key: 'aumento'    as const, label: 'Aumentos',     sublabel: 'a notificar',  color: '#F39C12', href: '/pendientes?tipo=aumento'    },
-  { key: 'renovacion' as const, label: 'Renovaciones', sublabel: 'a confirmar',  color: '#3B82F6', href: '/pendientes?tipo=renovacion' },
+  { key: 'cobranza' as const, label: 'Cobranza',     sublabel: 'vencidas',    color: '#E63946', href: '/pendientes?type=cobranza' },
+  { key: 'aumento'  as const, label: 'Aumentos',     sublabel: 'a notificar', color: '#F39C12', href: '/pendientes?type=aumento'  },
+  { key: 'contrato' as const, label: 'Renovaciones', sublabel: 'a confirmar', color: '#3B82F6', href: '/pendientes?type=contrato' },
 ]
 
 /** % change from `from` to `to`. Returns null when the base is zero so we
@@ -76,13 +85,32 @@ function computePeakLabel(values: number[], fmt: (v: number) => string): string 
 }
 
 export default async function DashboardPage() {
-  const [collection, pending, incomeTrend, opsTrend, topLandlords] = await Promise.all([
+  const [collection, digest, incomeTrend, opsTrend, topLandlords] = await Promise.all([
     getCollectionHealth(),
-    listPendingActions(),
+    getPendientesDigest(),
     getMonthlyIncomeTrend(6),
     getOperationalTrends(6),
     getTopLandlords(8),
   ])
+
+  // Pendientes counts — count ONLY actionable items (urgente + importante),
+  // grouped by the digest's `type` field. This is the same definition the
+  // topbar bell badge uses (lib/pending/queries.ts → getPendingCount),
+  // so the dashboard total now matches the bell.
+  //
+  // The three categories shown in the donut are the operational ones
+  // (cobranza, aumento, contrato-lifecycle). validación / workflow / datos
+  // items are surfaced on /pendientes but kept out of the donut to avoid
+  // overloading what is meant to be a glanceable summary widget.
+  const actionableItems = digest.items.filter(
+    i => i.severity === 'urgente' || i.severity === 'importante',
+  )
+  const pendingCounts = {
+    cobranza: actionableItems.filter(i => i.type === 'cobranza').length,
+    aumento:  actionableItems.filter(i => i.type === 'aumento').length,
+    contrato: actionableItems.filter(i => i.type === 'contrato').length,
+    total:    actionableItems.length,
+  }
 
   const periodLabel = getCurrentPeriodLabel()
 
@@ -96,7 +124,7 @@ export default async function DashboardPage() {
   const pendientesItems = PENDIENTES_CATEGORIES
     .map(cat => ({
       label: cat.label,
-      value: pending.counts[cat.key],
+      value: pendingCounts[cat.key],
       color: cat.color,
     }))
     .filter(i => i.value > 0)
@@ -227,9 +255,9 @@ export default async function DashboardPage() {
           className="xl:col-span-4"
           title="Pendientes esta semana"
           subtitle={
-            pending.counts.total === 0
+            pendingCounts.total === 0
               ? 'Sin pendientes — todo al día'
-              : `${pending.counts.total} ${pending.counts.total === 1 ? 'acción' : 'acciones'} a resolver`
+              : `${pendingCounts.total} ${pendingCounts.total === 1 ? 'acción' : 'acciones'} a resolver`
           }
         >
           {pendientesItems.length > 0 ? (
@@ -237,7 +265,7 @@ export default async function DashboardPage() {
               <DonutPanel
                 items={pendientesItems}
                 legendPosition="bottom"
-                totalUnit={pending.counts.total === 1 ? 'pendiente' : 'pendientes'}
+                totalUnit={pendingCounts.total === 1 ? 'pendiente' : 'pendientes'}
               />
               {/* Three vibrant per-category cards — each clicks through
                   to the filtered Pendientes list. */}
@@ -247,7 +275,7 @@ export default async function DashboardPage() {
                     key={cat.key}
                     accent={cat.color}
                     label={cat.label}
-                    value={pending.counts[cat.key]}
+                    value={pendingCounts[cat.key]}
                     sublabel={cat.sublabel}
                     href={cat.href}
                   />
