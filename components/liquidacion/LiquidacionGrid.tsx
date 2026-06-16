@@ -174,7 +174,13 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
               const cobrado     = !!r.fechaBanco
               const transferido = !!r.diaTransf
               // Excel-style alternating banding: pure white / very pale gray.
-              const zebra       = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+              // Recently-edited rows override the banding with a yellow tint
+              // so the encargada can see what she just touched without the
+              // table re-sorting under her (default sort stays alphabetical
+              // by propietario per Alejandro's spec).
+              const zebra       = r.wasRecentlyEdited
+                ? 'bg-yellow-50'
+                : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
               // The aumento ≤30d highlight goes on the INGRESOS cell — soft
               // orange that doesn't dominate but is unmistakable on scan.
               const ingresosBg = r.hasUpcomingAdjustment

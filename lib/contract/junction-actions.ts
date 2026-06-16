@@ -314,6 +314,12 @@ export async function setContractPrimaryLandlord(
     if (insJErr) return dbFailure(insJErr)
   }
 
+  // Bump contracts.updated_at — junction edits don't touch the contracts
+  // row directly, so the planilla's "row floats to top on edit" wouldn't
+  // see a Propietario change without this explicit update. Note: this UPDATE
+  // also fires the touch_contract_updated_at trigger, which is idempotent.
+  await supabase.from('contracts').update({ updated_at: new Date().toISOString() }).eq('id', contractId)
+
   revalidatePath('/liquidacion')
   revalidatePath(`/contratos/${contractId}`)
   return { ok: true, error: null }
@@ -410,6 +416,9 @@ export async function setContractPrimaryTenant(
       .insert({ contract_id: contractId, tenant_id: tenantId, is_primary: true })
     if (insJErr) return dbFailure(insJErr)
   }
+
+  // Bump contracts.updated_at — same reason as the landlord branch above.
+  await supabase.from('contracts').update({ updated_at: new Date().toISOString() }).eq('id', contractId)
 
   revalidatePath('/liquidacion')
   revalidatePath(`/contratos/${contractId}`)

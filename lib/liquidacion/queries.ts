@@ -138,9 +138,12 @@ export interface LiquidacionGridRow {
   startDate:         string | null
   endDate:           string | null
 
-  // ── Internal sort key — most-recently-modified contracts float to top.
-  //    Set to contracts.updated_at (falls back to created_at).
-  sortKey:           string
+  // ── Recently-edited marker — true when contracts.updated_at is within
+  //    the last 5 minutes. Drives a yellow tint on the row so the
+  //    encargada can find what she just touched without having the table
+  //    re-sort under her feet. Default sort stays alphabetical by
+  //    propietario (Alejandro's explicit ask).
+  wasRecentlyEdited: boolean
 }
 
 // ── Rich grid query — returns all 19 columns per row ───────────────────────
@@ -287,18 +290,27 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       currentRent,
       startDate:     c.start_date ?? null,
       endDate:       c.end_date   ?? null,
-      sortKey:       c.updated_at ?? c.created_at ?? '',
+      wasRecentlyEdited: (() => {
+        // True if the contract's updated_at (or created_at as fallback)
+        // is within the last 5 minutes — used to tint the row yellow on
+        // the planilla so the encargada can see what she just touched
+        // WITHOUT the sort order shifting underneath her.
+        const stamp = c.updated_at ?? c.created_at
+        if (!stamp) return false
+        const ageMs = today.getTime() - new Date(stamp).getTime()
+        return ageMs >= 0 && ageMs < 5 * 60 * 1000
+      })(),
     })
   }
 
-  // Sort by "most recently added or modified" first — per Alejandro's
-  // request. Newly created contracts and any contract whose fields were
-  // just edited (LFA / expensas / pct / vigencia) float to the top.
-  // contracts.updated_at is bumped by a trigger on every UPDATE
-  // (migration-2026-06-16-contracts-updated-at.sql).
+  // Default sort: alphabetical by propietario (Alejandro's explicit ask
+  // — "que sea por orden alfabético de los propietarios"). The
+  // recently-edited row is highlighted in yellow on the grid instead of
+  // floating to the top.
   return rows.sort((a, b) => {
-    if (a.sortKey === b.sortKey) return a.inquilino.localeCompare(b.inquilino)
-    return a.sortKey < b.sortKey ? 1 : -1
+    const cmp = a.propietario.localeCompare(b.propietario, 'es-AR', { sensitivity: 'base' })
+    if (cmp !== 0) return cmp
+    return a.inquilino.localeCompare(b.inquilino, 'es-AR', { sensitivity: 'base' })
   })
 }
 
