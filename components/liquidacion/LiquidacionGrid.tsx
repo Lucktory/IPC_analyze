@@ -195,8 +195,20 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
           </thead>
           <tbody>
             {rows.map((r, idx) => {
-              const cobrado     = !!r.fechaBanco
-              const transferido = !!r.diaTransf
+              // Defensive: guard against any row that's somehow missing
+              // fields we added in recent phases (validationIssues, the
+              // Phase 9A tier, the Phase 9C splits). A single undefined
+              // access would crash the whole grid render and surface as
+              // the cryptic "Application error / Digest: …" page in
+              // production. Default to safe values so a bad row is just
+              // muted, not catastrophic.
+              if (!r) return null
+              const issues          = r.validationIssues ?? []
+              const cobrado         = !!r.fechaBanco
+              const transferido     = !!r.diaTransf
+              const tierStatus      = r.contractEndStatus ?? 'normal'
+              const alquilerSum     = Number.isFinite(r.alquilerSum) ? r.alquilerSum : 0
+              const extrasSum       = Number.isFinite(r.extrasSum)   ? r.extrasSum   : 0
 
               // Row background priority (high → low):
               //   1. Validation ERROR   → pale red tint   (most urgent)
@@ -207,7 +219,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               // Editing focus (`[&:has([data-editing])]:bg-blue-100` further
               // down) overrides all of these — clicking into a cell wins
               // visually regardless of validation state.
-              const severity = highestSeverity(r.validationIssues)
+              const severity = highestSeverity(issues)
               const zebra = severity === 'error'
                 ? 'bg-danger/10'
                 : severity === 'warning'
@@ -312,15 +324,15 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     width={W.contrato}
                     align="center"
                     title={
-                      r.contractEndStatus === 'imminent'
+                      tierStatus === 'imminent'
                         ? `Contrato ${r.daysUntilContractEnd != null && r.daysUntilContractEnd >= 0
                             ? `vence en ${r.daysUntilContractEnd} día${r.daysUntilContractEnd === 1 ? '' : 's'}`
                             : `vencido hace ${Math.abs(r.daysUntilContractEnd ?? 0)} días`} — hablar con el inquilino`
-                        : r.contractEndStatus === 'approaching'
+                        : tierStatus === 'approaching'
                           ? `Vence en ${r.daysUntilContractEnd} días — preparar renovación`
                           : undefined
                     }
-                    className={CONTRACT_END_TIER_CLASSES[r.contractEndStatus]}
+                    className={CONTRACT_END_TIER_CLASSES[tierStatus] ?? ''}
                   >
                     <EditableVigenciaCell
                       contractId={r.contractId}
@@ -359,7 +371,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       contractId={r.contractId}
                       period={r.periodo}
                       lines={r.ingresosLines}
-                      total={r.alquilerSum}
+                      total={alquilerSum}
                       cobrado={cobrado}
                       upcomingAdjustment={r.hasUpcomingAdjustment && r.daysUntilAdjustment != null
                         ? { days: r.daysUntilAdjustment }
@@ -381,15 +393,15 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       contractId={r.contractId}
                       period={r.periodo}
                       lines={r.ingresosLines}
-                      total={r.extrasSum}
+                      total={extrasSum}
                       cobrado={cobrado}
                       excludeTypes={['RENT_IN']}
                       defaultNewLineType="RECUPERO_ABL_IN"
                       popoverTitle="Extras — Recuperos del período (sin alquiler)"
                       cellBgClass={
-                        r.extrasSum > 0
+                        extrasSum > 0
                           ? 'text-success'
-                          : r.extrasSum < 0
+                          : extrasSum < 0
                             ? 'text-danger'
                             : ''
                       }
@@ -402,9 +414,9 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                         return `${sign}${fmtMoney(sum)}`
                       }}
                       buttonTitle={
-                        r.extrasSum > 0
+                        extrasSum > 0
                           ? 'Recuperos cobrados — click para ver / editar'
-                          : r.extrasSum < 0
+                          : extrasSum < 0
                             ? 'Hay un descuento (ajuste negativo) — editar en Observación'
                             : 'Click para registrar un recupero (ABL, gas, etc.)'
                       }
@@ -542,7 +554,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                        popover with each issue's message, expected, actual,
                        and difference. */}
                   <Td width={W.check} align="center">
-                    <ValidationBadgeCell issues={r.validationIssues} />
+                    <ValidationBadgeCell issues={issues} />
                   </Td>
                 </tr>
               )

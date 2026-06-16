@@ -386,6 +386,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
 
   const rows: LiquidacionGridRow[] = []
   for (const c of (contractsRes.data ?? []) as any[]) {
+    try {
     const landlords = (c.contract_landlords ?? []) as any[]
     if (landlords.length === 0) continue
     const primary = [...landlords].sort(
@@ -516,6 +517,16 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         c.commission_pct != null ? Number(c.commission_pct) : undefined,
       ),
     })
+    } catch (err) {
+      // A single malformed contract row must NOT kill the whole grid query.
+      // Log + skip. The planilla simply omits this contract for the period;
+      // the encargada can still work on every other contract.
+      try {
+        const cid = c?.id ?? '(no id)'
+        console.error(`[getLiquidacionGridForPeriod] row failed for contract ${cid}:`, err)
+      } catch { /* ignore logging failure */ }
+      continue
+    }
   }
 
   // Default sort: alphabetical by propietario (Alejandro's explicit ask
