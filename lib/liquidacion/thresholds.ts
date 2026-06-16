@@ -33,3 +33,30 @@ export const CONTRACT_END_TIER_CLASSES = {
 } as const
 
 export type ContractEndStatus = 'normal' | 'approaching' | 'imminent'
+
+// ── Phase 10 — Cadence column display labels ────────────────────────────────
+//
+// Alejandro (2026-06-17): "falta una columna donde te avisa… los aumentos
+// son trimestrales y bimestrales." Adds the contract's adjustment cadence
+// as a visible column on the planilla so the encargada can answer
+// "every how often is rent adjusted?" without opening the contract.
+//
+// Short codes (≤4 chars) so the column stays narrow. Full label is shown
+// in the tooltip together with the next adjustment date.
+export const CADENCE_SHORT: Record<string, string> = {
+  mensual:       'Mens',
+  bimestral:     'Bim',
+  trimestral:    'Trim',
+  cuatrimestral: 'Cuat',
+  semestral:     'Sem',
+  anual:         'An',
+}
+
+export const CADENCE_FULL: Record<string, string> = {
+  mensual:       'Mensual',
+  bimestral:     'Bimestral',
+  trimestral:    'Trimestral',
+  cuatrimestral: 'Cuatrimestral',
+  semestral:     'Semestral',
+  anual:         'Anual',
+}

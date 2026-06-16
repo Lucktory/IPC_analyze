@@ -58,7 +58,7 @@ import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 import { InlineIngresosCell } from './InlineIngresosCell'
 import { ValidationBadgeCell } from './ValidationBadgeCell'
 import { highestSeverity } from '@/lib/liquidacion/validations'
-import { CONTRACT_END_TIER_CLASSES } from '@/lib/liquidacion/thresholds'
+import { CONTRACT_END_TIER_CLASSES, CADENCE_SHORT, CADENCE_FULL } from '@/lib/liquidacion/thresholds'
 
 interface Props {
   rows:            LiquidacionGridRow[]
@@ -90,7 +90,12 @@ function cellTextClass(done: boolean): string {
 const W = {
   obs: 140, lfa: 50, fbanco: 70, prop: 150,
   expensas: 80, inq: 150,
-  pct: 55, contrato: 115, deuda: 80, periodo: 70,
+  pct: 55,
+  // Phase 10 — Cadence column. Short codes (Mens/Bim/Trim/Cuat/Sem/An)
+  // keep the width tight; full label is shown in the tooltip together
+  // with the next adjustment date.
+  cadencia: 60,
+  contrato: 115, deuda: 80, periodo: 70,
   // Phase 9C: ingresos column split into alquiler (RENT_IN only) and
   // extras (recuperos + signed adjustment). Keeping legacy `ingresos`
   // unused in the new layout but preserved for any old code paths.
@@ -154,9 +159,9 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
   }
 
   const tableMinWidth =
-    W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.contrato +
-    W.deuda + W.periodo + W.alquiler + W.extras + W.transf + W.otros + W.diatransf +
-    W.admi + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
+    W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.cadencia +
+    W.contrato + W.deuda + W.periodo + W.alquiler + W.extras + W.transf + W.otros +
+    W.diatransf + W.admi + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
 
   return (
     <section className="bg-white border border-gray-300 overflow-hidden h-full flex flex-col">
@@ -176,7 +181,9 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               {/* 5 */}<Th width={W.expensas} align="right">Expensas</Th>
               {/* 6 */}<Th width={W.inq}>Inquilino</Th>
               {/* 7 */}<Th width={W.pct}      align="right">Pct</Th>
-              {/* 8 */}<Th width={W.contrato} align="center">Contrato</Th>
+              {/* 8 — Phase 10: Cadencia (aumento frequency) */}
+              <Th width={W.cadencia} align="center">Cadencia</Th>
+              {/* 9 */}<Th width={W.contrato} align="center">Contrato</Th>
               {/* 9 */}<Th width={W.deuda}    align="right">Deuda</Th>
               {/* 10 */}<Th width={W.periodo}   align="center">Período</Th>
               {/* 11 */}<Th width={W.alquiler}  align="right">Alquiler</Th>
@@ -314,7 +321,35 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     />
                   </Td>
 
-                  {/* 8. CONTRATO (vigencia) — editable date range. Phase 9A:
+                  {/* 8. CADENCIA — Phase 10. Read-only, derived from
+                       contracts.cadence. Short code in the cell, full
+                       label + next adjustment date in the tooltip. */}
+                  {(() => {
+                    const cad      = r.cadence ?? null
+                    const short    = cad ? (CADENCE_SHORT[cad] ?? cad) : '—'
+                    const fullLbl  = cad ? (CADENCE_FULL[cad]  ?? cad) : 'Sin cadencia configurada'
+                    const tipParts: string[] = [fullLbl]
+                    if (r.nextAdjustmentDateIso) {
+                      const [yy, mm, dd] = r.nextAdjustmentDateIso.split('-')
+                      tipParts.push(`Próximo aumento: ${dd}/${mm}/${yy}`)
+                    }
+                    if (r.daysUntilAdjustment != null && r.daysUntilAdjustment >= 0) {
+                      tipParts.push(`(en ${r.daysUntilAdjustment} día${r.daysUntilAdjustment === 1 ? '' : 's'})`)
+                    }
+                    return (
+                      <Td
+                        width={W.cadencia}
+                        align="center"
+                        title={tipParts.join('\n')}
+                      >
+                        <span className={`text-[11px] ${cad ? 'text-ink' : 'text-slate/50'}`}>
+                          {short}
+                        </span>
+                      </Td>
+                    )
+                  })()}
+
+                  {/* 9. CONTRATO (vigencia) — editable date range. Phase 9A:
                        cell background reflects how close end_date is.
                        'approaching' (31-60d) = light blue · 'imminent' (≤30d
                        or overdue) = solid blue with white text. Tier classes
@@ -578,6 +613,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <Tf width={W.expensas}  align="right" tabular>{footerMoney(totals.expensas)}</Tf>
               <Tf width={W.inq}                         />
               <Tf width={W.pct}       align="right"     />
+              <Tf width={W.cadencia}  align="center"    />
               <Tf width={W.contrato}  align="center"    />
               <Tf width={W.deuda}     align="right" tabular>{footerMoney(totals.deuda)}</Tf>
               <Tf width={W.periodo}   align="center"    />

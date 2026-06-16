@@ -212,11 +212,22 @@ export interface LiquidacionGridRow {
   admFrances509: number
   admFrances516: number
 
+  // ── Phase 10 — Contract adjustment cadence (mensual / bimestral / …) ──
+  //   Alejandro: he asked for a column showing the cadence so he can
+  //   answer "every how often is the rent adjusted for this contract?"
+  //   The string is the raw DB value (lowercase), the display label is
+  //   resolved in the grid via CADENCE_SHORT / CADENCE_FULL from
+  //   lib/liquidacion/thresholds.ts.
+  cadence:               string | null
+
   // ── Highlight flags ──
   /** True when the contract's nextAdjustmentDate is within 30 days. Drives
    *  the light-orange background on the INGRESOS cell. */
   hasUpcomingAdjustment: boolean
   daysUntilAdjustment:   number | null
+  /** ISO date (YYYY-MM-DD) of the next adjustment, or null when there's no
+   *  cadence configured. Used in the cadence cell tooltip. */
+  nextAdjustmentDateIso: string | null
 
   // ── Liquidación record state (gray/green/blue badge) ──
   status:            LiquidacionStatus
@@ -405,6 +416,10 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     const msUntilAdj = nextAdj ? nextAdj.getTime() - today.getTime() : null
     const daysUntilAdjustment = msUntilAdj != null ? Math.ceil(msUntilAdj / 86400000) : null
     const hasUpcomingAdjustment = daysUntilAdjustment != null && daysUntilAdjustment >= 0 && daysUntilAdjustment <= 30
+    // ISO date for the cadence cell tooltip. Format YYYY-MM-DD.
+    const nextAdjustmentDateIso = nextAdj
+      ? `${nextAdj.getFullYear()}-${String(nextAdj.getMonth() + 1).padStart(2, '0')}-${String(nextAdj.getDate()).padStart(2, '0')}`
+      : null
 
     const liq        = liqByKey.get(`${c.id}|${primary.landlords.id}`)
     const adjustment = Number(liq?.adjustment_amount ?? 0)
@@ -438,8 +453,10 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       admGalicia:    a.galicia,
       admFrances509: a.frances509,
       admFrances516: a.frances516,
+      cadence:               c.cadence ?? null,
       hasUpcomingAdjustment,
       daysUntilAdjustment,
+      nextAdjustmentDateIso,
       status:        (liq?.status ?? 'draft') as LiquidacionStatus,
       adjustmentAmount: adjustment,
       liquidacionId: liq?.id ?? null,
