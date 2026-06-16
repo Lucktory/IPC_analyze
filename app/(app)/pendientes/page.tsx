@@ -38,7 +38,22 @@ export default async function PendientesPage({ searchParams }: PageProps) {
     sp.type === 'workflow' || sp.type === 'contrato' || sp.type === 'datos'
       ? sp.type : null
 
-  const { items, counts, period } = await getPendientesDigest()
+  // Wrap the digest call: if it throws (e.g. an unmigrated column in
+  // production), the page still renders with a visible error banner
+  // instead of going blank.
+  let items: PendienteItem[] = []
+  let counts = { urgente: 0, importante: 0, proximo: 0, aviso: 0, total: 0 }
+  let period = ''
+  let runtimeError: string | null = null
+  try {
+    const digest = await getPendientesDigest()
+    items  = digest.items
+    counts = digest.counts
+    period = digest.period
+  } catch (err) {
+    console.error('[/pendientes] getPendientesDigest threw:', err)
+    runtimeError = err instanceof Error ? err.message : String(err)
+  }
 
   const filtered = items.filter(it =>
     (!severityFilter || it.severity === severityFilter) &&
@@ -114,6 +129,16 @@ export default async function PendientesPage({ searchParams }: PageProps) {
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto mt-2 space-y-4 pb-8">
+        {runtimeError && (
+          <div className="bg-danger/10 border border-danger/40 rounded p-3 text-[12px] text-ink">
+            <p className="font-medium text-danger">⚠ No se pudo calcular el listado de pendientes.</p>
+            <p className="text-slate-dark mt-1">{runtimeError}</p>
+            <p className="text-[11px] text-gray-500 mt-1 italic">
+              Probablemente falta aplicar alguna migración en Supabase. Mirá los logs del servidor para el detalle.
+            </p>
+          </div>
+        )}
+
         {SEVERITY_ORDER.map(sev => {
           const list = grouped[sev]
           if (list.length === 0) return null
