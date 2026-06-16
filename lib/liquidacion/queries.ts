@@ -332,8 +332,15 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
   for (const t of (txnsRes.data ?? []) as any[]) {
     if (!t.contract_id) continue
     const entry = agg.get(t.contract_id) ?? blank()
+    // Defensive: if the inner join with transaction_types returned no row
+    // (orphan transaction whose type was deleted, or a Supabase quirk),
+    // skip rather than crash the whole planilla. Without this guard,
+    // `typ.code` throws "Cannot read properties of null" — exactly the
+    // generic server-side exception users see on Vercel.
     const typ = t.transaction_types
+    if (!typ || typeof typ.code !== 'string') continue
     const amt = Number(t.amount)
+    if (!isFinite(amt)) continue
 
     if (typ.code === 'RENT_IN') {
       if (typ.affects_liquidacion) entry.ingresos += amt
