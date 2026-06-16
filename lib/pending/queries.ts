@@ -181,9 +181,21 @@ export async function listPendingActions(): Promise<PendingResult> {
  * Lightweight count-only call for the TopBar bell. Skips returning the
  * per-row data when all we need is a number.
  */
+/**
+ * Bell badge count for the AppShell topbar.
+ *
+ * Migrated to the new Phase 8 digest: counts only ACTIONABLE items —
+ * urgente + importante. Avisos and próximos don't bump the bell because
+ * they're not "do today/this week" actions. Old behaviour counted
+ * everything (cobranza + aumento + renovacion regardless of urgency)
+ * which produced inflated, unhelpful counts (e.g. 128).
+ *
+ * The bell now reflects what the encargada actually needs to attend to.
+ */
 export async function getPendingCount(): Promise<number> {
-  const { counts } = await listPendingActions()
-  return counts.total
+  const { getPendientesDigest } = await import('./digest')
+  const { counts } = await getPendientesDigest()
+  return counts.urgente + counts.importante
 }
 
 export const CATEGORY_LABEL: Record<PendingCategory, string> = {
