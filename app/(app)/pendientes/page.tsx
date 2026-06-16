@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getPendientesDigest, type PendienteItem, type Severity, type StreamType } from '@/lib/pending/digest'
 import { fmtMoney } from '@/lib/format'
+import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon'
 
 // Always-dynamic — pendientes change every minute, never serve from cache.
 export const dynamic     = 'force-dynamic'
@@ -212,9 +213,13 @@ function PendienteRow({ item, period }: { item: PendienteItem; period: string })
             target="_blank"
             rel="noopener noreferrer"
             title="Mandar recordatorio por WhatsApp"
-            className="px-2 py-1 rounded bg-success text-paper text-[11px] font-medium hover:opacity-90 transition-opacity inline-flex items-center gap-1"
+            // Inline brand color (#25D366 = WhatsApp green). Not adding to
+            // tailwind.config — single-use brand asset.
+            style={{ backgroundColor: '#25D366' }}
+            className="px-2 py-1 rounded text-white text-[11px] font-medium hover:opacity-90 transition-opacity inline-flex items-center gap-1.5"
           >
-            📱 WhatsApp
+            <WhatsAppIcon size={13} title="" />
+            WhatsApp
           </a>
         )}
         <Link
