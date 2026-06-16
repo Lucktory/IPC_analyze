@@ -16,15 +16,18 @@
 //   8  CONTRATO (vigencia)
 //   9  DEUDA
 //   10 PERÍODO
-//   11 INGRESOS
-//   12 TRANSFERENCIA
-//   13 OTROS
-//   14 DÍA TRANSFERENCIA
-//   15 ADMI
-//   16 ADM GALICIA
-//   17 ADM FRANCÉS 50/9
-//   18 ADM FRANCÉS 51/6
-//   19 ESTADO (our addition — workflow status dot)
+//   11 ALQUILER       (Phase 9C — was INGRESOS; now RENT_IN only)
+//   12 EXTRAS         (Phase 9C — recuperos + signed adjustment, +/- coloring)
+//   13 TRANSFERENCIA
+//   14 OTROS
+//   15 DÍA TRANSFERENCIA
+//   16 ADMI
+//   17 ADM GALICIA
+//   18 ADM FRANCÉS 50/9
+//   19 ADM FRANCÉS 51/6
+//   20 ESTADO  (workflow status dot)
+//   21 MAIL    (Liquidar y enviar)
+//   22 CHECK   (Phase 7A validation badge)
 //
 // Three visual rules carry forward:
 //   • Default "gris tenue" — value cells start in text-slate; flip to text-ink
@@ -88,6 +91,10 @@ const W = {
   obs: 140, lfa: 50, fbanco: 70, prop: 150,
   expensas: 80, inq: 150,
   pct: 55, contrato: 115, deuda: 80, periodo: 70,
+  // Phase 9C: ingresos column split into alquiler (RENT_IN only) and
+  // extras (recuperos + signed adjustment). Keeping legacy `ingresos`
+  // unused in the new layout but preserved for any old code paths.
+  alquiler: 95, extras: 85,
   ingresos: 95, transf: 105, otros: 80, diatransf: 70,
   admi: 90, galicia: 85, fr509: 85, fr516: 85,
   estado: 55,
@@ -148,7 +155,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
 
   const tableMinWidth =
     W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.contrato +
-    W.deuda + W.periodo + W.ingresos + W.transf + W.otros + W.diatransf +
+    W.deuda + W.periodo + W.alquiler + W.extras + W.transf + W.otros + W.diatransf +
     W.admi + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
 
   return (
@@ -172,7 +179,8 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               {/* 8 */}<Th width={W.contrato} align="center">Contrato</Th>
               {/* 9 */}<Th width={W.deuda}    align="right">Deuda</Th>
               {/* 10 */}<Th width={W.periodo}   align="center">Período</Th>
-              {/* 11 */}<Th width={W.ingresos}  align="right">Ingresos</Th>
+              {/* 11 */}<Th width={W.alquiler}  align="right">Alquiler</Th>
+              {/* 12 */}<Th width={W.extras}    align="right">Extras</Th>
               {/* 12 */}<Th width={W.transf}    align="right">Transferencia</Th>
               {/* 13 */}<Th width={W.otros}     align="right">Otros</Th>
               {/* 14 */}<Th width={W.diatransf} align="center">D. transf</Th>
@@ -341,20 +349,65 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     </span>
                   </Td>
 
-                  {/* 11. INGRESOS — dynamic breakdown popover (Phase 6).
-                       Click opens the per-concept line editor: alquiler,
-                       expensas, recupero ABL/gas/agua/luz/etc. Sum is
-                       shown in the cell; orange tint on aumento próximo. */}
-                  <Td width={W.ingresos} align="right">
+                  {/* 11. ALQUILER — Phase 9C, RENT_IN-only popover.
+                       Alejandro: "figura a simple vista cuál es el alquiler."
+                       Aumento próximo orange tint lives on this column
+                       because the alert is about the contract's rent
+                       increase, not about recuperos. */}
+                  <Td width={W.alquiler} align="right">
                     <InlineIngresosCell
                       contractId={r.contractId}
                       period={r.periodo}
                       lines={r.ingresosLines}
-                      total={r.ingresos}
+                      total={r.alquilerSum}
                       cobrado={cobrado}
                       upcomingAdjustment={r.hasUpcomingAdjustment && r.daysUntilAdjustment != null
                         ? { days: r.daysUntilAdjustment }
                         : null}
+                      onlyTypes={['RENT_IN']}
+                      defaultNewLineType="RENT_IN"
+                      popoverTitle="Alquiler — Sólo cobros de RENT_IN"
+                    />
+                  </Td>
+
+                  {/* 12. EXTRAS — Phase 9C, everything except RENT_IN.
+                       Recuperos (ABL/gas/etc.) + signed adjustment from
+                       Observación. Can be POSITIVE (tenant overpaid /
+                       recuperos) or NEGATIVE (discount in adjustment).
+                       Adjustment editing still lives in Observación; the
+                       Extras display value just MIRRORS the math. */}
+                  <Td width={W.extras} align="right">
+                    <InlineIngresosCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      lines={r.ingresosLines}
+                      total={r.extrasSum}
+                      cobrado={cobrado}
+                      excludeTypes={['RENT_IN']}
+                      defaultNewLineType="RECUPERO_ABL_IN"
+                      popoverTitle="Extras — Recuperos del período (sin alquiler)"
+                      cellBgClass={
+                        r.extrasSum > 0
+                          ? 'text-success'
+                          : r.extrasSum < 0
+                            ? 'text-danger'
+                            : ''
+                      }
+                      renderButton={(sum) => {
+                        if (sum === 0) return <span className="text-gray-400">—</span>
+                        // Show sign explicitly so encargada sees instantly
+                        // whether the extras line is a recupero (+) or a
+                        // discount (-).
+                        const sign = sum > 0 ? '+' : ''
+                        return `${sign}${fmtMoney(sum)}`
+                      }}
+                      buttonTitle={
+                        r.extrasSum > 0
+                          ? 'Recuperos cobrados — click para ver / editar'
+                          : r.extrasSum < 0
+                            ? 'Hay un descuento (ajuste negativo) — editar en Observación'
+                            : 'Click para registrar un recupero (ABL, gas, etc.)'
+                      }
                     />
                   </Td>
 
@@ -512,7 +565,8 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <Tf width={W.contrato}  align="center"    />
               <Tf width={W.deuda}     align="right" tabular>{footerMoney(totals.deuda)}</Tf>
               <Tf width={W.periodo}   align="center"    />
-              <Tf width={W.ingresos}  align="right" tabular>{footerMoney(totals.ingresos)}</Tf>
+              <Tf width={W.alquiler}  align="right" tabular>{footerMoney(totals.alquiler)}</Tf>
+              <Tf width={W.extras}    align="right" tabular>{footerMoney(totals.extras)}</Tf>
               <Tf width={W.transf}    align="right" tabular>{footerMoney(totals.transferencia)}</Tf>
               <Tf width={W.otros}     align="right" tabular>{footerMoney(totals.otros)}</Tf>
               <Tf width={W.diatransf} align="center"    />

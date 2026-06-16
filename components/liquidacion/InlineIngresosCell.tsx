@@ -52,6 +52,26 @@ interface Props {
   cobrado:     boolean
   /** Inline alert: a warning for aumento próximo, etc. */
   upcomingAdjustment?: { days: number } | null
+
+  // ── Phase 9C: scope the popover to a subset of transaction types.
+  //    Used to split the single Ingresos cell into Alquiler (RENT_IN only)
+  //    and Extras (everything else). If unset, the popover behaves as
+  //    before — all IN types available.
+  /** Restrict the popover to JUST these type codes (whitelist). */
+  onlyTypes?:    readonly string[]
+  /** Hide these type codes from the popover (blacklist). */
+  excludeTypes?: readonly string[]
+  /** Display label inside the popover header. */
+  popoverTitle?: string
+  /** Default new-line type code (must be in onlyTypes if provided). */
+  defaultNewLineType?: string
+  /** Optional renderer for the cell button (override default sum formatting). */
+  renderButton?: (sum: number) => React.ReactNode
+  /** Optional title attribute (tooltip) on the cell button. */
+  buttonTitle?: string
+  /** Extra Tailwind classes for the cell button background (e.g., orange
+   *  for aumento próximo). */
+  cellBgClass?: string
 }
 
 interface DraftLine {
@@ -81,6 +101,8 @@ const emptyNewLine = (): DraftLine => ({
 
 export function InlineIngresosCell({
   contractId, period, lines, total, cobrado, upcomingAdjustment,
+  onlyTypes, excludeTypes, popoverTitle, defaultNewLineType,
+  renderButton, buttonTitle, cellBgClass,
 }: Props) {
   const [open, setOpen]   = useState(false)
   const [drafts, setDrafts] = useState<DraftLine[]>([])
@@ -91,12 +113,30 @@ export function InlineIngresosCell({
 
   const rect = useFloatingPopover({ open, anchor: buttonRef.current, minWidth: 460 })
 
-  // On open: hydrate drafts from props.
+  // Filter lines to the popover's scope (Phase 9C). The grid passes the
+  // FULL ingresosLines array; the cell decides which to show based on
+  // onlyTypes / excludeTypes. Cell button's `total` prop is already
+  // pre-filtered upstream.
+  const filteredLines = lines.filter(l => {
+    if (onlyTypes && !onlyTypes.includes(l.typeCode))     return false
+    if (excludeTypes && excludeTypes.includes(l.typeCode)) return false
+    return true
+  })
+
+  // Allowed type codes for the dropdown.
+  const availableTypes = INGRESOS_LINE_TYPES.filter(t => {
+    if (onlyTypes && !onlyTypes.includes(t))     return false
+    if (excludeTypes && excludeTypes.includes(t)) return false
+    return true
+  })
+
+  // On open: hydrate drafts from the filtered subset.
   useEffect(() => {
     if (open) {
-      setDrafts(lines.map(lineFromExisting))
+      setDrafts(filteredLines.map(lineFromExisting))
       setError(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, lines])
 
   function close() {
@@ -121,13 +161,16 @@ export function InlineIngresosCell({
       //   • draft with id in existing → maybe update
       //   • existing id missing from drafts → delete
       //   • draft without id → insert
-      const existingById = new Map(lines.map(l => [l.transactionId, l]))
+      // Diff against FILTERED lines so the Extras popover doesn't accidentally
+      // delete RENT_IN rows (and vice versa). Lines outside the filter scope
+      // belong to the sibling cell and stay untouched.
+      const existingById = new Map(filteredLines.map(l => [l.transactionId, l]))
       const draftIds = new Set(drafts.filter(d => d.id).map(d => d.id!))
 
       const steps: Array<() => Promise<{ ok: boolean; error: string | null }>> = []
 
       // Deletions first (no dependency).
-      for (const l of lines) {
+      for (const l of filteredLines) {
         if (!draftIds.has(l.transactionId)) {
           steps.push(() => deleteIngresosLine(l.transactionId, contractId))
         }
@@ -182,7 +225,18 @@ export function InlineIngresosCell({
   }
 
   function addLine() {
-    setDrafts(prev => [...prev, emptyNewLine()])
+    // New lines default to the caller-provided type when set (e.g., Alquiler
+    // popover defaults to RENT_IN). Otherwise fall back to the first
+    // available type in the filtered list, then to RECUPERO_ABL_IN as a
+    // last resort.
+    const fallback = availableTypes[0] ?? 'RECUPERO_ABL_IN'
+    const next: DraftLine = {
+      ...emptyNewLine(),
+      typeCode: defaultNewLineType && availableTypes.includes(defaultNewLineType as any)
+        ? defaultNewLineType
+        : fallback,
+    }
+    setDrafts(prev => [...prev, next])
   }
   function patchLine(idx: number, patch: Partial<DraftLine>) {
     setDrafts(prev => prev.map((d, i) => i === idx ? { ...d, ...patch } : d))
@@ -194,10 +248,19 @@ export function InlineIngresosCell({
   // Live total inside the popover (sum of current drafts).
   const liveTotal = drafts.reduce((s, d) => s + (isFinite(Number(d.amount)) ? Number(d.amount) : 0), 0)
 
-  // Background tint on the cell (aumento próximo highlight).
-  const cellStyle: React.CSSProperties | undefined = upcomingAdjustment
-    ? { backgroundColor: 'rgba(243,156,18,0.12)' }
-    : undefined
+  // Background tint on the cell (aumento próximo highlight). Only applied
+  // when no cellBgClass override is passed (Phase 9C: Alquiler cell still
+  // gets the aumento highlight; Extras cell stays neutral).
+  const cellStyle: React.CSSProperties | undefined =
+    !cellBgClass && upcomingAdjustment
+      ? { backgroundColor: 'rgba(243,156,18,0.12)' }
+      : undefined
+
+  const defaultTitle = upcomingAdjustment
+    ? `Ingresos · ⚠ Aumento de alquiler en ${upcomingAdjustment.days} días`
+    : (filteredLines.length > 1
+        ? `${filteredLines.length} conceptos — click para ver / editar`
+        : (total > 0 ? 'Click para ver / editar' : 'Click para registrar'))
 
   return (
     <>
@@ -206,18 +269,16 @@ export function InlineIngresosCell({
         type="button"
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
-        title={upcomingAdjustment
-          ? `Ingresos · ⚠ Aumento de alquiler en ${upcomingAdjustment.days} días`
-          : (lines.length > 1
-              ? `${lines.length} conceptos cobrados — click para ver / editar`
-              : (total > 0 ? 'Click para ver / editar conceptos cobrados' : 'Click para registrar cobros'))}
+        title={buttonTitle ?? defaultTitle}
         style={cellStyle}
-        className={`w-full text-right px-0 hover:bg-blue-50 transition-colors tabular-nums truncate font-medium ${cobrado ? 'text-ink' : 'text-slate'}`}
+        className={`w-full text-right px-0 hover:bg-blue-50 transition-colors tabular-nums truncate font-medium ${cobrado ? 'text-ink' : 'text-slate'} ${cellBgClass ?? ''}`}
       >
-        {total > 0 ? fmtMoney(total) : '—'}
-        {lines.length > 1 && (
+        {renderButton
+          ? renderButton(total)
+          : (total !== 0 ? fmtMoney(total) : '—')}
+        {!renderButton && filteredLines.length > 1 && (
           <span className="block text-[9px] text-slate normal-case font-normal">
-            {lines.length} conceptos
+            {filteredLines.length} conceptos
           </span>
         )}
       </button>
@@ -232,7 +293,7 @@ export function InlineIngresosCell({
             onClick={e => e.stopPropagation()}
           >
             <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-              <span className="font-display text-[13px] font-medium text-ink">Ingresos del período</span>
+              <span className="font-display text-[13px] font-medium text-ink">{popoverTitle ?? 'Ingresos del período'}</span>
               <span className="text-[10px] text-gray-500 italic">click afuera = guardar · Esc = cancelar</span>
             </div>
 
@@ -249,7 +310,7 @@ export function InlineIngresosCell({
                     onChange={e => patchLine(i, { typeCode: e.target.value })}
                     className="h-8 px-1.5 text-[12px] border border-gray-300 rounded bg-white outline-none focus:border-info min-w-0 flex-1"
                   >
-                    {INGRESOS_LINE_TYPES.map(t => (
+                    {availableTypes.map(t => (
                       <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>
                     ))}
                   </select>

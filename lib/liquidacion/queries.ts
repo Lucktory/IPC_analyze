@@ -33,6 +33,10 @@ export interface LiquidacionGridTotals {
   expensas:      number
   deuda:         number
   ingresos:      number
+  /** Phase 9C: sum of RENT_IN across all rows. */
+  alquiler:      number
+  /** Phase 9C: sum of (non-RENT_IN IN + adjustment_amount) across all rows. */
+  extras:        number
   transferencia: number
   otros:         number
   admi:          number
@@ -42,7 +46,8 @@ export interface LiquidacionGridTotals {
 }
 
 const ZERO_TOTALS: LiquidacionGridTotals = {
-  expensas: 0, deuda: 0, ingresos: 0, transferencia: 0, otros: 0,
+  expensas: 0, deuda: 0, ingresos: 0, alquiler: 0, extras: 0,
+  transferencia: 0, otros: 0,
   admi: 0, admGalicia: 0, admFrances509: 0, admFrances516: 0,
 }
 
@@ -53,6 +58,8 @@ export function sumGridTotals(rows: LiquidacionGridRow[]): LiquidacionGridTotals
       t.expensas      += Number(r.expensas      ?? 0) || 0
       t.deuda         += Number(r.deuda         ?? 0) || 0
       t.ingresos      += Number(r.ingresos      ?? 0) || 0
+      t.alquiler      += Number(r.alquilerSum   ?? 0) || 0
+      t.extras        += Number(r.extrasSum     ?? 0) || 0
       t.transferencia += Number(r.transferencia ?? 0) || 0
       t.otros         += Number(r.otros         ?? 0) || 0
       t.admi          += Number(r.admi          ?? 0) || 0
@@ -177,8 +184,21 @@ export interface LiquidacionGridRow {
 
   // ── Cobro side (light gray until fechaBanco set, then dark gray) ──
   fechaBanco:    string | null   // max(RENT_IN.bank_date)
-  ingresos:      number          // sum IN affects_liquidacion
+  ingresos:      number          // sum IN affects_liquidacion (alquilerSum + extrasSum_recuperos_only)
   deuda:         number          // current_rent - ingresos (positive = owed)
+
+  // ── Phase 9C: Ingresos column split into Alquiler + Extras ──────────────
+  //   Alejandro: "figura a simple vista cuál es el alquiler. Y al lado
+  //               los extras que pueden ser positivos o negativos."
+  //
+  //   alquilerSum: RENT_IN transactions only — the "what is the rent"
+  //                number that's visible at a glance.
+  //   extrasSum:   sum of (non-RENT_IN affects_liquidacion IN) + the
+  //                signed adjustment_amount from liquidaciones. Can be
+  //                positive (recuperos paid by tenant) OR negative (when
+  //                a discount sits in adjustment_amount).
+  alquilerSum:   number
+  extrasSum:     number
 
   // ── Transfer side (light gray until diaTransf set, then dark gray) ──
   diaTransf:     string | null   // max(LANDLORD_PAYOUT.bank_date)
@@ -437,6 +457,25 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         if (x.typeCode !== 'RENT_IN' && y.typeCode === 'RENT_IN') return 1
         return y.amount - x.amount
       }),
+      // Phase 9C: pre-compute the Alquiler / Extras split so the grid
+      // doesn't need to filter ingresosLines twice per render.
+      //   Alquiler = sum of RENT_IN lines only.
+      //   Extras   = sum of non-RENT_IN IN lines + signed adjustment.
+      //              Can be POSITIVE (tenant paid recuperos) or NEGATIVE
+      //              (the adjustment_amount discount dominates).
+      ...((): { alquilerSum: number; extrasSum: number } => {
+        try {
+          let alquiler = 0
+          let extrasRecuperos = 0
+          for (const line of a.ingresosLines) {
+            if (line.typeCode === 'RENT_IN') alquiler       += line.amount
+            else                              extrasRecuperos += line.amount
+          }
+          return { alquilerSum: alquiler, extrasSum: extrasRecuperos + adjustment }
+        } catch {
+          return { alquilerSum: 0, extrasSum: 0 }
+        }
+      })(),
       // Phase 9A: contract-end tier — light blue at 31-60d, solid blue
       // at ≤30d / overdue. Bundled at the end so we have today already.
       ...(() => {
