@@ -94,6 +94,9 @@ export interface LiquidacionGridRow {
   observacion:   string | null   // liquidaciones.notes
   lfa:           string | null   // contracts.lfa_code
   propietario:   string          // primary landlord name
+  /** Primary landlord email — null if not on file. Used by the per-row
+   *  "Liquidar y enviar mail" button to prefill the recipient. */
+  propietarioEmail: string | null
   inquilino:     string          // primary tenant name
   contrato:      string | null   // contracts.contract_number
 
@@ -158,7 +161,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         id, status, contract_number, lfa_code, expensas, current_rent,
         cadence, start_date, end_date, created_at, updated_at,
         contract_tenants(is_primary, tenants(name)),
-        contract_landlords(ownership_pct, landlords(id, name))
+        contract_landlords(ownership_pct, landlords(id, name, email))
       `)
       .eq('status', 'active'),
     supabase
@@ -265,6 +268,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       observacion:   liq?.notes ?? null,
       lfa:           c.lfa_code ?? null,
       propietario:   primary.landlords.name ?? '(sin propietario)',
+      propietarioEmail: primary.landlords.email ?? null,
       inquilino:     tenant?.tenants?.name ?? '(sin inquilino)',
       contrato:      c.contract_number ?? null,
       periodo:       period,

@@ -51,6 +51,7 @@ import {
   EditableTransactionCell,
   EditableStatusCell,
 } from './EditableCells'
+import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 
 interface Props {
   rows:            LiquidacionGridRow[]
@@ -84,6 +85,9 @@ const W = {
   ingresos: 95, transf: 105, otros: 80, diatransf: 70,
   admi: 90, galicia: 85, fr509: 85, fr516: 85,
   estado: 55,
+  // Column 20: Mail — per-row "Liquidar y enviar" action button.
+  // Alejandro: "faltaría agregarle al final liquidar contrato y mandarle el mail."
+  mail: 75,
 }
 const STICKY_LEFTS = {
   obs:    0,
@@ -135,7 +139,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
   const tableMinWidth =
     W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.contrato +
     W.deuda + W.periodo + W.ingresos + W.transf + W.otros + W.diatransf +
-    W.admi + W.galicia + W.fr509 + W.fr516 + W.estado
+    W.admi + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail
 
   return (
     <section className="bg-white border border-gray-300 overflow-hidden h-full flex flex-col">
@@ -167,6 +171,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
               {/* 17 */}<Th width={W.fr509}     align="right">BBVA 50/9</Th>
               {/* 18 */}<Th width={W.fr516}     align="right">BBVA 51/6</Th>
               {/* 19 */}<Th width={W.estado}    align="center">Estado</Th>
+              {/* 20 */}<Th width={W.mail}      align="center">Mail</Th>
             </tr>
           </thead>
           <tbody>
@@ -416,6 +421,21 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                       contractId={r.contractId}
                       landlordId={r.landlordId}
                       period={r.periodo}
+                      status={r.status}
+                    />
+                  </Td>
+
+                  {/* 20. MAIL — Liquidar y enviar mail (per Alejandro's spec).
+                       Hidden when the liquidación is already paid. Opens a
+                       confirm modal with the prepared email; sending happens
+                       via mailto: in the encargada's own mail client. */}
+                  <Td width={W.mail} align="center">
+                    <LiquidarYEnviarButton
+                      contractId={r.contractId}
+                      landlordId={r.landlordId}
+                      period={r.periodo}
+                      landlordName={r.propietario}
+                      landlordEmail={r.propietarioEmail}
                       status={r.status}
                     />
                   </Td>
