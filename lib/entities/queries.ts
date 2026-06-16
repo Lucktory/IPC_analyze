@@ -31,6 +31,10 @@ export async function listLandlords(): Promise<LandlordRow[]> {
     supabase
       .from('landlords')
       .select('id, name, email, phone, dni_or_cuit')
+      // Sort by most recently updated first — Alejandro's spec for the
+      // master entity pages. Trigger touch_updated_at bumps the row on
+      // every UPDATE (migration-2026-06-16-entities-updated-at.sql).
+      .order('updated_at', { ascending: false, nullsFirst: false })
       .order('name'),
     // Contract-level co-ownership (drives the monthly revenue split + contract count)
     supabase
@@ -145,6 +149,8 @@ export async function listTenants(): Promise<TenantRow[]> {
     supabase
       .from('tenants')
       .select('id, name, email, phone, dni')
+      // Sort by most recently updated first; name as tiebreaker.
+      .order('updated_at', { ascending: false, nullsFirst: false })
       .order('name'),
     supabase
       .from('contract_tenants')
@@ -279,7 +285,12 @@ export interface BankRow {
 
 export async function listBanks(): Promise<BankRow[]> {
   const supabase = await createSupabaseServer()
-  const { data } = await supabase.from('banks').select('id, name, short_code').order('name')
+  // Sort by most recently updated first; name as tiebreaker.
+  const { data } = await supabase
+    .from('banks')
+    .select('id, name, short_code')
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('name')
   return (data ?? []).map(b => ({
     id:        (b as any).id,
     name:      (b as any).name,
@@ -313,6 +324,8 @@ export async function listBankInstitutions(): Promise<BankInstitutionRow[]> {
         monthly_fee, transfer_fee_pct, transfer_fee_fixed,
         contact_name, contact_phone, contact_email, notes
       `)
+      // Same sort policy as the basic listBanks — most recently updated first.
+      .order('updated_at', { ascending: false, nullsFirst: false })
       .order('name'),
     supabase
       .from('bank_accounts')
