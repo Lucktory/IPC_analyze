@@ -186,14 +186,17 @@ export async function listPendingActions(): Promise<PendingResult> {
  *
  * Migrated to the new Phase 8 digest: counts only ACTIONABLE items —
  * urgente + importante. Avisos and próximos don't bump the bell because
- * they're not "do today/this week" actions. Old behaviour counted
- * everything (cobranza + aumento + renovacion regardless of urgency)
- * which produced inflated, unhelpful counts (e.g. 128).
+ * they're not "do today/this week" actions. The OLD behaviour counted
+ * cobranza + aumento + renovacion regardless of urgency, which produced
+ * inflated unhelpful counts (e.g. 128).
  *
- * The bell now reflects what the encargada actually needs to attend to.
+ * Uses a STATIC import — earlier version used `await import('./digest')`
+ * which can cache the module reference and not get re-bundled when the
+ * digest changes. Static import is the simpler, predictable choice.
  */
+import { getPendientesDigest } from './digest'
+
 export async function getPendingCount(): Promise<number> {
-  const { getPendientesDigest } = await import('./digest')
   const { counts } = await getPendientesDigest()
   return counts.urgente + counts.importante
 }
