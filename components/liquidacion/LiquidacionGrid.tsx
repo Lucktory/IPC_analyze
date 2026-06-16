@@ -52,6 +52,7 @@ import {
   EditableStatusCell,
 } from './EditableCells'
 import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
+import { InlineIngresosCell } from './InlineIngresosCell'
 
 interface Props {
   rows:            LiquidacionGridRow[]
@@ -301,17 +302,20 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     </span>
                   </Td>
 
-                  {/* 11. INGRESOS — editable; persists RENT_IN. Highlight on aumento próximo.
-                       Validator compares against contracts.current_rent (>15% off → confirm). */}
-                  <Td width={W.ingresos} align="right" style={ingresosBg}>
-                    <EditableTransactionCell
+                  {/* 11. INGRESOS — dynamic breakdown popover (Phase 6).
+                       Click opens the per-concept line editor: alquiler,
+                       expensas, recupero ABL/gas/agua/luz/etc. Sum is
+                       shown in the cell; orange tint on aumento próximo. */}
+                  <Td width={W.ingresos} align="right">
+                    <InlineIngresosCell
                       contractId={r.contractId}
                       period={r.periodo}
-                      typeCode="RENT_IN"
-                      value={r.ingresos}
+                      lines={r.ingresosLines}
+                      total={r.ingresos}
                       cobrado={cobrado}
-                      label={`Alquiler ${fmtPeriodo(r.periodo)}`}
-                      expectedRent={r.currentRent}
+                      upcomingAdjustment={r.hasUpcomingAdjustment && r.daysUntilAdjustment != null
+                        ? { days: r.daysUntilAdjustment }
+                        : null}
                     />
                   </Td>
 

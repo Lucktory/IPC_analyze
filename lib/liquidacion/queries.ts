@@ -147,6 +147,25 @@ export interface LiquidacionGridRow {
   //    re-sort under her feet. Default sort stays alphabetical by
   //    propietario (Alejandro's explicit ask).
   wasRecentlyEdited: boolean
+
+  // ── Per-row breakdown of what makes up INGRESOS (Phase 6 — dynamic
+  //    cells per Alejandro: "el inquilino tiene que depositar el
+  //    alquiler, el ABL y el gas"). One entry per transaction that
+  //    contributes to ingresos (RENT_IN + every other affects_liquidacion
+  //    IN type: EXPENSAS_IN, LATE_FEE_IN, RECUPERO_*_IN, OTHER_IN). The
+  //    Ingresos cell renders the sum as before AND opens a popover that
+  //    edits each line individually.
+  ingresosLines:     IngresosLine[]
+}
+
+export interface IngresosLine {
+  /** The underlying transaction id — used to update / delete the line. */
+  transactionId: string
+  typeCode:      string   // e.g. 'RENT_IN', 'RECUPERO_ABL_IN'
+  typeLabel:     string   // e.g. 'Alquiler cobrado', 'Recupero ABL'
+  amount:        number
+  description:   string | null
+  bankDate:      string | null
 }
 
 // ── Rich grid query — returns all 19 columns per row ───────────────────────
@@ -167,8 +186,8 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     supabase
       .from('transactions')
       .select(`
-        amount, contract_id, bank_date, description,
-        transaction_types!inner(code, direction, affects_liquidacion)
+        id, amount, contract_id, bank_date, description,
+        transaction_types!inner(code, label, direction, affects_liquidacion)
       `)
       .eq('period', period),
     supabase
@@ -188,10 +207,14 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     frances516:  number
     fechaBanco:  string | null   // latest RENT_IN bank_date
     diaTransf:   string | null   // latest LANDLORD_PAYOUT bank_date
+    /** Per-line breakdown for the Ingresos cell popover (Phase 6). One entry
+     *  per affects_liquidacion IN transaction (RENT_IN + recuperos + others). */
+    ingresosLines: IngresosLine[]
   }
   const blank = (): Agg => ({
     ingresos: 0, admi: 0, otros: 0, payout: 0, galicia: 0, frances509: 0, frances516: 0,
     fechaBanco: null, diaTransf: null,
+    ingresosLines: [],
   })
   const agg = new Map<string, Agg>()
 
@@ -206,8 +229,20 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       if (t.bank_date && (!entry.fechaBanco || t.bank_date > entry.fechaBanco)) {
         entry.fechaBanco = t.bank_date
       }
+      // RENT_IN is always part of the Ingresos breakdown.
+      entry.ingresosLines.push({
+        transactionId: t.id, typeCode: typ.code, typeLabel: typ.label,
+        amount: amt, description: t.description ?? null, bankDate: t.bank_date,
+      })
     } else if (typ.affects_liquidacion && typ.direction === 'IN') {
       entry.ingresos += amt
+      // Every IN that contributes to ingresos (EXPENSAS_IN, RECUPERO_*_IN,
+      // LATE_FEE_IN, UTILITY_REFUND_IN, OTHER_IN, ...) gets its own line
+      // in the breakdown so the encargada can see what was deposited.
+      entry.ingresosLines.push({
+        transactionId: t.id, typeCode: typ.code, typeLabel: typ.label,
+        amount: amt, description: t.description ?? null, bankDate: t.bank_date,
+      })
     } else if (typ.code === 'COMMISSION_OUT') {
       entry.admi += amt
       const dest = classifyDestination(t.description ?? null)
@@ -304,6 +339,13 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         const ageMs = today.getTime() - new Date(stamp).getTime()
         return ageMs >= 0 && ageMs < 5 * 60 * 1000
       })(),
+      // Sorted: rent first, then by amount desc — most relevant lines
+      // visible first when the popover opens.
+      ingresosLines: a.ingresosLines.sort((x, y) => {
+        if (x.typeCode === 'RENT_IN' && y.typeCode !== 'RENT_IN') return -1
+        if (x.typeCode !== 'RENT_IN' && y.typeCode === 'RENT_IN') return 1
+        return y.amount - x.amount
+      }),
     })
   }
 
