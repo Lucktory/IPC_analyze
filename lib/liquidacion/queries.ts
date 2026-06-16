@@ -15,8 +15,33 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { classifyDestination } from '@/lib/reconciliation/queries'
 import { validateRow, type ValidationIssue } from './validations'
+import {
+  CONTRACT_END_APPROACHING_DAYS,
+  CONTRACT_END_IMMINENT_DAYS,
+  type ContractEndStatus,
+} from './thresholds'
 
-export type { ValidationIssue }
+export type { ValidationIssue, ContractEndStatus }
+
+// ── Contract-end tier helper (Phase 9A). Pure function — fails closed:
+//    any error (malformed date, missing data) returns 'normal' so a single
+//    bad row can never crash the grid.
+function computeContractEndTier(
+  endDate: string | null,
+  today:   Date,
+): { status: ContractEndStatus; daysUntil: number | null } {
+  try {
+    if (!endDate) return { status: 'normal', daysUntil: null }
+    const end = new Date(endDate)
+    if (isNaN(end.getTime())) return { status: 'normal', daysUntil: null }
+    const days = Math.ceil((end.getTime() - today.getTime()) / 86400000)
+    if (days <= CONTRACT_END_IMMINENT_DAYS)     return { status: 'imminent',    daysUntil: days }
+    if (days <= CONTRACT_END_APPROACHING_DAYS)  return { status: 'approaching', daysUntil: days }
+    return { status: 'normal', daysUntil: days }
+  } catch {
+    return { status: 'normal', daysUntil: null }
+  }
+}
 
 // ── Cadence helpers — mirrors the function in lib/pending/queries.ts so
 // the orange-highlight rule (aumento ≤30d) uses the SAME logic as the
@@ -164,6 +189,16 @@ export interface LiquidacionGridRow {
   //    passed → green ✓ in the Check column. Non-empty → yellow / red
   //    badge with click-to-popover details.
   validationIssues:  ValidationIssue[]
+
+  // ── Contract-end visual tier (Phase 9A). Drives the color of the
+  //    CONTRATO cell so Alejandro sees at a glance which contracts are
+  //    coming up for renewal:
+  //      'normal'      → no tint
+  //      'approaching' → light blue (2 months out)
+  //      'imminent'    → solid blue (≤30 days, including past due)
+  contractEndStatus:    ContractEndStatus
+  /** Days until end_date. Positive = future, negative = past, null = no end date. */
+  daysUntilContractEnd: number | null
 }
 
 export interface IngresosLine {
@@ -359,6 +394,15 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         if (x.typeCode !== 'RENT_IN' && y.typeCode === 'RENT_IN') return 1
         return y.amount - x.amount
       }),
+      // Phase 9A: contract-end tier — light blue at 31-60d, solid blue
+      // at ≤30d / overdue. Bundled at the end so we have today already.
+      ...(() => {
+        const tier = computeContractEndTier(c.end_date ?? null, today)
+        return {
+          contractEndStatus:    tier.status,
+          daysUntilContractEnd: tier.daysUntil,
+        }
+      })(),
       // Phase 7A validations: pure-function checks over the row data.
       // The contract's commission_pct is passed so the commission
       // deviation check has the expected % to compare against.

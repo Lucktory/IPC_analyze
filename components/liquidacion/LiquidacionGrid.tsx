@@ -55,6 +55,7 @@ import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 import { InlineIngresosCell } from './InlineIngresosCell'
 import { ValidationBadgeCell } from './ValidationBadgeCell'
 import { highestSeverity } from '@/lib/liquidacion/validations'
+import { CONTRACT_END_TIER_CLASSES } from '@/lib/liquidacion/thresholds'
 
 interface Props {
   rows:            LiquidacionGridRow[]
@@ -291,8 +292,26 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
                     />
                   </Td>
 
-                  {/* 8. CONTRATO (vigencia) — editable date range */}
-                  <Td width={W.contrato} align="center">
+                  {/* 8. CONTRATO (vigencia) — editable date range. Phase 9A:
+                       cell background reflects how close end_date is.
+                       'approaching' (31-60d) = light blue · 'imminent' (≤30d
+                       or overdue) = solid blue with white text. Tier classes
+                       live in lib/liquidacion/thresholds.ts so the encargada
+                       can retune them without code changes elsewhere. */}
+                  <Td
+                    width={W.contrato}
+                    align="center"
+                    title={
+                      r.contractEndStatus === 'imminent'
+                        ? `Contrato ${r.daysUntilContractEnd != null && r.daysUntilContractEnd >= 0
+                            ? `vence en ${r.daysUntilContractEnd} día${r.daysUntilContractEnd === 1 ? '' : 's'}`
+                            : `vencido hace ${Math.abs(r.daysUntilContractEnd ?? 0)} días`} — hablar con el inquilino`
+                        : r.contractEndStatus === 'approaching'
+                          ? `Vence en ${r.daysUntilContractEnd} días — preparar renovación`
+                          : undefined
+                    }
+                    className={CONTRACT_END_TIER_CLASSES[r.contractEndStatus]}
+                  >
                     <EditableVigenciaCell
                       contractId={r.contractId}
                       startDate={r.startDate}
@@ -513,17 +532,20 @@ function Th({ children, width, sticky, left, align = 'left' }: ThProps) {
 }
 
 interface TdProps {
-  children: React.ReactNode
-  width:    number
-  align?:   'left' | 'right' | 'center'
-  sticky?:  boolean
-  left?:    number
-  bg?:      string
-  title?:   string
-  style?:   React.CSSProperties
+  children:   React.ReactNode
+  width:      number
+  align?:     'left' | 'right' | 'center'
+  sticky?:    boolean
+  left?:      number
+  bg?:        string
+  title?:     string
+  style?:     React.CSSProperties
+  /** Extra Tailwind classes merged after the defaults — used for the
+   *  Phase 9A Contrato tier tint and Phase 9C +/- coloring. */
+  className?: string
 }
 
-function Td({ children, width, align = 'left', sticky, left, bg, title, style }: TdProps) {
+function Td({ children, width, align = 'left', sticky, left, bg, title, style, className = '' }: TdProps) {
   const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
   const stickyStyle: React.CSSProperties = sticky
     ? { position: 'sticky', left, zIndex: 10 }
@@ -531,7 +553,7 @@ function Td({ children, width, align = 'left', sticky, left, bg, title, style }:
   return (
     <td
       style={{ width, minWidth: width, ...stickyStyle, ...style }}
-      className={`px-2 py-1 border-r border-gray-200 ${alignCls} ${sticky ? bg ?? '' : ''}`}
+      className={`px-2 py-1 border-r border-gray-200 ${alignCls} ${sticky ? bg ?? '' : ''} ${className}`}
       title={title}
     >
       {children}
