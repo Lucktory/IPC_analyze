@@ -213,6 +213,7 @@ export function LiquidacionGrid({ rows, period, landlordOptions, tenantOptions }
               return (
                 <tr
                   key={`${r.contractId}-${r.landlordId}`}
+                  data-contract-id={r.contractId}
                   className={`${zebra} hover:bg-blue-50 transition-colors border-b border-gray-200 [&:has([data-editing])]:bg-blue-100 [&:has([data-editing])]:ring-2 [&:has([data-editing])]:ring-info [&:has([data-editing])]:ring-inset`}
                 >
                   {/* 1. OBSERVACIÓN — sticky */}

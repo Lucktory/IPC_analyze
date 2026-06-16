@@ -16,6 +16,7 @@ import { getReconciliationByDestination } from '@/lib/reconciliation/queries'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
 import { LiquidacionGrid } from '@/components/liquidacion/LiquidacionGrid'
+import { HighlightScroller } from '@/components/liquidacion/HighlightScroller'
 import { NewContractModal } from '@/components/liquidacion/NewContractModal'
 import { ResumenView } from '@/components/liquidacion/ResumenView'
 import { MovimientosView } from '@/components/liquidacion/MovimientosView'
@@ -174,7 +175,14 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
               vertical space (min-h-0 is required so the flex child can
               shrink and contain its own scroll). */}
       <div className="flex-1 min-h-0">
-        {view === 'grilla'      && <LiquidacionGrid rows={rows} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />}
+        {view === 'grilla' && (
+          <>
+            {/* Reads ?highlight=<contractId> on mount and scrolls/pulses
+                that row. Used by the "Ver fila →" jumps from /pendientes. */}
+            <HighlightScroller />
+            <LiquidacionGrid rows={rows} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
+          </>
+        )}
         {view === 'resumen'     && <div className="h-full overflow-auto"><ResumenView    rows={allRows} period={period} /></div>}
         {view === 'movimientos' && <div className="h-full overflow-auto"><MovimientosView txns={txns}   period={period} /></div>}
         {view === 'destinos'    && <div className="h-full overflow-auto"><DestinosView   buckets={buckets} period={period} /></div>}
