@@ -35,11 +35,27 @@ export function useFloatingPopover(opts: {
       return
     }
     const compute = () => {
-      const r = anchor.getBoundingClientRect()
+      const r            = anchor.getBoundingClientRect()
+      const width        = Math.max(r.width, minWidth)
+      const viewportW    = window.innerWidth
+      const SAFE_MARGIN  = 8
+
+      // ── Horizontal placement
+      // Default: align the popover's left edge with the anchor's left edge.
+      // If that would push the popover past the right edge of the viewport
+      // (e.g. for cells near the right of the grid like the "Check" column),
+      // shift it leftward so its right edge sits SAFE_MARGIN px from the
+      // viewport edge. Clamp to SAFE_MARGIN on the left so it never escapes
+      // the left edge either.
+      let leftViewport = r.left
+      if (leftViewport + width > viewportW - SAFE_MARGIN) {
+        leftViewport = Math.max(SAFE_MARGIN, viewportW - width - SAFE_MARGIN)
+      }
+
       setRect({
         top:   r.bottom + window.scrollY + 2,
-        left:  r.left   + window.scrollX,
-        width: Math.max(r.width, minWidth),
+        left:  leftViewport + window.scrollX,
+        width,
       })
     }
     compute()
