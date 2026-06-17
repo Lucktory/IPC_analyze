@@ -403,7 +403,7 @@ export async function getGridDiagnostic(period: string): Promise<GridDiagnostic>
         .select(`
           id, status, contract_number, lfa_code, expensas, current_rent,
           cadence, start_date, end_date, created_at, updated_at, commission_pct,
-          contract_tenants(is_primary, tenants(name)),
+          contract_tenants(is_primary, share_pct, tenants(id, name)),
           contract_landlords(ownership_pct, landlords(id, name, email))
         `)
         .eq('status', 'active')
@@ -486,7 +486,7 @@ async function probeFirstRowError(
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
         cadence, start_date, end_date, created_at, updated_at, commission_pct,
-        contract_tenants(is_primary, tenants(name)),
+        contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
       .eq('status', 'active')
@@ -529,7 +529,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
         cadence, start_date, end_date, created_at, updated_at, commission_pct,
-        contract_tenants(is_primary, tenants(name)),
+        contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
       .eq('status', 'active'),
@@ -876,7 +876,7 @@ export async function getLiquidacionesForPeriod(period: string): Promise<Liquida
       .from('contracts')
       .select(`
         id, status,
-        contract_tenants(is_primary, tenants(name)),
+        contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name))
       `)
       .eq('status', 'active'),
@@ -966,7 +966,7 @@ export async function getLiquidacionDetail(
       .from('contracts')
       .select(`
         id, administration_id,
-        contract_tenants(is_primary, tenants(name)),
+        contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name))
       `)
       .eq('id', contractId)
