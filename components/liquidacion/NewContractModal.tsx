@@ -1,35 +1,53 @@
 'use client'
 
 // ============================================================================
-// NewContractModal — quick-create form triggered by the "+ Nuevo contrato"
-// button above the planilla AND by a floating button at the bottom-right
-// of the viewport so it stays reachable when scrolled.
+// NewContractModal — co-ownership / co-tenancy capable contract creation.
 //
-// New-entity flow MATCHES the in-cell flow EXACTLY:
-//   1. Type in Propietario / Inquilino field
-//   2. Autocomplete dropdown shows existing options
-//   3. If the typed name doesn't match anything → "+ Crear nuevo X" row at
-//      the bottom of the dropdown
-//   4. Click it → NewEntityModal opens (same modal the cells use)
-//   5. Fill name + DNI/CUIT + phone + email (and notes for landlords)
-//   6. Server creates the entity standalone (no redirect) and returns its id
-//   7. NewContractModal selects the new entity automatically
-//   8. User completes the rest of the form → contract created with existing ids
+// Three stacked sections (Alejandro's "everything visible" principle — no
+// wizard, no tabs):
+//
+//   1. PROPERTY — existing (autocomplete) or new (address + type)
+//        • Picking an existing property auto-preloads its current owners
+//          into Section 2 as a starting point.
+//        • The encargada can then override the per-contract distribution
+//          without touching the property's general ownership record.
+//
+//   2. PROPIETARIOS — one row per co-owner.
+//        • Each row: landlord picker + ownership_pct.
+//        • "+ Agregar propietario" adds a row.
+//        • Live sum indicator turns green at 100, red otherwise.
+//
+//   3. INQUILINOS — one row per co-tenant.
+//        • Each row: tenant picker + share_pct.
+//        • "+ Agregar inquilino" adds a row.
+//        • Same live sum indicator.
+//
+//   4. Contract metadata — LFA, cadencia, alquiler, comisión, vigencia.
+//
+// The submit handler hands the arrays to createContractFromGrid which
+// validates sums server-side and writes all the junction rows in one go.
 // ============================================================================
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { createContractFromGrid } from '@/lib/contract/junction-actions'
+import {
+  createContractFromGrid,
+  type ContractLandlordInput,
+  type ContractTenantInput,
+} from '@/lib/contract/junction-actions'
 import { createLandlordStandalone } from '@/lib/landlord/actions'
 import { createTenantStandalone } from '@/lib/tenant/actions'
+import { fetchPropertyOwners } from '@/lib/property/actions'
 import { NewEntityModal, type NewEntityFields } from './NewEntityModal'
 import type { LandlordOption } from '@/lib/landlord/queries'
 import type { TenantOption } from '@/lib/tenant/queries'
+import type { PropertyOption } from '@/lib/property/queries'
 
 interface Props {
   landlordOptions: LandlordOption[]
   tenantOptions:   TenantOption[]
+  propertyOptions: PropertyOption[]
 }
 
 const LFA_OPTIONS = ['L', 'F', 'A', 'FL', 'D'] as const
@@ -42,49 +60,101 @@ const CADENCE_OPTIONS = [
   { value: 'anual',          label: 'Anual' },
 ] as const
 
-export function NewContractModal({ landlordOptions: initialLandlords, tenantOptions: initialTenants }: Props) {
+const PROPERTY_TYPES = [
+  { value: 'vivienda', label: 'Vivienda' },
+  { value: 'local',    label: 'Local' },
+  { value: 'oficina',  label: 'Oficina' },
+  { value: 'cochera',  label: 'Cochera' },
+  { value: 'deposito', label: 'Depósito' },
+] as const
+
+// Floating-point sum tolerance — matches the server's PCT_SUM_EPSILON
+// so client-side validation matches the server's check exactly.
+const PCT_SUM_EPSILON = 0.05
+
+// Local UI id for dynamic rows. Not a database id — never sent to the server.
+function makeRowId() {
+  return `row-${Math.random().toString(36).slice(2, 9)}`
+}
+
+interface LandlordRow {
+  rowId:    string
+  pickedId: string | null
+  input:    string
+  pct:      string  // string so the user can type "33.33" without forced parsing
+}
+interface TenantRow {
+  rowId:    string
+  pickedId: string | null
+  input:    string
+  pct:      string
+}
+
+export function NewContractModal({
+  landlordOptions: initialLandlords,
+  tenantOptions:   initialTenants,
+  propertyOptions,
+}: Props) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
 
-  // We keep local option lists so that newly-created entities are visible
-  // in the autocomplete immediately, without needing a server round-trip
-  // to refresh the page.
+  // Option lists that grow as the user creates new entities inline.
   const [landlords, setLandlords] = useState(initialLandlords)
   const [tenants, setTenants]     = useState(initialTenants)
 
-  // Form state
+  // Sync option lists when the parent server-rendered options change
+  // (e.g. after a router.refresh from a sibling cell).
+  useEffect(() => { setLandlords(initialLandlords) }, [initialLandlords])
+  useEffect(() => { setTenants(initialTenants) },     [initialTenants])
+
+  // ── Section 1: PROPERTY ────────────────────────────────────────────────
+  const [propertyMode, setPropertyMode] = useState<'existing' | 'new'>('existing')
+  const [pickedPropertyId, setPickedPropertyId] = useState<string | null>(null)
+  const [propertyInput, setPropertyInput]       = useState('')
+  // New-property fields:
+  const [newPropertyAddress, setNewPropertyAddress] = useState('')
+  const [newPropertyType, setNewPropertyType]       = useState<string>('vivienda')
+
+  // ── Section 2: PROPIETARIOS ────────────────────────────────────────────
+  const [landlordRows, setLandlordRows] = useState<LandlordRow[]>([
+    { rowId: makeRowId(), pickedId: null, input: '', pct: '100' },
+  ])
+  // Which row (if any) is currently asking to create a new landlord.
+  const [creatingLandlord, setCreatingLandlord] = useState<{ rowId: string; name: string } | null>(null)
+
+  // ── Section 3: INQUILINOS ──────────────────────────────────────────────
+  const [tenantRows, setTenantRows] = useState<TenantRow[]>([
+    { rowId: makeRowId(), pickedId: null, input: '', pct: '100' },
+  ])
+  const [creatingTenant, setCreatingTenant] = useState<{ rowId: string; name: string } | null>(null)
+
+  // ── Section 4: Contract metadata ───────────────────────────────────────
   const [lfa, setLfa] = useState<string>('A')
-  const [landlordInput, setLandlordInput] = useState('')
-  const [landlordPickedId, setLandlordPickedId] = useState<string | null>(null)
-  const [tenantInput, setTenantInput] = useState('')
-  const [tenantPickedId, setTenantPickedId] = useState<string | null>(null)
-  const [address, setAddress] = useState('')
   const [rent, setRent] = useState('')
   const [pct, setPct] = useState('8')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [cadence, setCadence] = useState<string>('trimestral')
 
-  // Which entity creation modal (if any) is currently open and the
-  // prefilled name (passed from the EntityCombo's "+ Crear nuevo" button).
-  const [creatingLandlord, setCreatingLandlord] = useState<string | null>(null)
-  const [creatingTenant,   setCreatingTenant]   = useState<string | null>(null)
-
   function reset() {
+    setPropertyMode('existing')
+    setPickedPropertyId(null)
+    setPropertyInput('')
+    setNewPropertyAddress('')
+    setNewPropertyType('vivienda')
+    setLandlordRows([{ rowId: makeRowId(), pickedId: null, input: '', pct: '100' }])
+    setTenantRows([{ rowId: makeRowId(), pickedId: null, input: '', pct: '100' }])
     setLfa('A')
-    setLandlordInput('')
-    setLandlordPickedId(null)
-    setTenantInput('')
-    setTenantPickedId(null)
-    setAddress('')
     setRent('')
     setPct('8')
     setStartDate('')
     setEndDate('')
     setCadence('trimestral')
     setError(null)
+    setCreatingLandlord(null)
+    setCreatingTenant(null)
   }
 
   function handleClose() {
@@ -93,19 +163,77 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
     reset()
   }
 
+  // ── When the encargada picks an existing property, preload its owners
+  //    as the starting point for the contract's per-contract distribution.
+  useEffect(() => {
+    if (propertyMode !== 'existing' || !pickedPropertyId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const owners = await fetchPropertyOwners(pickedPropertyId)
+        if (cancelled) return
+        if (owners.length === 0) return
+        setLandlordRows(owners.map(o => ({
+          rowId:    makeRowId(),
+          pickedId: o.landlordId,
+          input:    o.landlordName,
+          pct:      String(o.ownershipPct),
+        })))
+      } catch (err) {
+        console.error('[NewContractModal] fetchPropertyOwners failed:', err)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [propertyMode, pickedPropertyId])
+
+  // ── Live percentage sums ───────────────────────────────────────────────
+  const landlordSum = landlordRows.reduce((s, r) => s + (Number(r.pct) || 0), 0)
+  const tenantSum   = tenantRows.reduce((s, r) => s + (Number(r.pct) || 0), 0)
+  const landlordSumOk = Math.abs(landlordSum - 100) <= PCT_SUM_EPSILON
+  const tenantSumOk   = Math.abs(tenantSum   - 100) <= PCT_SUM_EPSILON
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
-    if (!landlordPickedId) return setError('Seleccioná o creá un propietario.')
-    if (!tenantPickedId)   return setError('Seleccioná o creá un inquilino.')
+    // ── Client-side validation that mirrors the server ─────────────────
+    if (propertyMode === 'existing' && !pickedPropertyId) {
+      return setError('Seleccioná una propiedad o cambiá a "Nueva propiedad".')
+    }
+    if (propertyMode === 'new' && !newPropertyAddress.trim()) {
+      return setError('Ingresá la dirección de la nueva propiedad.')
+    }
+    if (landlordRows.some(r => !r.pickedId)) {
+      return setError('Todos los propietarios deben estar seleccionados o creados.')
+    }
+    if (tenantRows.some(r => !r.pickedId)) {
+      return setError('Todos los inquilinos deben estar seleccionados o creados.')
+    }
+    if (!landlordSumOk) {
+      return setError(`Los porcentajes de propietarios deben sumar 100% (suman ${landlordSum.toFixed(2)}%).`)
+    }
+    if (!tenantSumOk) {
+      return setError(`Los porcentajes de inquilinos deben sumar 100% (suman ${tenantSum.toFixed(2)}%).`)
+    }
+
+    const landlordsPayload: ContractLandlordInput[] = landlordRows.map(r => ({
+      landlord:     { kind: 'existing', id: r.pickedId! },
+      ownershipPct: Number(r.pct),
+    }))
+    const tenantsPayload: ContractTenantInput[] = tenantRows.map(r => ({
+      tenant:   { kind: 'existing', id: r.pickedId! },
+      sharePct: Number(r.pct),
+    }))
 
     startTransition(async () => {
       const res = await createContractFromGrid({
         lfaCode:       lfa || null,
-        landlord:      { kind: 'existing', id: landlordPickedId },
-        tenant:        { kind: 'existing', id: tenantPickedId },
-        address:       address.trim() || null,
+        property:
+          propertyMode === 'existing'
+            ? { kind: 'existing', id: pickedPropertyId! }
+            : { kind: 'new', address: newPropertyAddress.trim(), propertyType: newPropertyType },
+        landlords:     landlordsPayload,
+        tenants:       tenantsPayload,
         currentRent:   Number(rent),
         commissionPct: Number(pct),
         startDate,
@@ -116,21 +244,13 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
         setError(res.error ?? 'Error al crear el contrato')
         return
       }
-
-      // Refresh FIRST, so the new RSC payload is being fetched while the
-      // modal is closing — by the time the modal animates out, the grid
-      // is already showing the new contract. Calling refresh outside the
-      // transition (via queueMicrotask) avoids being deferred together
-      // with the modal state updates.
       queueMicrotask(() => router.refresh())
       setOpen(false)
       reset()
     })
   }
 
-  // ── Entity create handlers — same UX as the cells: NewEntityModal pops
-  //    open, we save standalone, then auto-select the new entity in the
-  //    contract form.
+  // ── Inline-entity creation handlers — same UX as the cells ──────────────
   function handleCreateLandlord(fields: NewEntityFields): Promise<{ ok: boolean; error?: string | null }> {
     if (fields.kind !== 'landlord') return Promise.resolve({ ok: false, error: 'Tipo inválido.' })
     return createLandlordStandalone({
@@ -140,11 +260,15 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
       email:      fields.email     || null,
       notes:      fields.notes     || null,
     }).then(res => {
-      if (res.ok && res.id) {
-        // Auto-select the new landlord and close the entity modal.
-        setLandlords(prev => [...prev, { id: res.id!, name: fields.name }])
-        setLandlordPickedId(res.id)
-        setLandlordInput(fields.name)
+      if (res.ok && res.id && creatingLandlord) {
+        const newId = res.id
+        setLandlords(prev => [...prev, { id: newId, name: fields.name }])
+        // Wire the new id back into the originating row.
+        setLandlordRows(prev => prev.map(r =>
+          r.rowId === creatingLandlord.rowId
+            ? { ...r, pickedId: newId, input: fields.name }
+            : r,
+        ))
         setCreatingLandlord(null)
       }
       return res
@@ -159,20 +283,43 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
       phone: fields.phone || null,
       email: fields.email || null,
     }).then(res => {
-      if (res.ok && res.id) {
-        setTenants(prev => [...prev, { id: res.id!, name: fields.name }])
-        setTenantPickedId(res.id)
-        setTenantInput(fields.name)
+      if (res.ok && res.id && creatingTenant) {
+        const newId = res.id
+        setTenants(prev => [...prev, { id: newId, name: fields.name }])
+        setTenantRows(prev => prev.map(r =>
+          r.rowId === creatingTenant.rowId
+            ? { ...r, pickedId: newId, input: fields.name }
+            : r,
+        ))
         setCreatingTenant(null)
       }
       return res
     })
   }
 
+  // ── Row manipulators ──────────────────────────────────────────────────
+  function addLandlordRow() {
+    setLandlordRows(prev => [...prev, { rowId: makeRowId(), pickedId: null, input: '', pct: '0' }])
+  }
+  function removeLandlordRow(rowId: string) {
+    setLandlordRows(prev => prev.length <= 1 ? prev : prev.filter(r => r.rowId !== rowId))
+  }
+  function patchLandlordRow(rowId: string, patch: Partial<LandlordRow>) {
+    setLandlordRows(prev => prev.map(r => r.rowId === rowId ? { ...r, ...patch } : r))
+  }
+
+  function addTenantRow() {
+    setTenantRows(prev => [...prev, { rowId: makeRowId(), pickedId: null, input: '', pct: '0' }])
+  }
+  function removeTenantRow(rowId: string) {
+    setTenantRows(prev => prev.length <= 1 ? prev : prev.filter(r => r.rowId !== rowId))
+  }
+  function patchTenantRow(rowId: string, patch: Partial<TenantRow>) {
+    setTenantRows(prev => prev.map(r => r.rowId === rowId ? { ...r, ...patch } : r))
+  }
+
   return (
     <>
-      {/* Inline button in the filter strip — always visible because the
-          filter strip itself sits in the non-scrolling top section. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -196,12 +343,14 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
 
           <form
             onSubmit={handleSubmit}
-            className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[560px] max-h-[92vh] overflow-y-auto"
+            className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[640px] max-h-[92vh] overflow-y-auto"
           >
             <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
               <div>
                 <h2 className="font-display text-[15px] font-medium text-ink">Nuevo contrato</h2>
-                <p className="text-[11.5px] text-gray-500">Carga rápida — los detalles se completan luego desde la ficha del contrato.</p>
+                <p className="text-[11.5px] text-gray-500">
+                  Cargá propiedad, co-propietarios e inquilinos. Los porcentajes deben sumar 100.
+                </p>
               </div>
               <button
                 type="button"
@@ -211,75 +360,154 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
               >×</button>
             </div>
 
-            <div className="px-5 py-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="LFA">
-                  <select value={lfa} onChange={e => setLfa(e.target.value)} className={selectCls}>
-                    {LFA_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                  </select>
-                </Field>
-                <Field label="Cadencia IPC">
-                  <select value={cadence} onChange={e => setCadence(e.target.value)} className={selectCls}>
-                    {CADENCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </Field>
-              </div>
+            <div className="px-5 py-4 space-y-5">
+              {/* ── Section 1: PROPERTY ────────────────────────────────── */}
+              <section>
+                <SectionHeader label="Propiedad" />
+                <div className="flex items-center gap-3 mb-2 text-[12px]">
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={propertyMode === 'existing'}
+                      onChange={() => setPropertyMode('existing')}
+                    />
+                    <span>Existente</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={propertyMode === 'new'}
+                      onChange={() => setPropertyMode('new')}
+                    />
+                    <span>Nueva</span>
+                  </label>
+                </div>
 
-              <Field label="Propietario">
-                <EntityCombo
-                  value={landlordInput}
-                  pickedId={landlordPickedId}
-                  onChange={(text, pickedId) => { setLandlordInput(text); setLandlordPickedId(pickedId) }}
-                  onRequestCreate={(name) => setCreatingLandlord(name)}
-                  options={landlords}
-                  entityLabel="propietario"
-                  placeholder="Buscá o tocá «+ Crear nuevo propietario»…"
+                {propertyMode === 'existing' ? (
+                  <PropertyCombo
+                    value={propertyInput}
+                    pickedId={pickedPropertyId}
+                    onChange={(text, pickedId) => { setPropertyInput(text); setPickedPropertyId(pickedId) }}
+                    options={propertyOptions}
+                  />
+                ) : (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                      <Field label="Dirección">
+                        <input
+                          type="text"
+                          value={newPropertyAddress}
+                          onChange={e => setNewPropertyAddress(e.target.value)}
+                          placeholder="Mitre 674, depto 5B"
+                          className={inputCls}
+                        />
+                      </Field>
+                    </div>
+                    <Field label="Tipo">
+                      <select value={newPropertyType} onChange={e => setNewPropertyType(e.target.value)} className={selectCls}>
+                        {PROPERTY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                    </Field>
+                  </div>
+                )}
+              </section>
+
+              {/* ── Section 2: PROPIETARIOS ────────────────────────────── */}
+              <section>
+                <SectionHeader
+                  label="Propietarios"
+                  rightAdornment={
+                    <SumPill ok={landlordSumOk} value={landlordSum} />
+                  }
                 />
-              </Field>
+                <div className="space-y-2">
+                  {landlordRows.map(row => (
+                    <EntityRow
+                      key={row.rowId}
+                      input={row.input}
+                      pickedId={row.pickedId}
+                      pct={row.pct}
+                      options={landlords}
+                      entityLabel="propietario"
+                      placeholder="Buscá o tocá «+ Crear»…"
+                      onChange={(text, pickedId) => patchLandlordRow(row.rowId, { input: text, pickedId })}
+                      onPctChange={v => patchLandlordRow(row.rowId, { pct: v })}
+                      onRequestCreate={(name) => setCreatingLandlord({ rowId: row.rowId, name })}
+                      onRemove={landlordRows.length > 1 ? () => removeLandlordRow(row.rowId) : undefined}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addLandlordRow}
+                    className="text-[12px] text-info hover:underline font-medium"
+                  >
+                    + Agregar propietario
+                  </button>
+                </div>
+              </section>
 
-              <Field label="Inquilino">
-                <EntityCombo
-                  value={tenantInput}
-                  pickedId={tenantPickedId}
-                  onChange={(text, pickedId) => { setTenantInput(text); setTenantPickedId(pickedId) }}
-                  onRequestCreate={(name) => setCreatingTenant(name)}
-                  options={tenants}
-                  entityLabel="inquilino"
-                  placeholder="Buscá o tocá «+ Crear nuevo inquilino»…"
+              {/* ── Section 3: INQUILINOS ──────────────────────────────── */}
+              <section>
+                <SectionHeader
+                  label="Inquilinos"
+                  rightAdornment={
+                    <SumPill ok={tenantSumOk} value={tenantSum} />
+                  }
                 />
-              </Field>
+                <div className="space-y-2">
+                  {tenantRows.map(row => (
+                    <EntityRow
+                      key={row.rowId}
+                      input={row.input}
+                      pickedId={row.pickedId}
+                      pct={row.pct}
+                      options={tenants}
+                      entityLabel="inquilino"
+                      placeholder="Buscá o tocá «+ Crear»…"
+                      onChange={(text, pickedId) => patchTenantRow(row.rowId, { input: text, pickedId })}
+                      onPctChange={v => patchTenantRow(row.rowId, { pct: v })}
+                      onRequestCreate={(name) => setCreatingTenant({ rowId: row.rowId, name })}
+                      onRemove={tenantRows.length > 1 ? () => removeTenantRow(row.rowId) : undefined}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addTenantRow}
+                    className="text-[12px] text-info hover:underline font-medium"
+                  >
+                    + Agregar inquilino
+                  </button>
+                </div>
+              </section>
 
-              <Field label="Dirección (opcional)">
-                <input
-                  type="text"
-                  value={address}
-                  onChange={e => setAddress(e.target.value)}
-                  placeholder="Av. Rivadavia 1234, Depto 3B"
-                  className={inputCls}
-                />
-              </Field>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Alquiler ($)">
-                  {/* step="any" — the browser won't reject "12354" or any
-                      other non-rounded amount. This silently blocked the
-                      form before, which is why new contracts never reached
-                      the database. */}
-                  <input type="number" value={rent} onChange={e => setRent(e.target.value)} placeholder="500000" min={1} step="any" className={inputCls} />
-                </Field>
-                <Field label="Comisión (%)">
-                  <input type="number" value={pct} onChange={e => setPct(e.target.value)} min={0} max={100} step="any" className={inputCls} />
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Vigencia desde">
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="Vigencia hasta">
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls} />
-                </Field>
-              </div>
+              {/* ── Section 4: Contract metadata ───────────────────────── */}
+              <section>
+                <SectionHeader label="Contrato" />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="LFA">
+                    <select value={lfa} onChange={e => setLfa(e.target.value)} className={selectCls}>
+                      {LFA_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Cadencia IPC">
+                    <select value={cadence} onChange={e => setCadence(e.target.value)} className={selectCls}>
+                      {CADENCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Alquiler ($)">
+                    <input type="number" value={rent} onChange={e => setRent(e.target.value)} placeholder="500000" min={1} step="any" className={inputCls} />
+                  </Field>
+                  <Field label="Comisión (%)">
+                    <input type="number" value={pct} onChange={e => setPct(e.target.value)} min={0} max={100} step="any" className={inputCls} />
+                  </Field>
+                  <Field label="Vigencia desde">
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={inputCls} />
+                  </Field>
+                  <Field label="Vigencia hasta">
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputCls} />
+                  </Field>
+                </div>
+              </section>
 
               {error && (
                 <div className="text-[11.5px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
@@ -310,18 +538,18 @@ export function NewContractModal({ landlordOptions: initialLandlords, tenantOpti
       )}
 
       {/* Entity-creation modals — same component the cells use. */}
-      {creatingLandlord !== null && (
+      {creatingLandlord && (
         <NewEntityModal
           entityType="landlord"
-          defaultName={creatingLandlord}
+          defaultName={creatingLandlord.name}
           onCancel={() => setCreatingLandlord(null)}
           onCreate={handleCreateLandlord}
         />
       )}
-      {creatingTenant !== null && (
+      {creatingTenant && (
         <NewEntityModal
           entityType="tenant"
-          defaultName={creatingTenant}
+          defaultName={creatingTenant.name}
           onCancel={() => setCreatingTenant(null)}
           onCreate={handleCreateTenant}
         />
@@ -344,13 +572,160 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   )
 }
 
-// ── EntityCombo with autocomplete + always-visible "+ Crear nuevo X" banner.
-//
-// The dropdown is portal-rendered to document.body so it escapes the
-// modal form's overflow-y-auto context (the bug the user reported was
-// that the "+ Crear nuevo" button sat below the dropdown and got clipped
-// when the form scrolled). The banner sits INLINE below the input — never
-// clipped, always visible the moment the typed text matches nothing.
+function SectionHeader({ label, rightAdornment }: { label: string; rightAdornment?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
+      <h3 className="font-display text-[13px] font-medium text-ink">{label}</h3>
+      {rightAdornment}
+    </div>
+  )
+}
+
+function SumPill({ ok, value }: { ok: boolean; value: number }) {
+  return (
+    <span
+      className={`text-[11px] tabular-nums px-2 py-0.5 rounded ${
+        ok
+          ? 'bg-success/10 text-success'
+          : 'bg-danger/10 text-danger'
+      }`}
+      title={ok ? 'Los porcentajes suman 100%' : 'Los porcentajes deben sumar exactamente 100%'}
+    >
+      Σ {value.toFixed(2)}%
+    </span>
+  )
+}
+
+// ── One landlord/tenant row: picker + % input + remove ──────────────────────
+function EntityRow({
+  input, pickedId, pct, options, entityLabel, placeholder,
+  onChange, onPctChange, onRequestCreate, onRemove,
+}: {
+  input:           string
+  pickedId:        string | null
+  pct:             string
+  options:         { id: string; name: string }[]
+  entityLabel:     string
+  placeholder:     string
+  onChange:        (text: string, pickedId: string | null) => void
+  onPctChange:     (v: string) => void
+  onRequestCreate: (name: string) => void
+  onRemove?:       () => void
+}) {
+  return (
+    <div className="grid grid-cols-[1fr_90px_28px] gap-2 items-start">
+      <EntityCombo
+        value={input}
+        pickedId={pickedId}
+        onChange={onChange}
+        onRequestCreate={onRequestCreate}
+        options={options}
+        entityLabel={entityLabel}
+        placeholder={placeholder}
+      />
+      <div>
+        <input
+          type="number"
+          value={pct}
+          onChange={e => onPctChange(e.target.value)}
+          min={0}
+          max={100}
+          step="any"
+          placeholder="100"
+          className={`${inputCls} text-right tabular-nums`}
+          aria-label="Porcentaje"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={!onRemove}
+        title={onRemove ? 'Quitar' : 'Tiene que quedar al menos uno'}
+        className={`h-9 w-7 text-[18px] leading-none rounded ${
+          onRemove ? 'text-gray-400 hover:text-danger transition-colors' : 'text-gray-200 cursor-not-allowed'
+        }`}
+      >×</button>
+    </div>
+  )
+}
+
+// ── Property picker — simpler combo just for property addresses ────────────
+function PropertyCombo({
+  value, pickedId, onChange, options,
+}: {
+  value:    string
+  pickedId: string | null
+  onChange: (text: string, pickedId: string | null) => void
+  options:  PropertyOption[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const filtered = value.trim()
+    ? options.filter(o => o.address.toLowerCase().includes(value.trim().toLowerCase())).slice(0, 10)
+    : options.slice(0, 10)
+
+  useEffect(() => {
+    if (!open || !inputRef.current) return
+    const compute = () => {
+      const r = inputRef.current?.getBoundingClientRect()
+      if (!r) return
+      setRect({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width })
+    }
+    compute()
+    window.addEventListener('scroll', compute, true)
+    window.addEventListener('resize', compute)
+    return () => {
+      window.removeEventListener('scroll', compute, true)
+      window.removeEventListener('resize', compute)
+    }
+  }, [open])
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => onChange(e.target.value, null)}
+        placeholder="Buscá una propiedad cargada…"
+        className={`${inputCls} ${pickedId ? 'border-success/60 bg-success/5' : ''}`}
+      />
+      {pickedId && (
+        <span className="absolute right-2 top-2 text-[10px] text-success font-medium" aria-hidden>✓ vinculada</span>
+      )}
+      {open && rect && createPortal(
+        <ul
+          role="listbox"
+          style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1080 }}
+          className="bg-white border border-gray-300 rounded shadow-lg max-h-[240px] overflow-y-auto"
+        >
+          {filtered.length === 0 && (
+            <li className="px-3 py-1.5 text-[12px] text-gray-500 italic">
+              {value.trim() ? 'Sin coincidencias.' : 'Escribí para buscar una propiedad…'}
+            </li>
+          )}
+          {filtered.map(o => (
+            <li
+              key={o.id}
+              role="option"
+              onMouseDown={e => { e.preventDefault(); onChange(o.address, o.id); setOpen(false) }}
+              className="px-3 py-1.5 text-[12.5px] text-slate-dark hover:bg-info/10 hover:text-ink cursor-pointer truncate"
+            >
+              {o.address}
+            </li>
+          ))}
+        </ul>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+// ── EntityCombo (landlord/tenant) — autocomplete + inline "+ Crear" ─────────
 function EntityCombo({
   value, pickedId, onChange, onRequestCreate, options, entityLabel, placeholder,
 }: {
@@ -370,11 +745,8 @@ function EntityCombo({
     ? options.filter(o => o.name.toLowerCase().includes(value.trim().toLowerCase())).slice(0, 8)
     : options.slice(0, 8)
   const exact = options.find(o => o.name.trim().toLowerCase() === value.trim().toLowerCase())
-  // The "+ Crear nuevo" affordance only matters when she has actually typed
-  // something — an empty input doesn't need a Create button.
   const showCreateBanner = !exact && value.trim().length > 0 && !pickedId
 
-  // Recompute dropdown position when open, on scroll, on resize.
   useEffect(() => {
     if (!open || !inputRef.current) return
     const compute = () => {
@@ -404,26 +776,17 @@ function EntityCombo({
         className={`${inputCls} ${pickedId ? 'border-success/60 bg-success/5' : ''}`}
       />
       {pickedId && (
-        <span className="absolute right-2 top-2 text-[10px] text-success font-medium" aria-hidden>✓ vinculado</span>
+        <span className="absolute right-2 top-2 text-[10px] text-success font-medium" aria-hidden>✓</span>
       )}
-
-      {/* Always-visible "+ Crear nuevo" banner — sits inline directly under
-          the input so it can never be clipped by the modal form's overflow.
-          The cell flow uses an in-dropdown row; here the banner is safer
-          because the modal form has its own scrolling context. */}
       {showCreateBanner && (
         <button
           type="button"
           onMouseDown={e => { e.preventDefault(); onRequestCreate(value.trim()); setOpen(false) }}
-          className="mt-1 w-full text-left px-3 py-2 rounded border-2 border-warn/60 bg-warn/10 hover:bg-warn/20 text-[12.5px] text-ink font-medium cursor-pointer transition-colors flex items-center gap-2"
+          className="mt-1 w-full text-left px-2 py-1 rounded border border-warn/60 bg-warn/10 hover:bg-warn/20 text-[11.5px] text-ink font-medium cursor-pointer transition-colors"
         >
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-warn text-ink text-[12px] font-bold">+</span>
-          <span>Crear nuevo {entityLabel}: <span className="font-semibold">«{value.trim()}»</span></span>
+          + Crear nuevo {entityLabel}: «{value.trim()}»
         </button>
       )}
-
-      {/* Dropdown — portal-rendered so it escapes the form's overflow-y-auto
-          and shows on top of everything else inside the modal. */}
       {open && rect && createPortal(
         <ul
           role="listbox"

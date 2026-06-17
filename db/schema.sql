@@ -302,6 +302,10 @@ create table contract_tenants (
   contract_id uuid not null references contracts(id) on delete cascade,
   tenant_id uuid not null references tenants(id) on delete restrict,
   is_primary boolean default false,
+  -- Phase 11: per-tenant share of the rent (default 100 = single tenant).
+  -- Sum across rows for the same contract is enforced in application code.
+  share_pct numeric(5,2) not null default 100
+            check (share_pct > 0 and share_pct <= 100),
   primary key (contract_id, tenant_id)
 );
 create index idx_contract_tenants_tenant on contract_tenants(tenant_id);

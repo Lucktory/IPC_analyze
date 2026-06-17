@@ -15,6 +15,7 @@ import { getLiquidacionGridForPeriod, sumGridTotals, type LiquidacionStatus } fr
 import { getReconciliationByDestination } from '@/lib/reconciliation/queries'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
+import { listPropertyOptions } from '@/lib/property/queries'
 import { LiquidacionGrid } from '@/components/liquidacion/LiquidacionGrid'
 import { HighlightScroller } from '@/components/liquidacion/HighlightScroller'
 import { NewContractModal } from '@/components/liquidacion/NewContractModal'
@@ -81,13 +82,14 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
   }
 
   const needsGrid = view === 'grilla' || view === 'resumen'
-  const [periods, allRows, txns, buckets, landlordOptions, tenantOptions] = await Promise.all([
+  const [periods, allRows, txns, buckets, landlordOptions, tenantOptions, propertyOptions] = await Promise.all([
     safe('listTransactionPeriods',    [],   () => listTransactionPeriods()),
     safe('getLiquidacionGridForPeriod', [], () => needsGrid              ? getLiquidacionGridForPeriod(period)   : Promise.resolve([])),
     safe('listTransactions',          [],   () => view === 'movimientos' ? listTransactions(period)               : Promise.resolve([])),
     safe('getReconciliationByDestination', [], () => view === 'destinos' ? getReconciliationByDestination(period) : Promise.resolve([])),
     safe('listLandlordOptions',       [],   () => view === 'grilla'      ? listLandlordOptions()                  : Promise.resolve([])),
     safe('listTenantOptions',         [],   () => view === 'grilla'      ? listTenantOptions()                    : Promise.resolve([])),
+    safe('listPropertyOptions',       [],   () => view === 'grilla'      ? listPropertyOptions()                  : Promise.resolve([])),
   ])
 
   // Status filter — applies to the grid view (only)
@@ -220,7 +222,11 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
               </div>
 
               <div className="ml-auto">
-                <NewContractModal landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
+                <NewContractModal
+                  landlordOptions={landlordOptions}
+                  tenantOptions={tenantOptions}
+                  propertyOptions={propertyOptions}
+                />
               </div>
             </>
           )}

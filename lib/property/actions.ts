@@ -5,6 +5,35 @@ import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure }            from '@/lib/db-errors'
 
+// ── Used by NewContractModal — when the encargada picks an existing
+//    property, preload its current owners as the starting point for
+//    the contract's per-contract ownership distribution.
+export interface PropertyOwnerLine {
+  landlordId:   string
+  landlordName: string
+  ownershipPct: number
+}
+
+export async function fetchPropertyOwners(propertyId: string): Promise<PropertyOwnerLine[]> {
+  try {
+    const supabase = await createSupabaseServer()
+    const { data } = await supabase
+      .from('property_landlords')
+      .select('ownership_pct, landlords(id, name)')
+      .eq('property_id', propertyId)
+    return ((data ?? []) as any[])
+      .map(r => ({
+        landlordId:   r.landlords?.id,
+        landlordName: r.landlords?.name ?? '',
+        ownershipPct: Number(r.ownership_pct),
+      }))
+      .filter(r => r.landlordId)
+  } catch (err) {
+    console.error('[fetchPropertyOwners] failed:', err)
+    return []
+  }
+}
+
 export interface UpdatePropertyResult {
   ok:    boolean
   error: string | null
