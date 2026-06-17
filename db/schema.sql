@@ -106,7 +106,8 @@ create table landlords (
   notes text,
   -- Phase 11: tax classification for receipt generation
   tax_category text not null default 'CF' check (tax_category in ('RI','MONOTRIBUTO','CF','EXENTO')),
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  updated_at timestamptz not null default now()
 );
 create index idx_landlords_admin on landlords(administration_id);
 
@@ -125,7 +126,8 @@ create table banks (
   contact_phone      text,
   contact_email      text,
   notes              text,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  updated_at timestamptz not null default now()
 );
 
 -- ----------------------------------------------------------------------------
@@ -168,7 +170,8 @@ create table tenants (
   -- Phase 11: tax classification. Commercial RI tenants pay IVA on rent;
   -- commercial Monotributo tenants don't; residential = CF by default.
   tax_category text not null default 'CF' check (tax_category in ('RI','MONOTRIBUTO','CF','EXENTO')),
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  updated_at timestamptz not null default now()
 );
 create index idx_tenants_admin on tenants(administration_id);
 
@@ -276,7 +279,10 @@ create table contracts (
   expensas_payer             text not null default 'tenant'
                              check (expensas_payer in ('tenant','landlord','split')),
   notes text,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  -- 2026-06-16: planilla sorts by "most recently added or modified".
+  -- The trigger below bumps this on every UPDATE.
+  updated_at timestamptz not null default now()
 );
 create index idx_contracts_billing_admin on contracts(billing_administrator_id);
 create index idx_contracts_admin on contracts(administration_id);
@@ -563,6 +569,53 @@ create table recibos (
 );
 create index idx_recibos_contract on recibos(contract_id);
 create index idx_recibos_fecha on recibos(fecha);
+
+-- ============================================================================
+-- 20b. AUTO-TOUCH TRIGGERS — keep updated_at fresh on every UPDATE.
+--      The planilla, the /propietarios list, /inquilinos list, /bancos list
+--      all sort or highlight by updated_at desc so the most recently edited
+--      row floats to the top. Without these triggers updated_at stays at
+--      the insert value forever and the sort becomes meaningless.
+--
+--      Two trigger functions because the contracts trigger predated the
+--      generic one; kept both for backwards compat with existing seeds.
+-- ============================================================================
+
+create or replace function touch_contract_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create or replace function touch_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_contracts_touch_updated_at on contracts;
+create trigger trg_contracts_touch_updated_at
+  before update on contracts
+  for each row execute function touch_contract_updated_at();
+
+drop trigger if exists trg_landlords_touch_updated_at on landlords;
+create trigger trg_landlords_touch_updated_at
+  before update on landlords
+  for each row execute function touch_updated_at();
+
+drop trigger if exists trg_tenants_touch_updated_at on tenants;
+create trigger trg_tenants_touch_updated_at
+  before update on tenants
+  for each row execute function touch_updated_at();
+
+drop trigger if exists trg_banks_touch_updated_at on banks;
+create trigger trg_banks_touch_updated_at
+  before update on banks
+  for each row execute function touch_updated_at();
 
 -- ============================================================================
 -- 21. SEED DATA
