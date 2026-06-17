@@ -623,8 +623,15 @@ export interface PropertyRow {
   propertyType:  string
   isVacant:      boolean       // address ends with "(vacante)" OR no contract
   hasContract:   boolean
+  /** Legacy single-tenant (primary) — kept for backwards compat. */
   tenant:        string | null
-  landlord:      string | null // derived from contract (active) or placeholder address
+  /** Legacy single-landlord (top owner). */
+  landlord:      string | null
+  /** Phase 11: every co-owner with their pct, sorted by pct desc. */
+  landlords:     { id: string; name: string; ownershipPct: number }[]
+  /** Phase 11: every co-tenant on the active contract (if any), sorted by
+   *  share desc. Empty when the property is vacant. */
+  tenants:       { id: string; name: string; sharePct: number }[]
   currentRent:   number
   urgency:        UrgencyTier
   urgencyReasons: string[]
@@ -638,14 +645,14 @@ export async function listProperties(): Promise<PropertyRow[]> {
       .from('properties')
       .select(`
         id, address, property_type,
-        property_landlords(ownership_pct, landlords(name))
+        property_landlords(ownership_pct, landlords(id, name))
       `)
       .order('address'),
     supabase
       .from('contracts')
       .select(`
         id, property_id, current_rent, status,
-        contract_tenants(is_primary, tenants(name))
+        contract_tenants(is_primary, share_pct, tenants(id, name))
       `)
       .neq('status', 'rescinded'),
   ])
@@ -662,25 +669,36 @@ export async function listProperties(): Promise<PropertyRow[]> {
     const contract          = contractByProp.get(p.id)
     const isVacant          = isVacantByAddress || !contract
 
-    // Top landlord via the direct property_landlords junction (works for
-    // vacancies too)
-    const topOwner = (p.property_landlords ?? [])
-      .slice()
-      .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
-    const landlord = topOwner?.landlords?.name ?? null
+    // Full owners list (sorted by pct desc) — drives the multi-name cell.
+    const landlords = ((p.property_landlords ?? []) as any[])
+      .map(pl => ({
+        id:            pl.landlords?.id ?? '',
+        name:          pl.landlords?.name ?? '',
+        ownershipPct:  Number(pl.ownership_pct ?? 0),
+      }))
+      .filter(l => l.id && l.name)
+      .sort((a, b) => b.ownershipPct - a.ownershipPct)
+    const landlord = landlords[0]?.name ?? null
 
+    // Full tenants list (only when the property has an active contract).
+    let tenants: { id: string; name: string; sharePct: number }[] = []
     let tenant: string | null = null
     let rent = 0
     if (contract) {
-      const primary = contract.contract_tenants?.find((ct: any) => ct.is_primary) ?? contract.contract_tenants?.[0]
+      tenants = ((contract.contract_tenants ?? []) as any[])
+        .map((ct: any) => ({
+          id:        ct.tenants?.id ?? '',
+          name:      ct.tenants?.name ?? '',
+          sharePct:  Number(ct.share_pct ?? 100),
+        }))
+        .filter((t: any) => t.id && t.name)
+        .sort((a, b) => b.sharePct - a.sharePct)
+      const primary = (contract.contract_tenants as any[]).find(ct => ct.is_primary) ?? contract.contract_tenants?.[0]
       tenant = primary?.tenants?.name ?? null
       rent   = Number(contract.current_rent)
     }
 
-    // Urgency for properties: vacante = critical. Row tints soft orange
-    // and matches the orange Vacante badge — both speak the same color
-    // for the same state. Without this, the badge says "needs attention"
-    // but the row reads as routine.
+    // Urgency — vacante = critical, matches the orange Vacante badge.
     const reasons: string[] = []
     let urgency: UrgencyTier = 'ok'
     if (isVacant) {
@@ -696,6 +714,8 @@ export async function listProperties(): Promise<PropertyRow[]> {
       hasContract:  !!contract,
       tenant,
       landlord,
+      landlords,
+      tenants,
       currentRent:  rent,
       urgency,
       urgencyReasons: reasons,

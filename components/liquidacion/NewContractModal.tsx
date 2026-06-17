@@ -43,6 +43,14 @@ import { NewEntityModal, type NewEntityFields } from './NewEntityModal'
 import type { LandlordOption } from '@/lib/landlord/queries'
 import type { TenantOption } from '@/lib/tenant/queries'
 import type { PropertyOption } from '@/lib/property/queries'
+// Shared form primitives (function registry — never duplicate locally).
+import {
+  Field,
+  SectionHeader,
+  SumPill,
+  EntityRow,
+} from '@/components/shared/forms'
+import { isPctSum100, makeRowId, pctSum } from '@/lib/shared'
 
 interface Props {
   landlordOptions: LandlordOption[]
@@ -67,15 +75,6 @@ const PROPERTY_TYPES = [
   { value: 'cochera',  label: 'Cochera' },
   { value: 'deposito', label: 'Depósito' },
 ] as const
-
-// Floating-point sum tolerance — matches the server's PCT_SUM_EPSILON
-// so client-side validation matches the server's check exactly.
-const PCT_SUM_EPSILON = 0.05
-
-// Local UI id for dynamic rows. Not a database id — never sent to the server.
-function makeRowId() {
-  return `row-${Math.random().toString(36).slice(2, 9)}`
-}
 
 interface LandlordRow {
   rowId:    string
@@ -186,11 +185,12 @@ export function NewContractModal({
     return () => { cancelled = true }
   }, [propertyMode, pickedPropertyId])
 
-  // ── Live percentage sums ───────────────────────────────────────────────
-  const landlordSum = landlordRows.reduce((s, r) => s + (Number(r.pct) || 0), 0)
-  const tenantSum   = tenantRows.reduce((s, r) => s + (Number(r.pct) || 0), 0)
-  const landlordSumOk = Math.abs(landlordSum - 100) <= PCT_SUM_EPSILON
-  const tenantSumOk   = Math.abs(tenantSum   - 100) <= PCT_SUM_EPSILON
+  // ── Live percentage sums (uses the shared registry — same epsilon as
+  //    server) ───────────────────────────────────────────────────────────
+  const landlordPcts  = landlordRows.map(r => r.pct)
+  const tenantPcts    = tenantRows  .map(r => r.pct)
+  const landlordSumOk = isPctSum100(landlordPcts)
+  const tenantSumOk   = isPctSum100(tenantPcts)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -210,10 +210,10 @@ export function NewContractModal({
       return setError('Todos los inquilinos deben estar seleccionados o creados.')
     }
     if (!landlordSumOk) {
-      return setError(`Los porcentajes de propietarios deben sumar 100% (suman ${landlordSum.toFixed(2)}%).`)
+      return setError(`Los porcentajes de propietarios deben sumar 100% (suman ${pctSum(landlordPcts).toFixed(2)}%).`)
     }
     if (!tenantSumOk) {
-      return setError(`Los porcentajes de inquilinos deben sumar 100% (suman ${tenantSum.toFixed(2)}%).`)
+      return setError(`Los porcentajes de inquilinos deben sumar 100% (suman ${pctSum(tenantPcts).toFixed(2)}%).`)
     }
 
     const landlordsPayload: ContractLandlordInput[] = landlordRows.map(r => ({
@@ -416,9 +416,7 @@ export function NewContractModal({
               <section>
                 <SectionHeader
                   label="Propietarios"
-                  rightAdornment={
-                    <SumPill ok={landlordSumOk} value={landlordSum} />
-                  }
+                  rightAdornment={<SumPill values={landlordPcts} />}
                 />
                 <div className="space-y-2">
                   {landlordRows.map(row => (
@@ -450,9 +448,7 @@ export function NewContractModal({
               <section>
                 <SectionHeader
                   label="Inquilinos"
-                  rightAdornment={
-                    <SumPill ok={tenantSumOk} value={tenantSum} />
-                  }
+                  rightAdornment={<SumPill values={tenantPcts} />}
                 />
                 <div className="space-y-2">
                   {tenantRows.map(row => (
@@ -559,95 +555,10 @@ export function NewContractModal({
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-
-const inputCls    = 'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
-const selectCls   = 'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="label-cap block mb-1">{label}</span>
-      {children}
-    </label>
-  )
-}
-
-function SectionHeader({ label, rightAdornment }: { label: string; rightAdornment?: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
-      <h3 className="font-display text-[13px] font-medium text-ink">{label}</h3>
-      {rightAdornment}
-    </div>
-  )
-}
-
-function SumPill({ ok, value }: { ok: boolean; value: number }) {
-  return (
-    <span
-      className={`text-[11px] tabular-nums px-2 py-0.5 rounded ${
-        ok
-          ? 'bg-success/10 text-success'
-          : 'bg-danger/10 text-danger'
-      }`}
-      title={ok ? 'Los porcentajes suman 100%' : 'Los porcentajes deben sumar exactamente 100%'}
-    >
-      Σ {value.toFixed(2)}%
-    </span>
-  )
-}
-
-// ── One landlord/tenant row: picker + % input + remove ──────────────────────
-function EntityRow({
-  input, pickedId, pct, options, entityLabel, placeholder,
-  onChange, onPctChange, onRequestCreate, onRemove,
-}: {
-  input:           string
-  pickedId:        string | null
-  pct:             string
-  options:         { id: string; name: string }[]
-  entityLabel:     string
-  placeholder:     string
-  onChange:        (text: string, pickedId: string | null) => void
-  onPctChange:     (v: string) => void
-  onRequestCreate: (name: string) => void
-  onRemove?:       () => void
-}) {
-  return (
-    <div className="grid grid-cols-[1fr_90px_28px] gap-2 items-start">
-      <EntityCombo
-        value={input}
-        pickedId={pickedId}
-        onChange={onChange}
-        onRequestCreate={onRequestCreate}
-        options={options}
-        entityLabel={entityLabel}
-        placeholder={placeholder}
-      />
-      <div>
-        <input
-          type="number"
-          value={pct}
-          onChange={e => onPctChange(e.target.value)}
-          min={0}
-          max={100}
-          step="any"
-          placeholder="100"
-          className={`${inputCls} text-right tabular-nums`}
-          aria-label="Porcentaje"
-        />
-      </div>
-      <button
-        type="button"
-        onClick={onRemove}
-        disabled={!onRemove}
-        title={onRemove ? 'Quitar' : 'Tiene que quedar al menos uno'}
-        className={`h-9 w-7 text-[18px] leading-none rounded ${
-          onRemove ? 'text-gray-400 hover:text-danger transition-colors' : 'text-gray-200 cursor-not-allowed'
-        }`}
-      >×</button>
-    </div>
-  )
-}
+// Local styling constants — kept here for the few inputs that don't go
+// through EntityRow / EntityCombo (dates, money, dropdowns).
+const inputCls  = 'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
+const selectCls = 'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
 
 // ── Property picker — simpler combo just for property addresses ────────────
 function PropertyCombo({
@@ -725,92 +636,4 @@ function PropertyCombo({
   )
 }
 
-// ── EntityCombo (landlord/tenant) — autocomplete + inline "+ Crear" ─────────
-function EntityCombo({
-  value, pickedId, onChange, onRequestCreate, options, entityLabel, placeholder,
-}: {
-  value:           string
-  pickedId:        string | null
-  onChange:        (text: string, pickedId: string | null) => void
-  onRequestCreate: (name: string) => void
-  options:         { id: string; name: string }[]
-  entityLabel:     string
-  placeholder:     string
-}) {
-  const [open, setOpen] = useState(false)
-  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const filtered = value.trim()
-    ? options.filter(o => o.name.toLowerCase().includes(value.trim().toLowerCase())).slice(0, 8)
-    : options.slice(0, 8)
-  const exact = options.find(o => o.name.trim().toLowerCase() === value.trim().toLowerCase())
-  const showCreateBanner = !exact && value.trim().length > 0 && !pickedId
-
-  useEffect(() => {
-    if (!open || !inputRef.current) return
-    const compute = () => {
-      const r = inputRef.current?.getBoundingClientRect()
-      if (!r) return
-      setRect({ top: r.bottom + window.scrollY + 2, left: r.left + window.scrollX, width: r.width })
-    }
-    compute()
-    window.addEventListener('scroll', compute, true)
-    window.addEventListener('resize', compute)
-    return () => {
-      window.removeEventListener('scroll', compute, true)
-      window.removeEventListener('resize', compute)
-    }
-  }, [open])
-
-  return (
-    <div className="relative">
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onChange={e => onChange(e.target.value, null)}
-        placeholder={placeholder}
-        className={`${inputCls} ${pickedId ? 'border-success/60 bg-success/5' : ''}`}
-      />
-      {pickedId && (
-        <span className="absolute right-2 top-2 text-[10px] text-success font-medium" aria-hidden>✓</span>
-      )}
-      {showCreateBanner && (
-        <button
-          type="button"
-          onMouseDown={e => { e.preventDefault(); onRequestCreate(value.trim()); setOpen(false) }}
-          className="mt-1 w-full text-left px-2 py-1 rounded border border-warn/60 bg-warn/10 hover:bg-warn/20 text-[11.5px] text-ink font-medium cursor-pointer transition-colors"
-        >
-          + Crear nuevo {entityLabel}: «{value.trim()}»
-        </button>
-      )}
-      {open && rect && createPortal(
-        <ul
-          role="listbox"
-          style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1080 }}
-          className="bg-white border border-gray-300 rounded shadow-lg max-h-[240px] overflow-y-auto"
-        >
-          {filtered.length === 0 && (
-            <li className="px-3 py-1.5 text-[12px] text-gray-500 italic">
-              {value.trim() ? 'Sin coincidencias.' : `Escribí para buscar un ${entityLabel}…`}
-            </li>
-          )}
-          {filtered.map(o => (
-            <li
-              key={o.id}
-              role="option"
-              onMouseDown={e => { e.preventDefault(); onChange(o.name, o.id); setOpen(false) }}
-              className="px-3 py-1.5 text-[12.5px] text-slate-dark hover:bg-info/10 hover:text-ink cursor-pointer truncate"
-            >
-              {o.name}
-            </li>
-          ))}
-        </ul>,
-        document.body,
-      )}
-    </div>
-  )
-}
+// EntityCombo is imported from @/components/shared/forms — registry rule.

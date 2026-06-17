@@ -34,6 +34,72 @@ export async function fetchPropertyOwners(propertyId: string): Promise<PropertyO
   }
 }
 
+// ── Phase 11: edit a property's owners. Validates the sum=100 rule using
+//    the shared registry helper so client + server agree exactly. Replaces
+//    the property_landlords junction rows in a single transaction.
+import { isPctSum100, pctSum } from '@/lib/shared'
+
+export interface UpdatePropertyOwnersResult {
+  ok:    boolean
+  error: string | null
+}
+
+export interface OwnerInput {
+  landlordId:   string
+  ownershipPct: number
+}
+
+export async function updatePropertyOwners(
+  propertyId: string,
+  rows:       OwnerInput[],
+): Promise<UpdatePropertyOwnersResult> {
+  try {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { ok: false, error: 'Tenés que cargar al menos un propietario.' }
+    }
+    for (const r of rows) {
+      if (!r.landlordId) return { ok: false, error: 'Todos los propietarios deben estar seleccionados.' }
+      if (!Number.isFinite(r.ownershipPct) || r.ownershipPct <= 0 || r.ownershipPct > 100) {
+        return { ok: false, error: 'Cada propietario debe tener un porcentaje entre 0 y 100.' }
+      }
+    }
+    const pcts = rows.map(r => r.ownershipPct)
+    if (!isPctSum100(pcts)) {
+      return { ok: false, error: `Los porcentajes deben sumar 100% (suman ${pctSum(pcts).toFixed(2)}%).` }
+    }
+    const seen = new Set<string>()
+    for (const r of rows) {
+      if (seen.has(r.landlordId)) return { ok: false, error: 'No podés repetir el mismo propietario dos veces.' }
+      seen.add(r.landlordId)
+    }
+
+    const supabase = await createSupabaseServer()
+
+    // Replace strategy: delete all current rows, then insert the new set.
+    // contracts.property_id ON DELETE RESTRICT does not block deletes from
+    // property_landlords (different junction), so this is safe.
+    const { error: delErr } = await supabase
+      .from('property_landlords').delete().eq('property_id', propertyId)
+    if (delErr) return dbFailure(delErr)
+
+    const insertRows = rows.map(r => ({
+      property_id:    propertyId,
+      landlord_id:    r.landlordId,
+      ownership_pct:  r.ownershipPct,
+    }))
+    const { error: insErr } = await supabase
+      .from('property_landlords').insert(insertRows)
+    if (insErr) return dbFailure(insErr)
+
+    revalidatePath('/propiedades')
+    revalidatePath(`/propiedades/${propertyId}`)
+    return { ok: true, error: null }
+  } catch (err) {
+    console.error('[updatePropertyOwners] failed:', err)
+    return { ok: false, error: err instanceof Error ? err.message : 'Error inesperado.' }
+  }
+}
+
 export interface UpdatePropertyResult {
   ok:    boolean
   error: string | null

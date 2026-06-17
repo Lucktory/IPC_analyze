@@ -80,8 +80,10 @@ export interface CreateFromGridInput {
   cadence:        string  // mensual / bimestral / trimestral / cuatrimestral / semestral / anual
 }
 
-// Tolerance for "sums must equal 100" so 33.33 + 33.33 + 33.34 = 100 passes.
-const PCT_SUM_EPSILON = 0.05
+// Percentage-sum tolerance + helpers come from the shared function registry.
+// Same constants are used by NewContractModal / EditPropertyForm so client
+// and server agree exactly.
+import { isPctSum100, pctSum } from '@/lib/shared'
 
 const ALLOWED_CADENCES = ['mensual', 'bimestral', 'trimestral', 'cuatrimestral', 'semestral', 'anual']
 
@@ -116,13 +118,13 @@ export async function createContractFromGrid(input: CreateFromGridInput): Promis
     if (!Array.isArray(input.tenants) || input.tenants.length === 0) {
       return { ok: false, error: 'Tenés que cargar al menos un inquilino.' }
     }
-    const landlordSum = input.landlords.reduce((s, l) => s + Number(l.ownershipPct ?? 0), 0)
-    if (Math.abs(landlordSum - 100) > PCT_SUM_EPSILON) {
-      return { ok: false, error: `Los porcentajes de propietarios deben sumar 100% (suman ${landlordSum.toFixed(2)}%).` }
+    const landlordPcts = input.landlords.map(l => l.ownershipPct)
+    if (!isPctSum100(landlordPcts)) {
+      return { ok: false, error: `Los porcentajes de propietarios deben sumar 100% (suman ${pctSum(landlordPcts).toFixed(2)}%).` }
     }
-    const tenantSum = input.tenants.reduce((s, t) => s + Number(t.sharePct ?? 0), 0)
-    if (Math.abs(tenantSum - 100) > PCT_SUM_EPSILON) {
-      return { ok: false, error: `Los porcentajes de inquilinos deben sumar 100% (suman ${tenantSum.toFixed(2)}%).` }
+    const tenantPcts = input.tenants.map(t => t.sharePct)
+    if (!isPctSum100(tenantPcts)) {
+      return { ok: false, error: `Los porcentajes de inquilinos deben sumar 100% (suman ${pctSum(tenantPcts).toFixed(2)}%).` }
     }
     for (const l of input.landlords) {
       if (!isFinite(l.ownershipPct) || l.ownershipPct <= 0 || l.ownershipPct > 100) {

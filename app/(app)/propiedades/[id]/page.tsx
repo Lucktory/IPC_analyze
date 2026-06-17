@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/Badge'
 import { getPropertyDetail } from '@/lib/property/queries'
+import { listLandlordOptions } from '@/lib/landlord/queries'
+import { listTenantOptions }   from '@/lib/tenant/queries'
 import { EditPropertyForm } from '@/components/property/EditPropertyForm'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { fmtMoney as fmt } from '@/lib/format'
@@ -20,7 +22,11 @@ interface PageProps {
 
 export default async function PropertyDetailPage({ params }: PageProps) {
   const { id } = await params
-  const property = await getPropertyDetail(id)
+  const [property, landlordOptions, tenantOptions] = await Promise.all([
+    getPropertyDetail(id),
+    listLandlordOptions(),
+    listTenantOptions(),
+  ])
   if (!property) notFound()
 
   const activeContracts = property.contracts.filter(c => c.status === 'active')
@@ -51,34 +57,16 @@ export default async function PropertyDetailPage({ params }: PageProps) {
       </div>
 
       <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-line">
-          <h2 className="font-display text-[15px] font-medium text-ink">Datos de la propiedad</h2>
-          <p className="text-[12px] text-slate mt-0.5">
-            Solo dirección y tipo se editan desde acá. Para reasignar propietarios, contactar al admin.
-          </p>
-        </div>
         <div className="p-5">
-          <EditPropertyForm property={property} contractCount={property.contracts.length} />
+          <EditPropertyForm
+            property={property}
+            contractCount={property.contracts.length}
+            activeContract={activeContracts[0] ?? null}
+            landlordOptions={landlordOptions}
+            tenantOptions={tenantOptions}
+          />
         </div>
       </section>
-
-      {property.landlords.length > 0 && (
-        <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-line">
-            <h2 className="font-display text-[15px] font-medium text-ink">Propietarios</h2>
-          </div>
-          <ul className="divide-y divide-line/30">
-            {property.landlords.map(l => (
-              <li key={l.id} className="px-5 py-3 flex items-center justify-between">
-                <Link href={`/propietarios/${l.id}`} className="text-[13px] text-ink hover:underline decoration-slate/40">
-                  {l.name}
-                </Link>
-                <span className="text-[12px] text-slate tabular-nums">{l.ownershipPct.toFixed(0)}%</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {property.contracts.length > 0 && (
         <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">

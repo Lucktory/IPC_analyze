@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure }            from '@/lib/db-errors'
+import { isPctSum100, pctSum }  from '@/lib/shared'
 
 export interface SaveNoteResult {
   ok:    boolean
@@ -129,4 +130,126 @@ export async function createContract(formData: FormData): Promise<CreateContract
 
   revalidatePath('/contratos')
   redirect(`/contratos/${contractId}`)
+}
+
+// ============================================================================
+// Phase 11 — edit the active contract's tenants from the property page.
+// Replaces the contract_tenants rows in one shot, marking the highest
+// share_pct row as is_primary so legacy planilla queries keep working.
+// ============================================================================
+
+export interface UpdateContractTenantsResult {
+  ok:    boolean
+  error: string | null
+}
+
+export interface TenantShareInput {
+  tenantId:  string
+  sharePct:  number
+}
+
+export async function updateContractTenants(
+  contractId: string,
+  rows:       TenantShareInput[],
+): Promise<UpdateContractTenantsResult> {
+  try {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { ok: false, error: 'Tenés que cargar al menos un inquilino.' }
+    }
+    for (const r of rows) {
+      if (!r.tenantId) return { ok: false, error: 'Todos los inquilinos deben estar seleccionados.' }
+      if (!Number.isFinite(r.sharePct) || r.sharePct <= 0 || r.sharePct > 100) {
+        return { ok: false, error: 'Cada inquilino debe tener un porcentaje entre 0 y 100.' }
+      }
+    }
+    const pcts = rows.map(r => r.sharePct)
+    if (!isPctSum100(pcts)) {
+      return { ok: false, error: `Los porcentajes deben sumar 100% (suman ${pctSum(pcts).toFixed(2)}%).` }
+    }
+    const seen = new Set<string>()
+    for (const r of rows) {
+      if (seen.has(r.tenantId)) return { ok: false, error: 'No podés repetir el mismo inquilino dos veces.' }
+      seen.add(r.tenantId)
+    }
+
+    const supabase = await createSupabaseServer()
+
+    const { error: delErr } = await supabase
+      .from('contract_tenants').delete().eq('contract_id', contractId)
+    if (delErr) return dbFailure(delErr)
+
+    // Highest share = primary (matches NewContractModal's rule).
+    let primaryIdx = 0
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i].sharePct > rows[primaryIdx].sharePct) primaryIdx = i
+    }
+    const insertRows = rows.map((r, i) => ({
+      contract_id: contractId,
+      tenant_id:   r.tenantId,
+      share_pct:   r.sharePct,
+      is_primary:  i === primaryIdx,
+    }))
+    const { error: insErr } = await supabase
+      .from('contract_tenants').insert(insertRows)
+    if (insErr) return dbFailure(insErr)
+
+    // Bump contracts.updated_at so the planilla's recently-edited row tint
+    // catches the change.
+    await supabase.from('contracts').update({ updated_at: new Date().toISOString() }).eq('id', contractId)
+
+    revalidatePath('/propiedades')
+    revalidatePath('/liquidacion')
+    revalidatePath(`/contratos/${contractId}`)
+    return { ok: true, error: null }
+  } catch (err) {
+    console.error('[updateContractTenants] failed:', err)
+    return { ok: false, error: err instanceof Error ? err.message : 'Error inesperado.' }
+  }
+}
+
+// ============================================================================
+// Phase 11 — edit a contract's deposit (amount + status).
+// ============================================================================
+
+export interface UpdateContractDepositResult {
+  ok:    boolean
+  error: string | null
+}
+
+const DEPOSIT_STATUSES = ['held', 'partially_used', 'refunded'] as const
+type DepositStatus = typeof DEPOSIT_STATUSES[number]
+
+export async function updateContractDeposit(
+  contractId:    string,
+  depositAmount: number | null,
+  depositStatus: string,
+): Promise<UpdateContractDepositResult> {
+  try {
+    if (depositAmount != null) {
+      if (!Number.isFinite(depositAmount) || depositAmount < 0) {
+        return { ok: false, error: 'El depósito debe ser un monto válido (≥ 0).' }
+      }
+    }
+    if (!(DEPOSIT_STATUSES as readonly string[]).includes(depositStatus)) {
+      return { ok: false, error: 'Estado del depósito inválido.' }
+    }
+
+    const supabase = await createSupabaseServer()
+    const { error } = await supabase
+      .from('contracts')
+      .update({
+        deposit_amount: depositAmount,
+        deposit_status: depositStatus as DepositStatus,
+        updated_at:     new Date().toISOString(),
+      })
+      .eq('id', contractId)
+    if (error) return dbFailure(error)
+
+    revalidatePath('/propiedades')
+    revalidatePath(`/contratos/${contractId}`)
+    return { ok: true, error: null }
+  } catch (err) {
+    console.error('[updateContractDeposit] failed:', err)
+    return { ok: false, error: err instanceof Error ? err.message : 'Error inesperado.' }
+  }
 }

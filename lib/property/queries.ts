@@ -50,12 +50,24 @@ export async function getPropertyOwners(propertyId: string): Promise<PropertyOwn
   }
 }
 
+export interface PropertyContract {
+  id:             string
+  status:         string
+  currentRent:    number
+  primaryTenant:  string | null
+  /** Phase 11: full co-tenants list with share %. */
+  tenants:        { id: string; name: string; sharePct: number }[]
+  /** Phase 11: contract-level deposit fields. */
+  depositAmount:  number | null
+  depositStatus:  string
+}
+
 export interface PropertyDetail {
   id:           string
   address:      string
   propertyType: string
   landlords:    { id: string; name: string; ownershipPct: number }[]
-  contracts:    { id: string; status: string; currentRent: number; primaryTenant: string | null }[]
+  contracts:    PropertyContract[]
 }
 
 export async function getPropertyDetail(id: string): Promise<PropertyDetail | null> {
@@ -66,8 +78,8 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
       id, address, property_type,
       property_landlords(ownership_pct, landlords(id, name)),
       contracts(
-        id, current_rent, status,
-        contract_tenants(is_primary, tenants(name))
+        id, current_rent, status, deposit_amount, deposit_status,
+        contract_tenants(is_primary, share_pct, tenants(id, name))
       )
     `)
     .eq('id', id)
@@ -82,13 +94,24 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
     ownershipPct: Number(pl.ownership_pct),
   })).filter((l: any) => l.id)
 
-  const contracts = (p.contracts ?? []).map((c: any) => {
+  const contracts: PropertyContract[] = (p.contracts ?? []).map((c: any) => {
+    const tenants = (c.contract_tenants ?? [])
+      .map((ct: any) => ({
+        id:        ct.tenants?.id ?? '',
+        name:      ct.tenants?.name ?? '',
+        sharePct:  Number(ct.share_pct ?? 100),
+      }))
+      .filter((t: any) => t.id && t.name)
+      .sort((a: any, b: any) => b.sharePct - a.sharePct)
     const primary = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
     return {
-      id:            c.id,
-      status:        c.status,
-      currentRent:   Number(c.current_rent),
-      primaryTenant: primary?.tenants?.name ?? null,
+      id:             c.id,
+      status:         c.status,
+      currentRent:    Number(c.current_rent),
+      primaryTenant:  primary?.tenants?.name ?? null,
+      tenants,
+      depositAmount:  c.deposit_amount != null ? Number(c.deposit_amount) : null,
+      depositStatus:  c.deposit_status ?? 'held',
     }
   })
 
