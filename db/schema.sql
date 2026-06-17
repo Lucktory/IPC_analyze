@@ -21,7 +21,7 @@
 -- ----------------------------------------------------------------------------
 drop table if exists pending_actions_sent cascade;
 drop table if exists contract_events cascade;
-drop table if exists liquidacion_payouts cascade;
+drop table if exists rendicion_landlords cascade;
 drop table if exists rendiciones cascade;
 drop table if exists liquidacion_lines cascade;
 drop table if exists liquidaciones cascade;
@@ -436,7 +436,6 @@ create index idx_transactions_bank_date on transactions(bank_date);
 create table rendiciones (
   id                uuid primary key default gen_random_uuid(),
   administration_id uuid not null references administrations(id) on delete cascade,
-  landlord_id       uuid not null references landlords(id) on delete restrict,
   period            date not null,
   total_gross       numeric(14,2) not null default 0,
   total_deductions  numeric(14,2) not null default 0,
@@ -446,12 +445,22 @@ create table rendiciones (
   paid_at           timestamptz,
   pdf_url           text,
   notes             text,
-  created_at        timestamptz not null default now(),
-  unique (landlord_id, period)
+  created_at        timestamptz not null default now()
+  -- Uniqueness of "one rendición per (landlord-set × period)" is
+  -- enforced in application code (sort-and-hash the landlord set).
 );
-create index idx_rendiciones_admin            on rendiciones (administration_id);
-create index idx_rendiciones_landlord_period  on rendiciones (landlord_id, period desc);
-create index idx_rendiciones_status           on rendiciones (status);
+create index idx_rendiciones_admin   on rendiciones (administration_id);
+create index idx_rendiciones_period  on rendiciones (period desc);
+create index idx_rendiciones_status  on rendiciones (status);
+
+-- Junction: which landlords receive this rendición. Receipt 3 (SIMOES)
+-- has two rows here (Adrián + Juan); a single-owner rendición has one.
+create table rendicion_landlords (
+  rendicion_id uuid not null references rendiciones(id) on delete cascade,
+  landlord_id  uuid not null references landlords(id)   on delete restrict,
+  primary key (rendicion_id, landlord_id)
+);
+create index idx_rendicion_landlords_landlord on rendicion_landlords (landlord_id);
 
 -- ----------------------------------------------------------------------------
 -- 16. LIQUIDACIONES — monthly settlement to landlord (gray→green→blue flow)
@@ -485,20 +494,6 @@ create index idx_liquidaciones_contract  on liquidaciones(contract_id);
 create index idx_liquidaciones_period    on liquidaciones(period);
 create index idx_liquidaciones_status    on liquidaciones(status);
 create index idx_liquidaciones_rendicion on liquidaciones(rendicion_id);
-
--- ----------------------------------------------------------------------------
--- 16b. LIQUIDACION_PAYOUTS — Phase 11. Per-landlord split rows on the
---      receipt footer (Receipt 3's "JUAN $385k / ADRIAN $385k" lines).
---      Persisted so re-printing the receipt later produces identical
---      amounts regardless of subsequent ownership_pct edits.
--- ----------------------------------------------------------------------------
-create table liquidacion_payouts (
-  liquidacion_id uuid          not null references liquidaciones(id) on delete cascade,
-  landlord_id    uuid          not null references landlords(id) on delete restrict,
-  amount         numeric(14,2) not null,
-  primary key (liquidacion_id, landlord_id)
-);
-create index idx_liquidacion_payouts_landlord on liquidacion_payouts (landlord_id);
 
 -- ----------------------------------------------------------------------------
 -- 17. LIQUIDACION_LINES — itemized breakdown linked to transactions
