@@ -26,6 +26,9 @@ export function EmptyGridDiagnostic({ diagnostic }: Props) {
   } else if (d.noLandlordJunction > 0 || d.noTenantJunction > 0) {
     cause = `Hay ${d.contractsActive} contratos activos pero ${d.noLandlordJunction} sin propietarios y ${d.noTenantJunction} sin inquilinos cargados.`
     tip   = 'Después del deploy esos contratos van a aparecer con tinte amarillo — abrí la celda Propietario/Inquilino y cargá los datos.'
+  } else if (d.rowBuildError) {
+    cause = `Hay ${d.contractsActive} contratos activos con junctions completas pero el armado de filas tiró un error.`
+    tip   = `Causa: ${d.rowBuildError}${d.rowBuildErrorContract ? ` (contrato ${d.rowBuildErrorContract})` : ''}`
   } else {
     cause = `Hay ${d.contractsActive} contratos activos con junctions completas pero la consulta del período no devolvió filas.`
     tip   = 'Posible problema de conexión a la base — revisá los logs de Vercel buscando «GRID_DIAGNOSTIC».'

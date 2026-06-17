@@ -318,12 +318,19 @@ export interface GridDiagnostic {
   noLandlordJunction: number  // active contracts with zero contract_landlords rows
   noTenantJunction:   number  // active contracts with zero contract_tenants rows
   lastFiveCreated:    { id: string; status: string; created_at: string }[]
+  /** When getLiquidacionGridForPeriod returns 0 rows despite contracts
+   *  existing, we run a "trial build" of the first contract row using the
+   *  same code path and capture whatever throws. Surfaced inline so the
+   *  encargada can see the real cause without checking Vercel logs. */
+  rowBuildError:      string | null
+  rowBuildErrorContract: string | null
 }
 
-export async function getGridDiagnostic(): Promise<GridDiagnostic> {
+export async function getGridDiagnostic(period: string): Promise<GridDiagnostic> {
   const empty: GridDiagnostic = {
     contractsTotal: 0, contractsActive: 0, contractsByStatus: {},
     noLandlordJunction: 0, noTenantJunction: 0, lastFiveCreated: [],
+    rowBuildError: null, rowBuildErrorContract: null,
   }
   try {
     const supabase = await createSupabaseServer()
@@ -353,6 +360,21 @@ export async function getGridDiagnostic(): Promise<GridDiagnostic> {
       if (!c.contract_tenants   || c.contract_tenants.length   === 0) noT++
     }
 
+    // Trial-build: re-run the grid query and try to build ONE row. If it
+    // throws we capture the error message + contract id. This is the smoking
+    // gun when the grid is empty despite 99 active contracts being on disk.
+    let rowBuildError: string | null = null
+    let rowBuildErrorContract: string | null = null
+    try {
+      const peek = await getLiquidacionGridForPeriodRaw(period, { trial: true })
+      if (peek.firstError) {
+        rowBuildError = peek.firstError
+        rowBuildErrorContract = peek.firstErrorContract
+      }
+    } catch (err) {
+      rowBuildError = err instanceof Error ? err.message : String(err)
+    }
+
     return {
       contractsTotal:     all.length,
       contractsActive:    byStatus['active'] ?? 0,
@@ -360,10 +382,78 @@ export async function getGridDiagnostic(): Promise<GridDiagnostic> {
       noLandlordJunction: noL,
       noTenantJunction:   noT,
       lastFiveCreated:    all.slice(0, 5),
+      rowBuildError,
+      rowBuildErrorContract,
     }
   } catch (err) {
     console.error('[getGridDiagnostic] failed:', err)
     return empty
+  }
+}
+
+// Trial helper used only by the diagnostic. Returns the first
+// error message + contract id encountered during row construction so
+// the empty-state panel can surface it directly.
+async function getLiquidacionGridForPeriodRaw(
+  period: string,
+  opts:   { trial: true },
+): Promise<{ firstError: string | null; firstErrorContract: string | null }> {
+  try {
+    const rows = await getLiquidacionGridForPeriod(period)
+    if (rows.length > 0) return { firstError: null, firstErrorContract: null }
+    // If we got 0 rows on a period that should have data, we already
+    // logged per-contract errors via console.error inside the row loop.
+    // Re-running with a single-row probe surfaces the FIRST error here.
+    return await probeFirstRowError(period)
+  } catch (err) {
+    return {
+      firstError: err instanceof Error ? err.message : String(err),
+      firstErrorContract: null,
+    }
+  }
+}
+
+// Single-contract probe: fetches one active contract, rebuilds its row
+// using the same query shape, and returns the first error encountered.
+async function probeFirstRowError(
+  period: string,
+): Promise<{ firstError: string | null; firstErrorContract: string | null }> {
+  try {
+    const supabase = await createSupabaseServer()
+    const { data: contracts } = await supabase
+      .from('contracts')
+      .select(`
+        id, status, contract_number, lfa_code, expensas, current_rent,
+        cadence, start_date, end_date, created_at, updated_at, commission_pct,
+        contract_tenants(is_primary, tenants(name)),
+        contract_landlords(ownership_pct, landlords(id, name, email))
+      `)
+      .eq('status', 'active')
+      .limit(1)
+    if (!contracts || contracts.length === 0) {
+      return { firstError: null, firstErrorContract: null }
+    }
+    const c: any = contracts[0]
+    // Touch every field path the row builder touches.
+    try {
+      const landlords = (c.contract_landlords ?? []) as any[]
+      void landlords.map(l => ({ id: l.landlords?.id, name: l.landlords?.name, pct: Number(l.ownership_pct ?? 0) }))
+      const tenants = (c.contract_tenants ?? []) as any[]
+      void tenants.map(t => ({ id: t.tenants?.id, name: t.tenants?.name, pct: Number(t.share_pct ?? 100) }))
+      void Number(c.current_rent ?? 0)
+      void (c.start_date && c.cadence ? new Date(c.start_date).getTime() : null)
+      return { firstError: null, firstErrorContract: c.id }
+    } catch (err) {
+      return {
+        firstError: err instanceof Error ? err.message : String(err),
+        firstErrorContract: c.id,
+      }
+    }
+  } catch (err) {
+    return {
+      firstError: err instanceof Error ? err.message : String(err),
+      firstErrorContract: null,
+    }
   }
 }
 

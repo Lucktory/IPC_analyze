@@ -96,7 +96,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
   // When the grid returns zero rows, fetch the diagnostic snapshot so the
   // empty state can surface WHY (no contracts / no active / no junctions / …).
   const gridDiagnostic = needsGrid && allRows.length === 0
-    ? await safe('getGridDiagnostic', null, () => getGridDiagnostic())
+    ? await safe('getGridDiagnostic', null, () => getGridDiagnostic(period))
     : null
 
   // Status filter — applies to the grid view (only)
