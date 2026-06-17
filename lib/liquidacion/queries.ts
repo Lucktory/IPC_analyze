@@ -237,6 +237,20 @@ export interface LiquidacionGridRow {
   //   lib/liquidacion/thresholds.ts.
   cadence:               string | null
 
+  // ── Per-row payment countdown (replaces the redundant Período column) ──
+  //   The cell shows "en N días" / "hoy" / "vencido N días" / "✓ cobrado"
+  //   based on these three values. Computed against today + the contract's
+  //   payment_day for the current period.
+  /** Day of the month rent is due (contracts.payment_day, 1–31). */
+  paymentDay:            number
+  /** ISO date (YYYY-MM-DD) of the due date IN the current period, clamped
+   *  to the last day of the month if payment_day exceeds it. NULL when the
+   *  contract isn't active in this period yet, or has already ended. */
+  dueDateIso:            string | null
+  /** Whole days from today to the due date. Positive = future, 0 = today,
+   *  negative = past. NULL when dueDateIso is null. */
+  daysUntilPayment:      number | null
+
   // ── Highlight flags ──
   /** True when the contract's nextAdjustmentDate is within 30 days. Drives
    *  the light-orange background on the INGRESOS cell. */
@@ -485,7 +499,8 @@ async function probeFirstRowError(
       .from('contracts')
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
-        cadence, start_date, end_date, created_at, updated_at, commission_pct,
+        cadence, start_date, end_date, payment_day,
+        created_at, updated_at, commission_pct,
         contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
@@ -528,7 +543,8 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       .from('contracts')
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
-        cadence, start_date, end_date, created_at, updated_at, commission_pct,
+        cadence, start_date, end_date, payment_day,
+        created_at, updated_at, commission_pct,
         contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
@@ -695,6 +711,39 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       ? `${nextAdj.getFullYear()}-${String(nextAdj.getMonth() + 1).padStart(2, '0')}-${String(nextAdj.getDate()).padStart(2, '0')}`
       : null
 
+    // ── Payment countdown ────────────────────────────────────────────────
+    // Each contract has its own payment_day (1-31). The due date for the
+    // current period is YYYY-MM-payment_day, clamped to the last day of
+    // the month so payment_day=31 in February becomes Feb 28/29.
+    // Skipped (null) for contracts whose start_date is after this period
+    // or whose end_date is before it.
+    const paymentDay = (() => {
+      const raw = Number(c.payment_day ?? 0)
+      if (!Number.isFinite(raw) || raw < 1 || raw > 31) return 5  // safe default
+      return Math.floor(raw)
+    })()
+    const periodActive = (() => {
+      const periodStart = new Date(period)              // first of period month
+      const periodMonthEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0)
+      if (c.start_date && new Date(c.start_date) > periodMonthEnd) return false
+      if (c.end_date   && new Date(c.end_date)   < periodStart)    return false
+      return true
+    })()
+    let dueDateIso:       string | null = null
+    let daysUntilPayment: number | null = null
+    if (periodActive) {
+      const [py, pm] = period.split('-').map(Number)
+      // Clamp day to last day of the month.
+      const lastDay  = new Date(py, pm, 0).getDate()
+      const day      = Math.min(paymentDay, lastDay)
+      const due      = new Date(py, pm - 1, day)
+      dueDateIso     = `${py}-${String(pm).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      // Use UTC-style day difference so DST doesn't bias the count.
+      const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+      const dueMid   = new Date(due.getFullYear(),   due.getMonth(),   due.getDate())
+      daysUntilPayment = Math.round((dueMid.getTime() - todayMid.getTime()) / 86400000)
+    }
+
     // When the junction is missing we look for ANY liquidación on this
     // contract regardless of landlord_id — better than nothing.
     const liq = primary
@@ -736,6 +785,9 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       admFrances509: a.frances509,
       admFrances516: a.frances516,
       cadence:               c.cadence ?? null,
+      paymentDay,
+      dueDateIso,
+      daysUntilPayment,
       hasUpcomingAdjustment,
       daysUntilAdjustment,
       nextAdjustmentDateIso,

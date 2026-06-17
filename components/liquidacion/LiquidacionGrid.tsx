@@ -133,6 +133,53 @@ function fmtPeriodo(p: string): string {
   return `${p.slice(5, 7)}/${p.slice(0, 4)}`
 }
 
+// ── Pago column helpers ────────────────────────────────────────────────────
+// Per-row countdown until rent due date. Replaces the old "06/2026" column
+// (same on every row, redundant with the page header).
+function renderPaymentCell(r: LiquidacionGridRow, cobrado: boolean) {
+  // Already paid this period.
+  if (cobrado) {
+    return <span className="text-[11px] text-success font-medium">✓ cobrado</span>
+  }
+  // Contract not active in this period.
+  if (r.daysUntilPayment == null) {
+    return <span className="text-[11px] text-slate/50">—</span>
+  }
+  const days = r.daysUntilPayment
+  if (days > 0) {
+    return (
+      <span className="text-[11px] text-slate-dark tabular-nums">
+        en {days} {days === 1 ? 'día' : 'días'}
+      </span>
+    )
+  }
+  if (days === 0) {
+    return <span className="text-[11px] text-warn font-medium">vence hoy</span>
+  }
+  // days < 0 → overdue. Red and bold so it's unmistakable on scan.
+  const overdue = Math.abs(days)
+  return (
+    <span className="text-[11px] text-danger font-medium tabular-nums">
+      vencido {overdue} {overdue === 1 ? 'día' : 'días'}
+    </span>
+  )
+}
+
+function renderPaymentTooltip(r: LiquidacionGridRow): string {
+  if (!r.dueDateIso) {
+    return 'El contrato no está activo en este período.'
+  }
+  const [y, m, d] = r.dueDateIso.split('-')
+  const dueLabel  = `${d}/${m}/${y}`
+  const parts = [`Vence ${dueLabel}`, `Día de pago configurado: ${r.paymentDay}`]
+  if (r.daysUntilPayment != null) {
+    if (r.daysUntilPayment > 0)       parts.push(`Faltan ${r.daysUntilPayment} días`)
+    else if (r.daysUntilPayment === 0) parts.push('Vence hoy')
+    else                              parts.push(`Vencido hace ${Math.abs(r.daysUntilPayment)} días`)
+  }
+  return parts.join('\n')
+}
+
 /** Human-readable formula tooltip for the Transferencia cell. */
 function buildTransferenciaTooltip(r: LiquidacionGridRow): string {
   const adj = r.adjustmentAmount ?? 0
@@ -184,7 +231,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <Th width={W.cadencia} align="center">Cadencia</Th>
               {/* 9 */}<Th width={W.contrato} align="center">Contrato</Th>
               {/* 9 */}<Th width={W.deuda}    align="right">Deuda</Th>
-              {/* 10 */}<Th width={W.periodo}   align="center">Período</Th>
+              {/* 10 */}<Th width={W.periodo}   align="center">Pago</Th>
               {/* 11 */}<Th width={W.alquiler}  align="right">Alquiler</Th>
               {/* 12 */}<Th width={W.extras}    align="right">Extras</Th>
               {/* 12 */}<Th width={W.transf}    align="right">Transferencia</Th>
@@ -395,11 +442,17 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     </span>
                   </Td>
 
-                  {/* 10. PERÍODO */}
-                  <Td width={W.periodo} align="center">
-                    <span className="tabular-nums text-slate-dark text-[11px]">
-                      {fmtPeriodo(r.periodo)}
-                    </span>
+                  {/* 10. PAGO — countdown until the contract's payment_day
+                       for this period. "✓ cobrado" when the rent has already
+                       been deposited (r.fechaBanco is set). Replaces the
+                       redundant "06/2026" period cell (same value every row,
+                       already shown in the page header). */}
+                  <Td
+                    width={W.periodo}
+                    align="center"
+                    title={renderPaymentTooltip(r)}
+                  >
+                    {renderPaymentCell(r, cobrado)}
                   </Td>
 
                   {/* 11. ALQUILER — Phase 9C, RENT_IN-only popover.
