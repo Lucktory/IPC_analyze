@@ -34,7 +34,6 @@ import {
   prepareEmailDraft,
   markLiquidacionAsSent,
 } from '@/lib/liquidacion/email-actions'
-import { fmtMoney } from '@/lib/format'
 
 const SENDER_EMAIL_KEY = 'liquidacion.senderEmail'
 
@@ -57,6 +56,9 @@ export function LiquidarYEnviarButton({
   const [recipientDraft, setRecipientDraft] = useState(landlordEmail ?? '')
   const [subjectDraft, setSubjectDraft]     = useState('')
   const [bodyDraft, setBodyDraft]           = useState('')
+  const [bodyHtml, setBodyHtml]             = useState('')
+  const [view, setView]                     = useState<'preview' | 'texto'>('preview')
+  const [copyHint, setCopyHint]             = useState<'idle' | 'copied'>('idle')
   const [summary, setSummary]               = useState<{
     gross: number; commission: number; otros: number; netToLandlord: number
   } | null>(null)
@@ -81,6 +83,9 @@ export function LiquidarYEnviarButton({
     setOpen(true)
     setSubjectDraft('')
     setBodyDraft('')
+    setBodyHtml('')
+    setView('preview')
+    setCopyHint('idle')
     setSummary(null)
     startTransition(async () => {
       // prepareEmailDraft is pure READ — does NOT transition the liquidación.
@@ -92,8 +97,31 @@ export function LiquidarYEnviarButton({
       setRecipientDraft(res.recipient ?? landlordEmail ?? '')
       setSubjectDraft(res.subject ?? '')
       setBodyDraft(res.body ?? '')
+      setBodyHtml(res.bodyHtml ?? '')
       setSummary(res.summary ?? null)
     })
+  }
+
+  async function copyHtmlToClipboard() {
+    if (!bodyHtml) return
+    try {
+      // Rich-text clipboard: writing both text/html and text/plain lets Gmail
+      // (and most rich editors) paste the rendered receipt, while text editors
+      // still get the plain-text fallback.
+      if (typeof window !== 'undefined' && 'ClipboardItem' in window && navigator.clipboard?.write) {
+        const item = new ClipboardItem({
+          'text/html':  new Blob([bodyHtml],  { type: 'text/html'  }),
+          'text/plain': new Blob([bodyDraft], { type: 'text/plain' }),
+        })
+        await navigator.clipboard.write([item])
+      } else {
+        await navigator.clipboard.writeText(bodyHtml)
+      }
+      setCopyHint('copied')
+      setTimeout(() => setCopyHint('idle'), 1800)
+    } catch {
+      setError('No se pudo copiar al portapapeles. Probá con la pestaña "Texto editable".')
+    }
   }
 
   function closeModal() {
@@ -181,23 +209,62 @@ export function LiquidarYEnviarButton({
               )}
 
               {summary && (
-                <div className="bg-gray-50 border border-gray-200 rounded p-3 text-[12px]">
-                  <div className="grid grid-cols-2 gap-1">
-                    <span className="text-gray-600">Total cobrado:</span>
-                    <span className="text-right tabular-nums text-ink font-medium">{fmtMoney(summary.gross)}</span>
-                    <span className="text-gray-600">Comisión administración:</span>
-                    <span className="text-right tabular-nums text-ink">{fmtMoney(summary.commission)}</span>
-                    {summary.otros > 0 && (
-                      <>
-                        <span className="text-gray-600">Otros descuentos:</span>
-                        <span className="text-right tabular-nums text-ink">{fmtMoney(summary.otros)}</span>
-                      </>
-                    )}
-                    <span className="text-gray-700 font-medium border-t border-gray-300 pt-1 mt-1">Neto a transferir:</span>
-                    <span className="text-right tabular-nums text-success font-display font-medium border-t border-gray-300 pt-1 mt-1">
-                      {fmtMoney(summary.netToLandlord)}
-                    </span>
+                <div className="rounded border border-gray-200 overflow-hidden">
+                  <div className="flex items-center justify-between bg-gray-50 border-b border-gray-200 px-2.5 py-1.5">
+                    <div className="inline-flex rounded border border-gray-300 bg-white overflow-hidden text-[11px] font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setView('preview')}
+                        className={
+                          view === 'preview'
+                            ? 'px-2.5 py-1 bg-ink text-paper'
+                            : 'px-2.5 py-1 text-slate-dark hover:bg-gray-50'
+                        }
+                      >
+                        Vista previa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setView('texto')}
+                        className={
+                          view === 'texto'
+                            ? 'px-2.5 py-1 bg-ink text-paper border-l border-gray-300'
+                            : 'px-2.5 py-1 text-slate-dark hover:bg-gray-50 border-l border-gray-300'
+                        }
+                      >
+                        Texto editable
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={copyHtmlToClipboard}
+                      disabled={!bodyHtml}
+                      title="Copiar el recibo con formato — pegalo en Gmail para enviar la versión HTML"
+                      className="text-[11px] text-slate-dark hover:text-ink disabled:opacity-50 transition-colors inline-flex items-center gap-1"
+                    >
+                      {copyHint === 'copied' ? '✓ Copiado' : '⧉ Copiar recibo HTML'}
+                    </button>
                   </div>
+
+                  {view === 'preview' ? (
+                    bodyHtml ? (
+                      <iframe
+                        title="Vista previa del recibo"
+                        srcDoc={bodyHtml}
+                        sandbox=""
+                        className="block w-full h-[460px] bg-[#F5F1E8] border-0"
+                      />
+                    ) : (
+                      <p className="px-3 py-6 text-[12px] text-gray-500 italic">Generando vista previa…</p>
+                    )
+                  ) : (
+                    <textarea
+                      value={bodyDraft}
+                      onChange={e => setBodyDraft(e.target.value)}
+                      rows={16}
+                      className="w-full px-3 py-2 bg-white text-[12.5px] outline-none focus:bg-cream/30 font-mono leading-relaxed resize-y border-0"
+                    />
+                  )}
                 </div>
               )}
 
@@ -239,16 +306,6 @@ export function LiquidarYEnviarButton({
                 />
               </label>
 
-              <label className="block">
-                <span className="text-[10px] uppercase tracking-wider text-gray-600 block mb-1">Cuerpo del mail (editable)</span>
-                <textarea
-                  value={bodyDraft}
-                  onChange={e => setBodyDraft(e.target.value)}
-                  rows={11}
-                  className="w-full px-2 py-2 rounded border border-gray-300 bg-white text-[12.5px] outline-none focus:border-info font-mono leading-relaxed resize-y"
-                />
-              </label>
-
               {error && (
                 <div className="text-[11.5px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">
                   {error}
@@ -256,7 +313,7 @@ export function LiquidarYEnviarButton({
               )}
 
               <p className="text-[10.5px] text-gray-500 italic leading-snug">
-                <strong>Abrir en Gmail</strong> abre Gmail web en una pestaña nueva con el mensaje listo — funciona sin configurar nada.
+                <strong>Abrir en Gmail</strong> abre Gmail web con el texto del recibo cargado. Para enviar la versión con formato (recomendado), tocá <strong>Copiar recibo HTML</strong> y pegá en el cuerpo del mail con Ctrl+V.
                 <br />
                 <strong>Abrir programa de mail</strong> usa el programa de mail del sistema (Outlook, Thunderbird) si está configurado.
                 <br />

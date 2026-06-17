@@ -25,8 +25,8 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { transitionLiquidacionStatus } from './actions'
-import { fmtMoney } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
+import { buildReceiptHtml, buildReceiptText } from './email-receipt'
 
 export interface PrepareEmailResult {
   ok:    boolean
@@ -34,6 +34,7 @@ export interface PrepareEmailResult {
   recipient?:  string | null
   subject?:    string
   body?:       string
+  bodyHtml?:   string
   summary?:    {
     landlordName:  string
     period:        string
@@ -91,26 +92,22 @@ export async function prepareEmailDraft(
               ?? (contractRes.data as any)?.contract_tenants?.[0]
   const tenantName = tenant?.tenants?.name ?? '(sin inquilino)'
 
-  // Build subject + body.
+  // Build subject + body (plain text for the actual handoff, HTML for the preview).
   const monthLabel = periodLabel(period)
-  const subject = `Liquidación ${monthLabel} — ${landlordName}`
+  const subject    = `Liquidación ${monthLabel} — ${landlordName}`
 
-  const lines: string[] = []
-  lines.push(`Estimado/a ${landlordName},`)
-  lines.push('')
-  lines.push(`Le adjuntamos el detalle de la liquidación correspondiente al período ${monthLabel}, contrato con ${tenantName}:`)
-  lines.push('')
-  lines.push(`  • Total cobrado:        ${fmtMoney(gross)}`)
-  lines.push(`  • Comisión de admin.:   ${fmtMoney(commission)}`)
-  if (otros > 0) lines.push(`  • Otros descuentos:     ${fmtMoney(otros)}`)
-  lines.push(`  • Neto a transferir:    ${fmtMoney(netToLandlord)}`)
-  lines.push('')
-  lines.push('Realizaremos la transferencia en los próximos días hábiles. Cualquier consulta, quedamos a disposición.')
-  lines.push('')
-  lines.push('Saludos cordiales,')
-  lines.push('Pampa Administración')
-  if (senderEmail?.trim()) lines.push(senderEmail.trim())
-  const body = lines.join('\n')
+  const receiptInput = {
+    landlordName,
+    tenantName,
+    period,
+    gross,
+    commission,
+    otros,
+    netToLandlord,
+    senderEmail,
+  }
+  const body     = buildReceiptText(receiptInput)
+  const bodyHtml = buildReceiptHtml(receiptInput)
 
   return {
     ok:        true,
@@ -118,6 +115,7 @@ export async function prepareEmailDraft(
     recipient: landlordEmail,
     subject,
     body,
+    bodyHtml,
     summary: {
       landlordName,
       period,
