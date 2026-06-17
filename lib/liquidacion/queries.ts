@@ -324,6 +324,18 @@ export interface GridDiagnostic {
    *  encargada can see the real cause without checking Vercel logs. */
   rowBuildError:      string | null
   rowBuildErrorContract: string | null
+  /** Diagnostic for the grid's actual SELECT statement — confirms whether
+   *  the heavy nested-join query reaches the same rows the lightweight
+   *  diagnostic select sees, OR if Supabase is returning a different
+   *  number (or an error) for the same active contracts. */
+  gridSelectRowCount: number | null
+  gridSelectError:    string | null
+  gridSelectFirstContract: string | null
+  /** Same exact query the grid runs, but only on the FIRST returned row.
+   *  Lets us see what shape the join actually delivered (do contract_landlords
+   *  / contract_tenants come back with data? does landlords(id, name, email)
+   *  return all three?). */
+  gridSelectFirstSample: any
 }
 
 export async function getGridDiagnostic(period: string): Promise<GridDiagnostic> {
@@ -331,6 +343,8 @@ export async function getGridDiagnostic(period: string): Promise<GridDiagnostic>
     contractsTotal: 0, contractsActive: 0, contractsByStatus: {},
     noLandlordJunction: 0, noTenantJunction: 0, lastFiveCreated: [],
     rowBuildError: null, rowBuildErrorContract: null,
+    gridSelectRowCount: null, gridSelectError: null,
+    gridSelectFirstContract: null, gridSelectFirstSample: null,
   }
   try {
     const supabase = await createSupabaseServer()
@@ -375,6 +389,49 @@ export async function getGridDiagnostic(period: string): Promise<GridDiagnostic>
       rowBuildError = err instanceof Error ? err.message : String(err)
     }
 
+    // ── Run the EXACT SAME query the grid runs and see what it returns.
+    //    This is the smoking-gun probe: if the diagnostic above sees 99
+    //    contracts but this nested-join query returns 0 or an error,
+    //    we know the join is broken (permissions, schema mismatch, etc.).
+    let gridSelectRowCount: number | null = null
+    let gridSelectError: string | null = null
+    let gridSelectFirstContract: string | null = null
+    let gridSelectFirstSample: any = null
+    try {
+      const probeRes = await supabase
+        .from('contracts')
+        .select(`
+          id, status, contract_number, lfa_code, expensas, current_rent,
+          cadence, start_date, end_date, created_at, updated_at, commission_pct,
+          contract_tenants(is_primary, tenants(name)),
+          contract_landlords(ownership_pct, landlords(id, name, email))
+        `)
+        .eq('status', 'active')
+      if (probeRes.error) {
+        gridSelectError = probeRes.error.message
+      }
+      const rows = (probeRes.data ?? []) as any[]
+      gridSelectRowCount = rows.length
+      if (rows.length > 0) {
+        const first = rows[0]
+        gridSelectFirstContract = first?.id ?? null
+        // Strip nested arrays to just the keys + lengths so the panel can
+        // show what came back without an unbounded blob.
+        gridSelectFirstSample = {
+          id: first.id,
+          status: first.status,
+          current_rent: first.current_rent,
+          cadence: first.cadence,
+          contract_landlords_count: (first.contract_landlords ?? []).length,
+          contract_tenants_count:   (first.contract_tenants   ?? []).length,
+          first_landlord:           first.contract_landlords?.[0] ?? null,
+          first_tenant:             first.contract_tenants?.[0]   ?? null,
+        }
+      }
+    } catch (err) {
+      gridSelectError = err instanceof Error ? err.message : String(err)
+    }
+
     return {
       contractsTotal:     all.length,
       contractsActive:    byStatus['active'] ?? 0,
@@ -384,6 +441,10 @@ export async function getGridDiagnostic(period: string): Promise<GridDiagnostic>
       lastFiveCreated:    all.slice(0, 5),
       rowBuildError,
       rowBuildErrorContract,
+      gridSelectRowCount,
+      gridSelectError,
+      gridSelectFirstContract,
+      gridSelectFirstSample,
     }
   } catch (err) {
     console.error('[getGridDiagnostic] failed:', err)

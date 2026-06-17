@@ -29,6 +29,15 @@ export function EmptyGridDiagnostic({ diagnostic }: Props) {
   } else if (d.rowBuildError) {
     cause = `Hay ${d.contractsActive} contratos activos con junctions completas pero el armado de filas tiró un error.`
     tip   = `Causa: ${d.rowBuildError}${d.rowBuildErrorContract ? ` (contrato ${d.rowBuildErrorContract})` : ''}`
+  } else if (d.gridSelectError) {
+    cause = `La consulta principal del planilla (SELECT con joins) tiró un error de Supabase.`
+    tip   = `Error: ${d.gridSelectError}`
+  } else if (d.gridSelectRowCount === 0 && d.contractsActive > 0) {
+    cause = `Hay ${d.contractsActive} contratos activos pero la consulta con joins devuelve 0 filas.`
+    tip   = 'Las tablas contract_tenants o contract_landlords probablemente tienen RLS bloqueando lectura, o la PostgREST relationship está rota.'
+  } else if (d.gridSelectRowCount != null && d.gridSelectRowCount > 0) {
+    cause = `La consulta SELECT devuelve ${d.gridSelectRowCount} filas pero el armado falla silenciosamente.`
+    tip   = 'Mirá el "primer contrato muestra" abajo y compará con LiquidacionGridRow para encontrar el campo faltante.'
   } else {
     cause = `Hay ${d.contractsActive} contratos activos con junctions completas pero la consulta del período no devolvió filas.`
     tip   = 'Posible problema de conexión a la base — revisá los logs de Vercel buscando «GRID_DIAGNOSTIC».'
@@ -81,6 +90,25 @@ export function EmptyGridDiagnostic({ diagnostic }: Props) {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Grid-select probe sample — what Supabase ACTUALLY returns to
+              the grid query, so we can see if the join is alive or broken. */}
+          {(d.gridSelectRowCount != null || d.gridSelectError) && (
+            <div className="mt-3 pt-3 border-t border-line/40">
+              <p className="label-cap text-slate mb-1">SELECT con joins (consulta real del planilla)</p>
+              <p className="text-[11.5px] text-slate-dark">
+                Devolvió: <strong>{d.gridSelectRowCount ?? '(error)'}</strong> filas
+                {d.gridSelectError && (
+                  <> · <span className="text-danger">error: {d.gridSelectError}</span></>
+                )}
+              </p>
+              {d.gridSelectFirstSample && (
+                <pre className="mt-2 p-2 bg-cream-2/60 rounded text-[11px] text-slate-dark overflow-auto max-h-72 leading-snug">
+                  {JSON.stringify(d.gridSelectFirstSample, null, 2)}
+                </pre>
+              )}
             </div>
           )}
         </div>
