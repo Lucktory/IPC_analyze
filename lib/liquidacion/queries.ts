@@ -15,13 +15,9 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { classifyDestination } from '@/lib/reconciliation/queries'
 import { validateRow, type ValidationIssue } from './validations'
-import {
-  CONTRACT_END_APPROACHING_DAYS,
-  CONTRACT_END_IMMINENT_DAYS,
-  type ContractEndStatus,
-} from './thresholds'
+import { type ContractExpiryRowStatus } from './thresholds'
 
-export type { ValidationIssue, ContractEndStatus }
+export type { ValidationIssue, ContractExpiryRowStatus }
 
 // ── Phase 9B: planilla footer totals — sums across every visible row,
 //    rendered as a sticky <tfoot> at the bottom of the grid so Alejandro
@@ -73,23 +69,71 @@ export function sumGridTotals(rows: LiquidacionGridRow[]): LiquidacionGridTotals
   }
 }
 
-// ── Contract-end tier helper (Phase 9A). Pure function — fails closed:
-//    any error (malformed date, missing data) returns 'normal' so a single
+// ── Contract-end row tint (revised 2026-06-17 — month-aligned) ────────────
+//    Pure function — fails closed: any error returns 'normal' so a single
 //    bad row can never crash the grid.
-function computeContractEndTier(
-  endDate: string | null,
-  today:   Date,
-): { status: ContractEndStatus; daysUntil: number | null } {
+//
+//    The status is based on calendar-month distance between end_date and
+//    the period being viewed, NOT days-until. Alejandro scans the planilla
+//    by month, so the tint should flip exactly when a month boundary is
+//    crossed.
+function computeExpiryRowStatus(
+  endDate:     string | null,
+  periodStart: Date,     // first-of-month for the period the user is viewing
+): { status: ContractExpiryRowStatus; daysUntil: number | null } {
   try {
     if (!endDate) return { status: 'normal', daysUntil: null }
     const end = new Date(endDate)
     if (isNaN(end.getTime())) return { status: 'normal', daysUntil: null }
-    const days = Math.ceil((end.getTime() - today.getTime()) / 86400000)
-    if (days <= CONTRACT_END_IMMINENT_DAYS)     return { status: 'imminent',    daysUntil: days }
-    if (days <= CONTRACT_END_APPROACHING_DAYS)  return { status: 'approaching', daysUntil: days }
-    return { status: 'normal', daysUntil: days }
+
+    // Day count is kept for tooltips, not for tier classification.
+    const daysUntil = Math.ceil(
+      (end.getTime() - periodStart.getTime()) / 86400000,
+    )
+
+    // Compare months absolutely (year * 12 + month) so a December → January
+    // boundary works correctly.
+    const periodMonthIdx = periodStart.getFullYear() * 12 + periodStart.getMonth()
+    const endMonthIdx    = end.getFullYear()         * 12 + end.getMonth()
+    const monthsAhead    = endMonthIdx - periodMonthIdx
+
+    if (monthsAhead < 0)   return { status: 'expired',    daysUntil }
+    if (monthsAhead === 0) return { status: 'this_month', daysUntil }
+    if (monthsAhead === 1) return { status: 'next_month', daysUntil }
+    return { status: 'normal', daysUntil }
   } catch {
     return { status: 'normal', daysUntil: null }
+  }
+}
+
+// Does this period contain a rent-adjustment date for the contract?
+// Used to drive the persistent light-blue tint on the Alquiler cell.
+// Pure function — fails closed.
+function periodHasAumentoApplied(
+  startDate:   string | null,
+  cadence:     string | null,
+  periodStart: Date,
+): boolean {
+  try {
+    if (!startDate || !cadence) return false
+    const months = CADENCE_MONTHS[cadence]
+    if (!months) return false
+    const periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 1)
+    // Walk forward from start_date in cadence-month steps. Return true the
+    // moment any non-initial step lands inside [periodStart, periodEnd).
+    const candidate = new Date(startDate)
+    if (isNaN(candidate.getTime())) return false
+    const initialStamp = candidate.getTime()
+    let safety = 1000
+    while (candidate < periodEnd && safety-- > 0) {
+      if (candidate.getTime() !== initialStamp && candidate >= periodStart && candidate < periodEnd) {
+        return true
+      }
+      candidate.setMonth(candidate.getMonth() + months)
+    }
+    return false
+  } catch {
+    return false
   }
 }
 
@@ -295,15 +339,20 @@ export interface LiquidacionGridRow {
   //    badge with click-to-popover details.
   validationIssues:  ValidationIssue[]
 
-  // ── Contract-end visual tier (Phase 9A). Drives the color of the
-  //    CONTRATO cell so Alejandro sees at a glance which contracts are
-  //    coming up for renewal:
-  //      'normal'      → no tint
-  //      'approaching' → light blue (2 months out)
-  //      'imminent'    → solid blue (≤30 days, including past due)
-  contractEndStatus:    ContractEndStatus
-  /** Days until end_date. Positive = future, negative = past, null = no end date. */
+  // ── Contract-end visual tier (revised 2026-06-17). Drives the color of
+  //    the entire ROW (was the Contrato cell only in Phase 9A):
+  //      'normal'     → no tint
+  //      'next_month' → light yellow (end_date is next calendar month)
+  //      'this_month' → soft orange (end_date is this calendar month)
+  //      'expired'    → red tint (end_date already past)
+  expiryRowStatus:      ContractExpiryRowStatus
+  /** Days from period start to end_date. Positive = future, negative = past,
+   *  null = no end date. Kept for tooltips, NOT for tier classification. */
   daysUntilContractEnd: number | null
+  /** True when this period contains a rent-adjustment date. Drives the
+   *  persistent light-blue tint on the Alquiler cell that survives the
+   *  cobrado transition (= proof the cobro arrived WITH the increase). */
+  periodHasAumento:     boolean
 }
 
 export interface IngresosLine {
@@ -835,13 +884,17 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           return { alquilerSum: 0, extrasSum: 0 }
         }
       })(),
-      // Phase 9A: contract-end tier — light blue at 31-60d, solid blue
-      // at ≤30d / overdue. Bundled at the end so we have today already.
+      // Contract-end row tint (revised 2026-06-17 — month-aligned, full row).
+      // Plus the "this period has an aumento applied" flag for the
+      // persistent blue tint on Alquiler. Both bundled here.
       ...(() => {
-        const tier = computeContractEndTier(c.end_date ?? null, today)
+        const periodStart = new Date(period)
+        const tier        = computeExpiryRowStatus(c.end_date ?? null, periodStart)
+        const hasAumento  = periodHasAumentoApplied(c.start_date ?? null, c.cadence ?? null, periodStart)
         return {
-          contractEndStatus:    tier.status,
+          expiryRowStatus:      tier.status,
           daysUntilContractEnd: tier.daysUntil,
+          periodHasAumento:     hasAumento,
         }
       })(),
       // Phase 7A validations: pure-function checks over the row data.

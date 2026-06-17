@@ -57,7 +57,12 @@ import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 import { InlineIngresosCell } from './InlineIngresosCell'
 import { ValidationBadgeCell } from './ValidationBadgeCell'
 import { highestSeverity } from '@/lib/liquidacion/validations'
-import { CONTRACT_END_TIER_CLASSES, CADENCE_SHORT, CADENCE_FULL } from '@/lib/liquidacion/thresholds'
+import {
+  CONTRACT_EXPIRY_ROW_CLASSES,
+  ALQUILER_AUMENTO_CELL_CLASS,
+  CADENCE_SHORT,
+  CADENCE_FULL,
+} from '@/lib/liquidacion/thresholds'
 
 interface Props {
   rows:            LiquidacionGridRow[]
@@ -259,15 +264,19 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               const issues          = r.validationIssues ?? []
               const cobrado         = !!r.fechaBanco
               const transferido     = !!r.diaTransf
-              const tierStatus      = r.contractEndStatus ?? 'normal'
+              const expiryStatus    = r.expiryRowStatus ?? 'normal'
+              const expiryClass     = CONTRACT_EXPIRY_ROW_CLASSES[expiryStatus] ?? ''
+              const aumentoClass    = r.periodHasAumento ? ALQUILER_AUMENTO_CELL_CLASS : ''
               const alquilerSum     = Number.isFinite(r.alquilerSum) ? r.alquilerSum : 0
               const extrasSum       = Number.isFinite(r.extrasSum)   ? r.extrasSum   : 0
 
               // Row background priority (high → low):
-              //   1. Validation ERROR   → pale red tint   (most urgent)
-              //   2. Validation WARNING → pale orange tint
-              //   3. Recently edited    → pale yellow tint
-              //   4. Excel-style zebra  → white / very pale gray alternating
+              //   1. Validation ERROR        → pale red tint   (most urgent)
+              //   2. Validation WARNING      → pale orange tint
+              //   3. Contract expiry tint    → yellow (next mo) / orange (this mo) / red (expired)
+              //                                — saved memory: ui_planilla_color_conventions
+              //   4. Recently edited         → pale yellow tint
+              //   5. Excel-style zebra       → white / very pale gray alternating
               //
               // Editing focus (`[&:has([data-editing])]:bg-blue-100` further
               // down) overrides all of these — clicking into a cell wins
@@ -277,14 +286,11 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                 ? 'bg-danger/10'
                 : severity === 'warning'
                   ? 'bg-warn/10'
-                  : r.wasRecentlyEdited
-                    ? 'bg-yellow-50'
-                    : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
-              // The aumento ≤30d highlight goes on the INGRESOS cell — soft
-              // orange that doesn't dominate but is unmistakable on scan.
-              const ingresosBg = r.hasUpcomingAdjustment
-                ? { backgroundColor: 'rgba(243,156,18,0.12)' }
-                : undefined
+                  : expiryClass
+                    ? expiryClass
+                    : r.wasRecentlyEdited
+                      ? 'bg-yellow-50'
+                      : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
 
               return (
                 <tr
@@ -402,25 +408,22 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     )
                   })()}
 
-                  {/* 9. CONTRATO (vigencia) — editable date range. Phase 9A:
-                       cell background reflects how close end_date is.
-                       'approaching' (31-60d) = light blue · 'imminent' (≤30d
-                       or overdue) = solid blue with white text. Tier classes
-                       live in lib/liquidacion/thresholds.ts so the encargada
-                       can retune them without code changes elsewhere. */}
+                  {/* 9. CONTRATO (vigencia) — editable date range.
+                       2026-06-17: the expiry tint moved from this cell to
+                       the whole <tr>, so we only keep a descriptive tooltip
+                       here. The row's background carries the visual signal. */}
                   <Td
                     width={W.contrato}
                     align="center"
                     title={
-                      tierStatus === 'imminent'
-                        ? `Contrato ${r.daysUntilContractEnd != null && r.daysUntilContractEnd >= 0
-                            ? `vence en ${r.daysUntilContractEnd} día${r.daysUntilContractEnd === 1 ? '' : 's'}`
-                            : `vencido hace ${Math.abs(r.daysUntilContractEnd ?? 0)} días`} — hablar con el inquilino`
-                        : tierStatus === 'approaching'
-                          ? `Vence en ${r.daysUntilContractEnd} días — preparar renovación`
-                          : undefined
+                      expiryStatus === 'expired'
+                        ? `Contrato vencido hace ${Math.abs(r.daysUntilContractEnd ?? 0)} días — hablar con el inquilino`
+                        : expiryStatus === 'this_month'
+                          ? `Vence este mes${r.daysUntilContractEnd != null ? ` (en ${r.daysUntilContractEnd} días)` : ''} — preparar renovación o rescisión`
+                          : expiryStatus === 'next_month'
+                            ? `Vence el mes que viene${r.daysUntilContractEnd != null ? ` (en ${r.daysUntilContractEnd} días)` : ''} — empezar la conversación de renovación`
+                            : undefined
                     }
-                    className={CONTRACT_END_TIER_CLASSES[tierStatus] ?? ''}
                   >
                     <EditableVigenciaCell
                       contractId={r.contractId}
@@ -457,9 +460,11 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
 
                   {/* 11. ALQUILER — Phase 9C, RENT_IN-only popover.
                        Alejandro: "figura a simple vista cuál es el alquiler."
-                       Aumento próximo orange tint lives on this column
-                       because the alert is about the contract's rent
-                       increase, not about recuperos. */}
+                       Persistent light-blue tint when this period contains a
+                       rent-adjustment date (r.periodHasAumento). The tint
+                       stays after cobro is registered — that's the visual
+                       confirmation the cobro arrived WITH the increase.
+                       Class lives in lib/liquidacion/thresholds.ts. */}
                   <Td width={W.alquiler} align="right">
                     <InlineIngresosCell
                       contractId={r.contractId}
@@ -473,6 +478,10 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       onlyTypes={['RENT_IN']}
                       defaultNewLineType="RENT_IN"
                       popoverTitle="Alquiler — Sólo cobros de RENT_IN"
+                      cellBgClass={aumentoClass}
+                      buttonTitle={r.periodHasAumento
+                        ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
+                        : undefined}
                     />
                   </Td>
 

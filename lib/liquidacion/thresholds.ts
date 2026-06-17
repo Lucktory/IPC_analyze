@@ -6,33 +6,49 @@
 // numeric object — easy to diff in PRs, easy to grep for callers.
 // ============================================================================
 
-// ── Phase 9A — Contract-end visual alert in the Contrato column ─────────────
+// ── Contract-end visual alert — WHOLE-ROW TINT (revised 2026-06-17) ─────────
 //
-// Alejandro's spec (June 2026):
-//   "dos meses antes le podemos poner un celestito… y un mes antes,
-//    el mes del vencimiento, se vence un azul con las letras atrás de fondo."
+// Alejandro's revised spec (voice 2026-06-17): the whole row should be
+// tinted based on the calendar position of end_date vs the current period
+// (NOT days-based). Replaces the Phase 9A per-cell blue tier system —
+// blue is now reserved for the aumento marker below.
 //
-// Threshold semantics:
-//   • days_until_end > APPROACHING_DAYS  →  status = 'normal'   (no tint)
-//   • IMMINENT_DAYS < days_until_end ≤ APPROACHING_DAYS → 'approaching'  (light blue)
-//   • days_until_end ≤ IMMINENT_DAYS  (incl. negative / past)  → 'imminent' (solid blue)
+//   • end_date already past → row tinted red (past due — most urgent)
+//   • end_date in the CURRENT month → soft orange (this is the expiry month)
+//   • end_date in the NEXT month → soft yellow (renewal conversation starts)
+//   • otherwise → no tint
 //
-// Past-due contracts share the 'imminent' tier because they're equally
-// urgent — Alejandro needs to talk to the tenant either way.
-export const CONTRACT_END_APPROACHING_DAYS = 60
-export const CONTRACT_END_IMMINENT_DAYS    = 30
-
-// ── Phase 9A — Visual classes for each tier ────────────────────────────────
+// Why month-aligned (not days-based): Alejandro thinks in calendar
+// months and wants the tint to flip exactly when a new month starts.
+// "Last month yellow, this month orange" — a 30-day threshold would
+// drift across the month boundary and not match how he scans.
 //
-// Kept here so the grid component imports them rather than hard-coding.
-// Tailwind colors are project-defined via CSS variables in tailwind.config.
-export const CONTRACT_END_TIER_CLASSES = {
-  normal:      '',
-  approaching: 'bg-info/15',
-  imminent:    'bg-info text-white font-medium',
+// Memory rule applied: every tint class lives in this file, never hex
+// codes hardcoded in components (see ui_planilla_color_conventions.md).
+export const CONTRACT_EXPIRY_ROW_CLASSES = {
+  normal:     '',
+  next_month: 'bg-yellow-100',     // soft yellow — vencimiento el mes que viene
+  this_month: 'bg-orange-200',     // soft orange — vencimiento este mes
+  expired:    'bg-red-100',        // past due — already expired
 } as const
 
-export type ContractEndStatus = 'normal' | 'approaching' | 'imminent'
+export type ContractExpiryRowStatus =
+  | 'normal'
+  | 'next_month'
+  | 'this_month'
+  | 'expired'
+
+// ── Aumento marker on the Alquiler cell (revised 2026-06-17) ───────────────
+//
+// Alejandro's spec: when this period contains a rent-adjustment date,
+// the Alquiler cell gets a persistent light-blue background tint. It
+// stays even AFTER the cobro is registered — that's the visual proof
+// that the cobro came in WITH the increase. Replaces the old soft-orange
+// "aumento próximo" tint that fired only on the 30-day countdown.
+//
+// Text color of the cell already encodes "cobrado vs pending" (dark
+// ink vs light slate). This tint is independent of that.
+export const ALQUILER_AUMENTO_CELL_CLASS = 'bg-info/15'
 
 // ── Phase 10 — Cadence column display labels ────────────────────────────────
 //
