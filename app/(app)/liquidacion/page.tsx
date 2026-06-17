@@ -11,12 +11,13 @@ import { listTransactionPeriods, listTransactions } from '@/lib/entities/queries
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 import { getCurrentPeriod, periodLabel, periodShort } from '@/lib/period'
-import { getLiquidacionGridForPeriod, sumGridTotals, type LiquidacionStatus } from '@/lib/liquidacion/queries'
+import { getLiquidacionGridForPeriod, getGridDiagnostic, sumGridTotals, type LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { getReconciliationByDestination } from '@/lib/reconciliation/queries'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
 import { listPropertyOptions } from '@/lib/property/queries'
 import { LiquidacionGrid } from '@/components/liquidacion/LiquidacionGrid'
+import { EmptyGridDiagnostic } from '@/components/liquidacion/EmptyGridDiagnostic'
 import { HighlightScroller } from '@/components/liquidacion/HighlightScroller'
 import { NewContractModal } from '@/components/liquidacion/NewContractModal'
 import { ResumenView } from '@/components/liquidacion/ResumenView'
@@ -91,6 +92,12 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
     safe('listTenantOptions',         [],   () => view === 'grilla'      ? listTenantOptions()                    : Promise.resolve([])),
     safe('listPropertyOptions',       [],   () => view === 'grilla'      ? listPropertyOptions()                  : Promise.resolve([])),
   ])
+
+  // When the grid returns zero rows, fetch the diagnostic snapshot so the
+  // empty state can surface WHY (no contracts / no active / no junctions / …).
+  const gridDiagnostic = needsGrid && allRows.length === 0
+    ? await safe('getGridDiagnostic', null, () => getGridDiagnostic())
+    : null
 
   // Status filter — applies to the grid view (only)
   const counts = {
@@ -237,6 +244,12 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
               vertical space (min-h-0 is required so the flex child can
               shrink and contain its own scroll). */}
       <div className="flex-1 min-h-0">
+        {/* Diagnostic banner — surfaces what's actually in the DB when the
+            grid would otherwise show only "no contracts" with no clue why. */}
+        {needsGrid && allRows.length === 0 && gridDiagnostic && (
+          <EmptyGridDiagnostic diagnostic={gridDiagnostic} />
+        )}
+
         {view === 'grilla' && (
           <>
             {/* Reads ?highlight=<contractId> on mount and scrolls/pulses

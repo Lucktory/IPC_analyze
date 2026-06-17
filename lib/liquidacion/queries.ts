@@ -307,6 +307,66 @@ export interface IngresosLine {
 //    Empty array means all checks passed; otherwise the badge in the
 //    "Check" column lights up yellow/red depending on highest severity. */
 
+// ── In-UI diagnostic — surfaces what's actually in the DB when the grid
+//    returns 0 rows. The encargada sees the counts inline instead of
+//    needing access to Vercel runtime logs.
+// ────────────────────────────────────────────────────────────────────────────
+export interface GridDiagnostic {
+  contractsTotal:     number
+  contractsActive:    number
+  contractsByStatus:  Record<string, number>
+  noLandlordJunction: number  // active contracts with zero contract_landlords rows
+  noTenantJunction:   number  // active contracts with zero contract_tenants rows
+  lastFiveCreated:    { id: string; status: string; created_at: string }[]
+}
+
+export async function getGridDiagnostic(): Promise<GridDiagnostic> {
+  const empty: GridDiagnostic = {
+    contractsTotal: 0, contractsActive: 0, contractsByStatus: {},
+    noLandlordJunction: 0, noTenantJunction: 0, lastFiveCreated: [],
+  }
+  try {
+    const supabase = await createSupabaseServer()
+    const [allRes, junctionsRes] = await Promise.all([
+      supabase
+        .from('contracts')
+        .select('id, status, created_at')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('contracts')
+        .select(`
+          id, status,
+          contract_landlords(landlord_id),
+          contract_tenants(tenant_id)
+        `)
+        .eq('status', 'active'),
+    ])
+
+    const all = (allRes.data ?? []) as { id: string; status: string; created_at: string }[]
+    const byStatus: Record<string, number> = {}
+    for (const c of all) byStatus[c.status] = (byStatus[c.status] ?? 0) + 1
+
+    let noL = 0
+    let noT = 0
+    for (const c of (junctionsRes.data ?? []) as any[]) {
+      if (!c.contract_landlords || c.contract_landlords.length === 0) noL++
+      if (!c.contract_tenants   || c.contract_tenants.length   === 0) noT++
+    }
+
+    return {
+      contractsTotal:     all.length,
+      contractsActive:    byStatus['active'] ?? 0,
+      contractsByStatus:  byStatus,
+      noLandlordJunction: noL,
+      noTenantJunction:   noT,
+      lastFiveCreated:    all.slice(0, 5),
+    }
+  } catch (err) {
+    console.error('[getGridDiagnostic] failed:', err)
+    return empty
+  }
+}
+
 // ── Rich grid query — returns all 19 columns per row ───────────────────────
 export async function getLiquidacionGridForPeriod(period: string): Promise<LiquidacionGridRow[]> {
   const supabase = await createSupabaseServer()
