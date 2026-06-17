@@ -106,6 +106,10 @@ create table landlords (
   notes text,
   -- Phase 11: tax classification for receipt generation
   tax_category text not null default 'CF' check (tax_category in ('RI','MONOTRIBUTO','CF','EXENTO')),
+  -- Phase 11: secondary email addresses (LODDO, NEYERTZ, ESQUINA 4 in
+  -- Alejandro's current list each have two on file). Primary stays in
+  -- `email`; this array carries the rest. NULL → no extras.
+  alt_emails text[] not null default '{}',
   created_at timestamptz default now(),
   updated_at timestamptz not null default now()
 );

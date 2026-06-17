@@ -132,6 +132,13 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
               <AutoSearchInput initialValue={q} placeholder="Buscar por nombre o CUIT…" />
             </div>
             <Link
+              href="/propietarios/cargar-emails"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded border border-line text-slate-dark text-[12px] font-medium hover:bg-cream-2 transition-colors shrink-0"
+              title="Pegar lista de Alejandro y matchear contra propietarios cargados"
+            >
+              Cargar emails
+            </Link>
+            <Link
               href="/propietarios/nuevo"
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 transition-opacity shrink-0"
             >
