@@ -117,6 +117,15 @@ export async function upsertCellTransaction(
   description: string | null,
   destination: DestinationCode = null,
 ): Promise<InlineResult> {
+  // Diagnostic log — surfaces every inline money-cell write in Vercel
+  // runtime logs prefixed [CELL_TX] so a "didn't save" report can be
+  // matched to a specific call.
+  try {
+    console.log(
+      `[CELL_TX] upsertCellTransaction contract=${contractId} period=${period} ` +
+      `type=${typeCode}${destination ? ` dest=${destination}` : ''} amount=${amount}`,
+    )
+  } catch { /* ignore */ }
   if (!isFinite(amount) || amount < 0) {
     return { ok: false, error: 'El monto debe ser un número ≥ 0.' }
   }

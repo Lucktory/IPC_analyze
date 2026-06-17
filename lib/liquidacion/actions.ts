@@ -35,6 +35,16 @@ export async function transitionLiquidacionStatus(
   if (!['draft', 'sent', 'paid'].includes(newStatus)) {
     return { ok: false, error: 'Estado inválido.' }
   }
+  // Orphan-row guard: the grid passes landlordId = '' when the contract
+  // has no contract_landlords rows. Writing landlord_id='' to liquidaciones
+  // would violate the FK to landlords(id) — instead, refuse with a clear
+  // message and tell the encargada to cargar al menos un propietario.
+  if (!landlordId || !landlordId.trim()) {
+    return {
+      ok: false,
+      error: 'Cargá al menos un propietario en el contrato antes de cambiar el estado.',
+    }
+  }
 
   const supabase = await createSupabaseServer()
 
@@ -111,6 +121,15 @@ export async function upsertLiquidacionObservacion(
   notes:            string,
   adjustmentAmount: number,
 ): Promise<LiquidacionActionResult> {
+  // Same orphan guard as transitionLiquidacionStatus — liquidaciones
+  // requires a real landlord_id (NOT NULL FK to landlords).
+  if (!landlordId || !landlordId.trim()) {
+    return {
+      ok: false,
+      error: 'Cargá al menos un propietario en el contrato antes de guardar observaciones.',
+    }
+  }
+
   const supabase = await createSupabaseServer()
 
   const { data: contract } = await supabase

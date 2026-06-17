@@ -44,6 +44,31 @@ import { useFloatingPopover } from './useFloatingPopover'
 
 import { isPctSum100, makeRowId, pctSum } from '@/lib/shared'
 
+// Bulk-imported contracts can have contract_landlords / contract_tenants
+// rows that each default to 100% — a 2-tenant contract then sums to 200,
+// which makes the server's isPctSum100 guard reject any save.
+//
+// When the popover first opens for such a row, we redistribute the shares
+// equally so the encargada can save without manually rebalancing. A small
+// yellow note tells her it was auto-balanced and she can adjust.
+function rebalanceIfNeeded(
+  participants: ReadonlyArray<{ id: string; name: string; pct: number }>,
+): { rows: ReadonlyArray<{ id: string; name: string; pct: number }>; rebalanced: boolean } {
+  if (participants.length === 0) return { rows: participants, rebalanced: false }
+  const sum = pctSum(participants.map(p => p.pct))
+  if (Math.abs(sum - 100) <= 0.05) return { rows: participants, rebalanced: false }
+  // Equal split, with the rounding residue applied to the first row so the
+  // sum is exactly 100. 3-way split → 33.34 + 33.33 + 33.33.
+  const n     = participants.length
+  const base  = Math.floor((100 / n) * 100) / 100   // e.g. 33.33
+  const residue = Math.round((100 - base * n) * 100) / 100
+  const rows = participants.map((p, i) => ({
+    ...p,
+    pct: i === 0 ? +(base + residue).toFixed(2) : base,
+  }))
+  return { rows, rebalanced: true }
+}
+
 interface Participant {
   id:   string
   name: string
@@ -79,9 +104,13 @@ export function InlineParticipantsCell({
   orphanReason,
 }: Props) {
   const [open, setOpen]   = useState(false)
+  // Track whether we auto-redistributed shares on load so the popover can
+  // tell the encargada (and so she can save without manually doing it).
+  const initialRebalance = rebalanceIfNeeded(initial)
   const [rows, setRows]   = useState<ChipRow[]>(() =>
-    initial.map(p => ({ rowId: makeRowId(), pickedId: p.id, input: p.name, pct: String(p.pct) })),
+    initialRebalance.rows.map(p => ({ rowId: makeRowId(), pickedId: p.id, input: p.name, pct: String(p.pct) })),
   )
+  const [autoBalanced, setAutoBalanced] = useState(initialRebalance.rebalanced)
   const [optionList, setOptionList] = useState(initialOptions)
   useEffect(() => { setOptionList(initialOptions) }, [initialOptions])
 
@@ -94,10 +123,13 @@ export function InlineParticipantsCell({
   const rect = useFloatingPopover({ open, anchor: buttonRef.current, minWidth: 360 })
 
   // Re-hydrate every time the popover opens so external refreshes
-  // (router.refresh after another row edit) propagate in.
+  // (router.refresh after another row edit) propagate in. Also re-run
+  // the auto-balance check — the data may have changed.
   useEffect(() => {
     if (open) {
-      setRows(initial.map(p => ({ rowId: makeRowId(), pickedId: p.id, input: p.name, pct: String(p.pct) })))
+      const r = rebalanceIfNeeded(initial)
+      setRows(r.rows.map(p => ({ rowId: makeRowId(), pickedId: p.id, input: p.name, pct: String(p.pct) })))
+      setAutoBalanced(r.rebalanced)
       setError(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,6 +265,16 @@ export function InlineParticipantsCell({
               </span>
               <SumPill values={pcts} />
             </div>
+
+            {/* Auto-rebalance notice — shown when load-time pcts didn't
+                sum to 100 (typical for bulk-imported multi-participant
+                contracts) and we redistributed equally. */}
+            {autoBalanced && (
+              <div className="px-3 py-1.5 bg-warn/10 border-b border-warn/30 text-[11px] text-ink">
+                Los porcentajes existentes no sumaban 100 — se redistribuyeron en partes
+                iguales. Ajustá si querés y tocá <strong>Guardar</strong>.
+              </div>
+            )}
 
             {/* Chip rows */}
             <div className="max-h-[320px] overflow-y-auto p-2 space-y-2">

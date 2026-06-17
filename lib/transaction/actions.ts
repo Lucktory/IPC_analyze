@@ -43,6 +43,12 @@ interface UpsertArgs {
 
 export async function upsertTransactionByContractPeriod(args: UpsertArgs): Promise<TransactionResult> {
   const { contractId, period, typeCode, bankDate, amount, description } = args
+  try {
+    console.log(
+      `[CELL_TX] upsertTransactionByContractPeriod contract=${contractId} period=${period} ` +
+      `type=${typeCode} bankDate=${bankDate ?? '(null)'} amount=${amount ?? '(omitted)'}`,
+    )
+  } catch { /* ignore */ }
   const supabase = await createSupabaseServer()
 
   const [typeRes, contractRes] = await Promise.all([
