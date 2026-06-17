@@ -5,6 +5,7 @@ import { getTenantDetail } from '@/lib/tenant/queries'
 import { EditTenantForm } from '@/components/tenant/EditTenantForm'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { fmtMoney as fmt } from '@/lib/format'
+import { NamesCell } from '@/components/shared/cells'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -62,20 +63,41 @@ export default async function InquilinoDetailPage({ params }: PageProps) {
             <table className="w-full text-[13px] border-collapse">
               <thead className="bg-cream-2/60">
                 <tr className="border-b border-line">
-                  <th className="text-left px-4 py-1.5 label-cap font-medium border-r border-line/50">Propietario</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Propietarios</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Inquilinos</th>
                   <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Alquiler</th>
-                  <th className="text-left px-4 py-1.5 label-cap font-medium">Estado</th>
+                  <th className="text-left  px-4 py-1.5 label-cap font-medium">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {tenant.contracts.map((c, idx) => (
-                  <tr key={c.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors border-b border-line/30`}>
-                    <td className="px-4 py-1.5 text-ink font-medium border-r border-line/30">
+                  <tr
+                    key={c.id}
+                    className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} hover:bg-cream-2 transition-colors border-b border-line/30 align-top`}
+                  >
+                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">
+                      <NamesCell
+                        noun={['propietario', 'propietarios']}
+                        items={c.landlords.map(l => ({ id: l.id, name: l.name, pct: l.ownershipPct }))}
+                      />
+                    </td>
+                    <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">
+                      <NamesCell
+                        noun={['inquilino', 'inquilinos']}
+                        items={c.tenants.map(t => ({
+                          // Mark "this tenant" inline so the encargada can spot
+                          // which row corresponds to the open page.
+                          id:   t.id,
+                          name: t.id === tenant.id ? `${t.name} (este inquilino)` : t.name,
+                          pct:  t.sharePct,
+                        }))}
+                      />
+                    </td>
+                    <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">
                       <Link href={`/contratos/${c.id}`} className="hover:underline underline-offset-4 decoration-slate/40">
-                        {c.primaryLandlord ?? '(sin propietario)'}
+                        {fmt(c.currentRent)}
                       </Link>
                     </td>
-                    <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{fmt(c.currentRent)}</td>
                     <td className="px-4 py-1.5">
                       {c.status === 'active'    ? <Badge tone="success">Activo</Badge> :
                        c.status === 'rescinded' ? <Badge tone="danger">Rescindido</Badge> :

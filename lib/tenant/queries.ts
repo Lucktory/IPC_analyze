@@ -2,6 +2,19 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 
+export interface TenantContractRow {
+  id:              string
+  status:          string
+  currentRent:     number
+  /** Legacy single-name display (top owner). */
+  primaryLandlord: string | null
+  /** Phase 11: every co-owner with their pct, sorted by pct desc. */
+  landlords:       { id: string; name: string; ownershipPct: number }[]
+  /** Phase 11: every co-tenant on this contract (including the one whose
+   *  page we're on), sorted by share desc. */
+  tenants:         { id: string; name: string; sharePct: number }[]
+}
+
 export interface TenantDetail {
   id:       string
   name:     string
@@ -10,7 +23,7 @@ export interface TenantDetail {
   dni:      string | null
   // Contract roll-up — used to decide whether delete is even allowed
   contractCount: number
-  contracts:     { id: string; status: string; currentRent: number; primaryLandlord: string | null }[]
+  contracts:     TenantContractRow[]
 }
 
 // ── Lightweight lookup — used by the InlineEntityCell autocomplete on the
@@ -35,7 +48,8 @@ export async function getTenantDetail(id: string): Promise<TenantDetail | null> 
       contract_tenants(
         contracts(
           id, current_rent, status,
-          contract_landlords(ownership_pct, landlords(name))
+          contract_landlords(ownership_pct, landlords(id, name)),
+          contract_tenants(share_pct, tenants(id, name))
         )
       )
     `)
@@ -45,18 +59,38 @@ export async function getTenantDetail(id: string): Promise<TenantDetail | null> 
   if (!data) return null
   const t = data as any
 
-  const contracts = (t.contract_tenants ?? [])
+  const contracts: TenantContractRow[] = (t.contract_tenants ?? [])
     .map((ct: any) => ct.contracts)
     .filter(Boolean)
     .map((c: any) => {
-      const topOwner = (c.contract_landlords ?? [])
-        .slice()
-        .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
+      // All co-owners with their pct, biggest stake first.
+      const landlords = ((c.contract_landlords ?? []) as any[])
+        .map(cl => ({
+          id:           cl.landlords?.id ?? '',
+          name:         cl.landlords?.name ?? '',
+          ownershipPct: Number(cl.ownership_pct ?? 0),
+        }))
+        .filter(l => l.id && l.name)
+        .sort((a, b) => b.ownershipPct - a.ownershipPct)
+
+      // All co-tenants on this contract (this tenant + any others) with
+      // their share_pct (Phase 11). Falls back to 100 for legacy rows.
+      const tenants = ((c.contract_tenants ?? []) as any[])
+        .map(ct => ({
+          id:        ct.tenants?.id ?? '',
+          name:      ct.tenants?.name ?? '',
+          sharePct:  Number(ct.share_pct ?? 100),
+        }))
+        .filter(t => t.id && t.name)
+        .sort((a, b) => b.sharePct - a.sharePct)
+
       return {
         id:              c.id,
         status:          c.status,
         currentRent:     Number(c.current_rent),
-        primaryLandlord: topOwner?.landlords?.name ?? null,
+        primaryLandlord: landlords[0]?.name ?? null,
+        landlords,
+        tenants,
       }
     })
 
