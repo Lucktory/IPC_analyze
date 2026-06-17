@@ -8,6 +8,7 @@ import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listLandlords, type LandlordRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/urgency'
 import { fmtMoney as fmt } from '@/lib/format'
+import { getCurrentPeriodLabel } from '@/lib/period'
 
 type Tipo = 'todos' | 'con_contrato' | 'sin_contratos' | 'sin_cuit' | 'sin_email'
 
@@ -53,9 +54,11 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
     )
   }
 
-  const totalContracts = all.reduce((s, l) => s + l.contractCount, 0)
-  const totalRevenue   = all.reduce((s, l) => s + l.monthlyRevenue, 0)
-  const withCuit       = counts.todos - counts.sin_cuit
+  const totalContracts   = all.reduce((s, l) => s + l.contractCount, 0)
+  const totalRevenue     = all.reduce((s, l) => s + l.monthlyRevenue, 0)
+  const withCuit         = counts.todos - counts.sin_cuit
+  // "Junio 2026" — derived from getCurrentPeriod(), never hardcoded.
+  const currentMonthLabel = getCurrentPeriodLabel()
 
   const buildHref = (overrides: Partial<{ tipo: Tipo; q: string }>) => {
     const params = new URLSearchParams()
@@ -89,7 +92,7 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
     {
       label: 'Ingresos del mes',
       value: '$' + (totalRevenue / 1_000_000).toFixed(1) + ' M',
-      delta: 'alquileres mayo',
+      delta: `alquileres ${currentMonthLabel.toLowerCase()}`,
       tone:  'positive' as const,
       href:  buildHref({ tipo: 'con_contrato' }),
       clearHref: clearTipoHref,
@@ -185,7 +188,9 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
                   <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Email</th>
                   <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Contratos</th>
                   <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Propiedades</th>
-                  <th className="text-right px-4 py-1.5 label-cap font-medium">Ingresos mayo</th>
+                  <th className="text-right px-4 py-1.5 label-cap font-medium" title={`Alquiler cobrado en ${currentMonthLabel}`}>
+                    Ingresos {currentMonthLabel.toLowerCase()}
+                  </th>
                 </tr>
               </thead>
               <tbody>

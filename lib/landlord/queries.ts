@@ -20,6 +20,10 @@ export interface LandlordProperty {
   propertyType: string
   isVacant:     boolean
   ownershipPct: number
+  /** Tenants on the currently-active contract for this property. Empty
+   *  when the property is vacant. Sorted by share desc so the cell shows
+   *  the dominant tenant first. */
+  tenants:      { id: string; name: string; sharePct: number }[]
 }
 
 export interface LandlordContract {
@@ -84,6 +88,37 @@ export async function getLandlordDetail(id: string): Promise<LandlordDetailFull 
   if (!landlordRes.data) return null
   const l = landlordRes.data as any
 
+  // ── Active contracts indexed by property_id, so each LandlordProperty
+  //    can carry its current tenants + their share_pct. Phase 11 stores
+  //    share_pct on contract_tenants — fall back to 100 for legacy rows.
+  const propertyIds = ((propsRes.data ?? []) as any[])
+    .map(r => r.properties?.id)
+    .filter(Boolean) as string[]
+
+  let tenantsByProperty = new Map<string, { id: string; name: string; sharePct: number }[]>()
+  if (propertyIds.length > 0) {
+    const activeRes = await supabase
+      .from('contracts')
+      .select(`
+        property_id,
+        contract_tenants(share_pct, tenants(id, name))
+      `)
+      .in('property_id', propertyIds)
+      .eq('status', 'active')
+
+    for (const row of (activeRes.data ?? []) as any[]) {
+      const list = (row.contract_tenants ?? [])
+        .map((ct: any) => ({
+          id:        ct.tenants?.id ?? '',
+          name:      ct.tenants?.name ?? '',
+          sharePct:  Number(ct.share_pct ?? 100),
+        }))
+        .filter((t: any) => t.id && t.name)
+        .sort((a: any, b: any) => b.sharePct - a.sharePct)
+      tenantsByProperty.set(row.property_id, list)
+    }
+  }
+
   return {
     landlord: {
       id:                l.id,
@@ -101,13 +136,18 @@ export async function getLandlordDetail(id: string): Promise<LandlordDetailFull 
         : null,
     },
     properties: (propsRes.data ?? []).map((row: any) => {
-      const addr = String(row.properties.address)
+      const addr     = String(row.properties.address)
+      const propId   = row.properties.id
+      const tenants  = tenantsByProperty.get(propId) ?? []
       return {
-        id:           row.properties.id,
+        id:           propId,
         address:      addr,
         propertyType: row.properties.property_type,
-        isVacant:     /\(vacante\)/i.test(addr),
+        // A property is vacant either by the legacy "(vacante)" suffix in
+        // the address OR by having no active contract / no tenants.
+        isVacant:     /\(vacante\)/i.test(addr) || tenants.length === 0,
         ownershipPct: Number(row.ownership_pct),
+        tenants,
       }
     }),
     contracts: (contractsRes.data ?? []).map((row: any) => {

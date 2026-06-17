@@ -9,6 +9,7 @@ import { ClickableRow } from '@/components/ui/ClickableRow'
 import { listProperties, type PropertyRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/urgency'
 import { fmtMoney as fmt } from '@/lib/format'
+import { NamesCell } from '@/components/shared/cells'
 
 const TYPE_LABEL: Record<string, string> = {
   vivienda: 'Vivienda',
@@ -217,13 +218,13 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
                       <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{TYPE_LABEL[p.propertyType] ?? p.propertyType}</td>
                       <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">
                         <NamesCell
-                          count={p.landlords.length}
+                          noun={['propietario', 'propietarios']}
                           items={p.landlords.map(l => ({ id: l.id, name: l.name, pct: l.ownershipPct }))}
                         />
                       </td>
                       <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">
                         <NamesCell
-                          count={p.tenants.length}
+                          noun={['inquilino', 'inquilinos']}
                           items={p.tenants.map(t => ({ id: t.id, name: t.name, pct: t.sharePct }))}
                         />
                       </td>
@@ -257,38 +258,4 @@ function cleanAddress(s: string) {
   return s.replace(/\s*\(vacante\)\s*$/i, '')
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// NamesCell — stacked-names list inside a single cell.
-//
-// Rule (saved memory: ui_multi_name_cell_display.md): when multiple people
-// of the same kind belong to one row, each name renders on its own line
-// inside the cell. Never comma-separated, never truncated with "y N más",
-// never hidden behind a tooltip. The count is shown as a small badge so
-// the encargada can scan how many at a glance.
-// ────────────────────────────────────────────────────────────────────────────
-function NamesCell({
-  count,
-  items,
-}: {
-  count: number
-  items: { id: string; name: string; pct: number }[]
-}) {
-  if (count === 0) {
-    return <span className="text-slate/50">—</span>
-  }
-  return (
-    <div>
-      <p className="text-[10px] text-slate font-medium tracking-wider uppercase mb-0.5">
-        {count} {count === 1 ? 'persona' : 'personas'}
-      </p>
-      {items.map(it => (
-        <div key={it.id} className="flex items-baseline justify-between gap-2">
-          <span className="text-ink leading-snug">{it.name}</span>
-          <span className="text-[10px] text-slate tabular-nums shrink-0">
-            {it.pct.toFixed(0)}%
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
+// NamesCell is imported from @/components/shared/cells — registry rule.

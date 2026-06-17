@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/Badge'
+import { ClickableRow } from '@/components/ui/ClickableRow'
 import { EditLandlordForm } from '@/components/landlord/EditLandlordForm'
 import { getLandlordDetail } from '@/lib/landlord/queries'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { fmtMoney as fmt, fmtDate } from '@/lib/format'
+import { NamesCell } from '@/components/shared/cells'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -85,19 +87,33 @@ export default async function LandlordDetailPage({ params }: PageProps) {
                 <th className="text-left  px-5 py-2.5 label-cap font-medium">Dirección</th>
                 <th className="text-left  px-5 py-2.5 label-cap font-medium">Tipo</th>
                 <th className="text-right px-5 py-2.5 label-cap font-medium">Titularidad</th>
+                <th className="text-left  px-5 py-2.5 label-cap font-medium">Inquilinos</th>
                 <th className="text-left  px-5 py-2.5 label-cap font-medium">Estado</th>
               </tr>
             </thead>
             <tbody>
               {properties.map((p, idx) => (
-                <tr key={p.id} className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${p.isVacant ? 'opacity-65' : ''}`}>
+                // Whole row clickable → jumps to the property edit page,
+                // matching the pattern on /propiedades and /propietarios.
+                <ClickableRow
+                  key={p.id}
+                  href={`/propiedades/${p.id}`}
+                  title={`Abrir ficha de ${cleanAddress(p.address)}`}
+                  className={`${idx % 2 === 0 ? 'bg-cream/40' : ''} ${p.isVacant ? 'opacity-65' : ''} hover:bg-cream-2 transition-colors align-top`}
+                >
                   <td className="px-5 py-3 text-ink font-medium">{cleanAddress(p.address)}</td>
                   <td className="px-5 py-3 text-slate-dark capitalize">{p.propertyType}</td>
                   <td className="px-5 py-3 text-right tabular-nums text-slate-dark">{p.ownershipPct.toFixed(0)}%</td>
+                  <td className="px-5 py-3 text-slate-dark">
+                    <NamesCell
+                      noun={['inquilino', 'inquilinos']}
+                      items={p.tenants.map(t => ({ id: t.id, name: t.name, pct: t.sharePct }))}
+                    />
+                  </td>
                   <td className="px-5 py-3">
                     {p.isVacant ? <Badge tone="danger">Vacante</Badge> : <Badge tone="success">Ocupada</Badge>}
                   </td>
-                </tr>
+                </ClickableRow>
               ))}
             </tbody>
           </table>
