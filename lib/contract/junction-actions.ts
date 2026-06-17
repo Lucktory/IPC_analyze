@@ -316,226 +316,81 @@ async function resolveTenant(
   return (ins as any).id
 }
 
-// ── helpers ─────────────────────────────────────────────────────────────────
+// ============================================================================
+// Phase 11 — replace a contract's full landlord set in one call.
+//
+// Mirrors lib/property/actions.ts → updatePropertyOwners. Both use the
+// shared isPctSum100() / pctSum() so client + server agree exactly.
+// Called from the new multi-owner cell on the planilla.
+//
+// Strategy: validate, delete all existing contract_landlords rows for the
+// contract, insert the new set, bump contracts.updated_at so the planilla
+// row-recently-edited tint catches the change.
+// ============================================================================
 
-function cleanName(name: string): string {
-  return name.replace(/\s+/g, ' ').trim()
+export interface UpdateContractLandlordsResult {
+  ok:    boolean
+  error: string | null
 }
 
-// ============================================================================
-// LANDLORD — make `landlordId` (or the newly-created landlord with the given
-// name) the primary owner on the contract. Removes the previous primary; if
-// the contract had co-owners they are preserved as secondary at 0% until the
-// encargada redistributes from the detail page.
-// ============================================================================
-export async function setContractPrimaryLandlord(
-  contractId:  string,
-  payload:
-    | { kind: 'existing'; landlordId: string }
-    | { kind: 'new'; name: string; dniOrCuit?: string | null; phone?: string | null; email?: string | null; notes?: string | null },
-): Promise<JunctionResult> {
-  const supabase = await createSupabaseServer()
+export interface OwnerShareInput {
+  landlordId:   string
+  ownershipPct: number
+}
 
-  // Resolve administration_id from the contract — needed when creating a new
-  // landlord (administration_id is NOT NULL on landlords).
-  const { data: contract, error: contractErr } = await supabase
-    .from('contracts')
-    .select('administration_id')
-    .eq('id', contractId)
-    .maybeSingle()
-  if (contractErr)   return dbFailure(contractErr)
-  if (!contract)     return { ok: false, error: 'Contrato no encontrado.' }
-
-  // ── Resolve the landlord id ────────────────────────────────────────────
-  let landlordId: string
-  if (payload.kind === 'existing') {
-    landlordId = payload.landlordId
-  } else {
-    const name = clean(payload.name)
-    if (!name) return { ok: false, error: 'El nombre del propietario no puede estar vacío.' }
-
-    // Defensive de-dup: if a landlord with the same name already exists in
-    // this administration, link it instead of creating a duplicate.
-    const { data: existing } = await supabase
-      .from('landlords')
-      .select('id')
-      .eq('administration_id', (contract as any).administration_id)
-      .ilike('name', name)
-      .maybeSingle()
-    if (existing) {
-      landlordId = (existing as any).id
-    } else {
-      const insertRow: Record<string, unknown> = {
-        administration_id: (contract as any).administration_id,
-        name,
-      }
-      // Optional fields — only included if provided + non-empty.
-      if (payload.dniOrCuit?.trim()) insertRow.dni_or_cuit = payload.dniOrCuit.trim()
-      if (payload.phone?.trim())     insertRow.phone       = payload.phone.trim()
-      if (payload.email?.trim())     insertRow.email       = payload.email.trim()
-      if (payload.notes?.trim())     insertRow.notes       = payload.notes.trim()
-
-      const { data: inserted, error: insErr } = await supabase
-        .from('landlords')
-        .insert(insertRow)
-        .select('id')
-        .single()
-      if (insErr) return dbFailure(insErr)
-      landlordId = (inserted as any).id
+export async function updateContractLandlords(
+  contractId: string,
+  rows:       OwnerShareInput[],
+): Promise<UpdateContractLandlordsResult> {
+  try {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { ok: false, error: 'Tenés que cargar al menos un propietario.' }
     }
-  }
+    for (const r of rows) {
+      if (!r.landlordId) {
+        return { ok: false, error: 'Todos los propietarios deben estar seleccionados.' }
+      }
+      if (!Number.isFinite(r.ownershipPct) || r.ownershipPct <= 0 || r.ownershipPct > 100) {
+        return { ok: false, error: 'Cada propietario debe tener un porcentaje entre 0 y 100.' }
+      }
+    }
+    const pcts = rows.map(r => r.ownershipPct)
+    if (!isPctSum100(pcts)) {
+      return { ok: false, error: `Los porcentajes deben sumar 100% (suman ${pctSum(pcts).toFixed(2)}%).` }
+    }
+    const seen = new Set<string>()
+    for (const r of rows) {
+      if (seen.has(r.landlordId)) {
+        return { ok: false, error: 'No podés repetir el mismo propietario dos veces.' }
+      }
+      seen.add(r.landlordId)
+    }
 
-  // ── Rewrite the contract_landlords junction ────────────────────────────
-  // Strategy: delete the existing PRIMARY row (highest ownership_pct), then
-  // insert the new primary at 100%. Co-owners (if any) remain untouched but
-  // their ownership_pct may no longer sum to 100 — that's a known cleanup
-  // we surface on the contract detail page.
-  const { data: links } = await supabase
-    .from('contract_landlords')
-    .select('landlord_id, ownership_pct')
-    .eq('contract_id', contractId)
-    .order('ownership_pct', { ascending: false })
-  const rows = (links ?? []) as { landlord_id: string; ownership_pct: number }[]
+    const supabase = await createSupabaseServer()
 
-  // If the desired landlord is already the primary, no-op.
-  if (rows.length > 0 && rows[0].landlord_id === landlordId) {
-    return { ok: true, error: null }
-  }
-
-  // Remove the old primary (if any).
-  if (rows.length > 0) {
     const { error: delErr } = await supabase
-      .from('contract_landlords')
-      .delete()
-      .eq('contract_id', contractId)
-      .eq('landlord_id', rows[0].landlord_id)
+      .from('contract_landlords').delete().eq('contract_id', contractId)
     if (delErr) return dbFailure(delErr)
-  }
 
-  // Upsert the new primary. If the landlord already had a secondary stake
-  // in this contract, promote it; otherwise insert fresh.
-  const existingShare = rows.find(r => r.landlord_id === landlordId)
-  if (existingShare) {
-    const { error: upErr } = await supabase
-      .from('contract_landlords')
-      .update({ ownership_pct: 100 })
-      .eq('contract_id', contractId)
-      .eq('landlord_id', landlordId)
-    if (upErr) return dbFailure(upErr)
-  } else {
-    const { error: insJErr } = await supabase
-      .from('contract_landlords')
-      .insert({ contract_id: contractId, landlord_id: landlordId, ownership_pct: 100 })
-    if (insJErr) return dbFailure(insJErr)
-  }
+    const insertRows = rows.map(r => ({
+      contract_id:    contractId,
+      landlord_id:    r.landlordId,
+      ownership_pct:  r.ownershipPct,
+    }))
+    const { error: insErr } = await supabase
+      .from('contract_landlords').insert(insertRows)
+    if (insErr) return dbFailure(insErr)
 
-  // Bump contracts.updated_at — junction edits don't touch the contracts
-  // row directly, so the planilla's "row floats to top on edit" wouldn't
-  // see a Propietario change without this explicit update. Note: this UPDATE
-  // also fires the touch_contract_updated_at trigger, which is idempotent.
-  await supabase.from('contracts').update({ updated_at: new Date().toISOString() }).eq('id', contractId)
+    // Bump contracts.updated_at so the planilla's "recently edited" tint
+    // catches the change (the junction edit doesn't touch contracts).
+    await supabase.from('contracts').update({ updated_at: new Date().toISOString() }).eq('id', contractId)
 
-  revalidatePath('/liquidacion')
-  revalidatePath(`/contratos/${contractId}`)
-  return { ok: true, error: null }
-}
-
-// ============================================================================
-// TENANT — make `tenantId` (or the newly-created tenant with the given name)
-// the primary on the contract. Same strategy as landlord: delete prior
-// primary, insert new at is_primary=true.
-// ============================================================================
-export async function setContractPrimaryTenant(
-  contractId:  string,
-  payload:
-    | { kind: 'existing'; tenantId: string }
-    | { kind: 'new'; name: string; dni?: string | null; phone?: string | null; email?: string | null },
-): Promise<JunctionResult> {
-  const supabase = await createSupabaseServer()
-
-  const { data: contract, error: contractErr } = await supabase
-    .from('contracts')
-    .select('administration_id')
-    .eq('id', contractId)
-    .maybeSingle()
-  if (contractErr) return dbFailure(contractErr)
-  if (!contract)   return { ok: false, error: 'Contrato no encontrado.' }
-
-  let tenantId: string
-  if (payload.kind === 'existing') {
-    tenantId = payload.tenantId
-  } else {
-    const name = clean(payload.name)
-    if (!name) return { ok: false, error: 'El nombre del inquilino no puede estar vacío.' }
-
-    const { data: existing } = await supabase
-      .from('tenants')
-      .select('id')
-      .eq('administration_id', (contract as any).administration_id)
-      .ilike('name', name)
-      .maybeSingle()
-    if (existing) {
-      tenantId = (existing as any).id
-    } else {
-      const insertRow: Record<string, unknown> = {
-        administration_id: (contract as any).administration_id,
-        name,
-      }
-      if (payload.dni?.trim())   insertRow.dni   = payload.dni.trim()
-      if (payload.phone?.trim()) insertRow.phone = payload.phone.trim()
-      if (payload.email?.trim()) insertRow.email = payload.email.trim()
-
-      const { data: inserted, error: insErr } = await supabase
-        .from('tenants')
-        .insert(insertRow)
-        .select('id')
-        .single()
-      if (insErr) return dbFailure(insErr)
-      tenantId = (inserted as any).id
-    }
-  }
-
-  const { data: links } = await supabase
-    .from('contract_tenants')
-    .select('tenant_id, is_primary')
-    .eq('contract_id', contractId)
-  const rows = (links ?? []) as { tenant_id: string; is_primary: boolean }[]
-  const currentPrimary = rows.find(r => r.is_primary)
-
-  if (currentPrimary?.tenant_id === tenantId) {
+    revalidatePath('/liquidacion')
+    revalidatePath(`/contratos/${contractId}`)
     return { ok: true, error: null }
+  } catch (err) {
+    console.error('[updateContractLandlords] failed:', err)
+    return { ok: false, error: err instanceof Error ? err.message : 'Error inesperado.' }
   }
-
-  // Demote the current primary, if any.
-  if (currentPrimary) {
-    const { error: demoteErr } = await supabase
-      .from('contract_tenants')
-      .update({ is_primary: false })
-      .eq('contract_id', contractId)
-      .eq('tenant_id', currentPrimary.tenant_id)
-    if (demoteErr) return dbFailure(demoteErr)
-  }
-
-  // Promote (or insert) the new primary.
-  const alreadyLinked = rows.some(r => r.tenant_id === tenantId)
-  if (alreadyLinked) {
-    const { error: promErr } = await supabase
-      .from('contract_tenants')
-      .update({ is_primary: true })
-      .eq('contract_id', contractId)
-      .eq('tenant_id', tenantId)
-    if (promErr) return dbFailure(promErr)
-  } else {
-    const { error: insJErr } = await supabase
-      .from('contract_tenants')
-      .insert({ contract_id: contractId, tenant_id: tenantId, is_primary: true })
-    if (insJErr) return dbFailure(insJErr)
-  }
-
-  // Bump contracts.updated_at — same reason as the landlord branch above.
-  await supabase.from('contracts').update({ updated_at: new Date().toISOString() }).eq('id', contractId)
-
-  revalidatePath('/liquidacion')
-  revalidatePath(`/contratos/${contractId}`)
-  return { ok: true, error: null }
 }
+

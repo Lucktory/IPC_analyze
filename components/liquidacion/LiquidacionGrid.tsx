@@ -44,8 +44,7 @@ import type { TenantOption } from '@/lib/tenant/queries'
 import { fmtMoney } from '@/lib/format'
 import { InlineDateCell } from './InlineDateCell'
 import { InlineObservacionCell } from './InlineObservacionCell'
-import { InlineLandlordCell } from './InlineLandlordCell'
-import { InlineTenantCell } from './InlineTenantCell'
+import { InlineParticipantsCell } from './InlineParticipantsCell'
 import {
   EditableLfaCell,
   EditableExpensasCell,
@@ -273,13 +272,17 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     />
                   </Td>
 
-                  {/* 4. PROPIETARIO — sticky, autocomplete + new-name alert */}
+                  {/* 4. PROPIETARIOS — sticky, multi-owner editor (Phase 11).
+                       Reads all co-owners + their % from r.landlordsList.
+                       Click → popover with chip-x 10s delete + Σ% pill. */}
                   <Td sticky left={STICKY_LEFTS.prop} width={W.prop} bg={zebra}>
-                    <InlineLandlordCell
+                    <InlineParticipantsCell
+                      kind="landlord"
                       contractId={r.contractId}
-                      currentName={r.propietario}
+                      initial={r.landlordsList.map(l => ({ id: l.id, name: l.name, pct: l.ownershipPct }))}
                       options={landlordOptions}
-                      hint={r.hasMultipleLandlords ? 'co-propiedad' : undefined}
+                      isOrphan={r.isOrphan && r.landlordsList.length === 0}
+                      orphanReason={r.orphanReason}
                     />
                   </Td>
 
@@ -292,14 +295,17 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     />
                   </Td>
 
-                  {/* 6. INQUILINO — autocomplete + new-name alert + ↗ detail link */}
+                  {/* 6. INQUILINOS — multi-tenant editor (Phase 11) + ↗ to detail */}
                   <Td width={W.inq}>
                     <div className="flex items-start gap-1">
                       <div className="flex-1 min-w-0">
-                        <InlineTenantCell
+                        <InlineParticipantsCell
+                          kind="tenant"
                           contractId={r.contractId}
-                          currentName={r.inquilino}
+                          initial={r.tenantsList.map(t => ({ id: t.id, name: t.name, pct: t.sharePct }))}
                           options={tenantOptions}
+                          isOrphan={r.isOrphan && r.tenantsList.length === 0}
+                          orphanReason={r.orphanReason}
                         />
                       </div>
                       <Link

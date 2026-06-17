@@ -171,11 +171,28 @@ export interface LiquidacionGridRow {
   // ── Identity columns (left side, sticky) ──
   observacion:   string | null   // liquidaciones.notes
   lfa:           string | null   // contracts.lfa_code
-  propietario:   string          // primary landlord name
+  /** Primary landlord NAME (highest ownership_pct) — kept for any legacy
+   *  caller that still reads a single string. New cells should prefer the
+   *  `landlordsList` array below. */
+  propietario:   string
   /** Primary landlord email — null if not on file. Used by the per-row
    *  "Liquidar y enviar mail" button to prefill the recipient. */
   propietarioEmail: string | null
-  inquilino:     string          // primary tenant name
+  /** Primary tenant NAME — same legacy contract as `propietario`. */
+  inquilino:     string
+  // ── Phase 11 — full co-owner / co-tenant lists, sorted by % desc. ──
+  /** Every landlord on this contract with their ownership %. Empty when
+   *  the junction is missing (orphan contract — see `isOrphan` below). */
+  landlordsList: { id: string; name: string; ownershipPct: number }[]
+  /** Every tenant on this contract with their share %. */
+  tenantsList:   { id: string; name: string; sharePct: number }[]
+  /** TRUE when the contract is active but lacks a complete junction set
+   *  (no co-owner rows or no co-tenant rows). The grid surfaces these
+   *  with a yellow warning tint so the encargada can fix the data instead
+   *  of the contract disappearing silently. */
+  isOrphan:      boolean
+  /** Human-readable reason when `isOrphan === true`. */
+  orphanReason:  string | null
   contrato:      string | null   // contracts.contract_number
 
   // ── Period info ──
@@ -396,16 +413,58 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
   }
 
   const rows: LiquidacionGridRow[] = []
+  // Diagnostic counters: surfaced via console so the cause of an empty
+  // planilla can be inspected in Vercel runtime logs without DB access.
+  let cnt_fetched          = 0
+  let cnt_no_landlord_link = 0
+  let cnt_no_tenant_link   = 0
+  let cnt_threw            = 0
   for (const c of (contractsRes.data ?? []) as any[]) {
+    cnt_fetched++
     try {
-    const landlords = (c.contract_landlords ?? []) as any[]
-    if (landlords.length === 0) continue
-    const primary = [...landlords].sort(
-      (a, b) => Number(b.ownership_pct ?? 0) - Number(a.ownership_pct ?? 0),
-    )[0]
-    if (!primary?.landlords) continue
+    // Phase 11: never silently DROP a contract. If the junction is missing,
+    // build a "phantom row" (with empty name fields) and flag it as orphan
+    // so the encargada can click into the detail page and fix the data.
+    // Previously rows with empty junctions disappeared from the planilla.
+    const landlordsRaw = (c.contract_landlords ?? []) as any[]
+    const tenantsRaw   = (c.contract_tenants   ?? []) as any[]
+    const orphanReasons: string[] = []
+    if (landlordsRaw.length === 0) {
+      orphanReasons.push('contrato sin propietarios cargados')
+      cnt_no_landlord_link++
+    }
+    if (tenantsRaw.length === 0) {
+      orphanReasons.push('contrato sin inquilinos cargados')
+      cnt_no_tenant_link++
+    }
+    const isOrphan = orphanReasons.length > 0
+    const orphanReason = isOrphan ? orphanReasons.join(' · ') : null
 
-    const tenant = (c.contract_tenants ?? []).find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
+    // Build the full lists (sorted by share desc). Used by the new
+    // multi-name cells. Empty arrays when the junction is missing.
+    const landlordsList = landlordsRaw
+      .map((cl: any) => ({
+        id:           cl.landlords?.id ?? '',
+        name:         cl.landlords?.name ?? '',
+        ownershipPct: Number(cl.ownership_pct ?? 0),
+      }))
+      .filter(l => l.id && l.name)
+      .sort((a, b) => b.ownershipPct - a.ownershipPct)
+    const tenantsList = tenantsRaw
+      .map((ct: any) => ({
+        id:        ct.tenants?.id ?? '',
+        name:      ct.tenants?.name ?? '',
+        sharePct:  Number(ct.share_pct ?? 100),
+      }))
+      .filter(t => t.id && t.name)
+      .sort((a, b) => b.sharePct - a.sharePct)
+
+    // Primary derivation falls back to a synthetic blank when the junction
+    // is empty — we still emit the row so the user can see + fix it.
+    const primary = landlordsList[0]
+      ? { landlords: { id: landlordsList[0].id, name: landlordsList[0].name, email: null } }
+      : null
+    const tenant  = tenantsRaw.find((ct: any) => ct.is_primary) ?? tenantsRaw[0] ?? null
 
     const a = agg.get(c.id) ?? blank()
     const currentRent = Number(c.current_rent ?? 0)
@@ -421,7 +480,11 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       ? `${nextAdj.getFullYear()}-${String(nextAdj.getMonth() + 1).padStart(2, '0')}-${String(nextAdj.getDate()).padStart(2, '0')}`
       : null
 
-    const liq        = liqByKey.get(`${c.id}|${primary.landlords.id}`)
+    // When the junction is missing we look for ANY liquidación on this
+    // contract regardless of landlord_id — better than nothing.
+    const liq = primary
+      ? liqByKey.get(`${c.id}|${primary.landlords.id}`)
+      : Array.from(liqByKey.values()).find((l: any) => l.contract_id === c.id)
     const adjustment = Number(liq?.adjustment_amount ?? 0)
 
     // Transferencia (computed) = ingresos - admi - otros + adjustment (signed)
@@ -432,13 +495,17 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
 
     rows.push({
       contractId:           c.id,
-      landlordId:           primary.landlords.id,
-      hasMultipleLandlords: landlords.length > 1,
+      landlordId:           primary?.landlords.id ?? '',
+      hasMultipleLandlords: landlordsList.length > 1,
       observacion:   liq?.notes ?? null,
       lfa:           c.lfa_code ?? null,
-      propietario:   primary.landlords.name ?? '(sin propietario)',
-      propietarioEmail: primary.landlords.email ?? null,
+      propietario:   primary?.landlords.name ?? '(sin propietario)',
+      propietarioEmail: primary?.landlords.email ?? null,
       inquilino:     tenant?.tenants?.name ?? '(sin inquilino)',
+      landlordsList,
+      tenantsList,
+      isOrphan,
+      orphanReason,
       contrato:      c.contract_number ?? null,
       periodo:       period,
       expensas:      c.expensas != null ? Number(c.expensas) : null,
@@ -538,6 +605,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       // A single malformed contract row must NOT kill the whole grid query.
       // Log + skip. The planilla simply omits this contract for the period;
       // the encargada can still work on every other contract.
+      cnt_threw++
       try {
         const cid = c?.id ?? '(no id)'
         console.error(`[getLiquidacionGridForPeriod] row failed for contract ${cid}:`, err)
@@ -546,11 +614,25 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     }
   }
 
+  // ── Diagnostic summary ───────────────────────────────────────────────────
+  // Helps debug "table empty" reports without DB access. Search Vercel
+  // runtime logs for "[GRID_DIAGNOSTIC]".
+  try {
+    console.log(
+      `[GRID_DIAGNOSTIC] period=${period} fetched=${cnt_fetched} ` +
+      `emitted=${rows.length} threw=${cnt_threw} ` +
+      `no_landlord_junction=${cnt_no_landlord_link} ` +
+      `no_tenant_junction=${cnt_no_tenant_link}`,
+    )
+  } catch { /* ignore logging failure */ }
+
   // Default sort: alphabetical by propietario (Alejandro's explicit ask
   // — "que sea por orden alfabético de los propietarios"). The
   // recently-edited row is highlighted in yellow on the grid instead of
-  // floating to the top.
+  // floating to the top. Orphan rows sink to the bottom so they don't
+  // distract the daily scan.
   return rows.sort((a, b) => {
+    if (a.isOrphan !== b.isOrphan) return a.isOrphan ? 1 : -1
     const cmp = a.propietario.localeCompare(b.propietario, 'es-AR', { sensitivity: 'base' })
     if (cmp !== 0) return cmp
     return a.inquilino.localeCompare(b.inquilino, 'es-AR', { sensitivity: 'base' })
