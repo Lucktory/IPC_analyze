@@ -569,6 +569,10 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
   let cnt_no_landlord_link = 0
   let cnt_no_tenant_link   = 0
   let cnt_threw            = 0
+  // Capture the first error so the page-level safe() wrapper can surface
+  // it in the red diagnostic banner when every contract row threw.
+  let firstError: Error | null = null
+  let firstErrorContract: string | null = null
   for (const c of (contractsRes.data ?? []) as any[]) {
     cnt_fetched++
     try {
@@ -756,6 +760,10 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       // Log + skip. The planilla simply omits this contract for the period;
       // the encargada can still work on every other contract.
       cnt_threw++
+      if (firstError == null) {
+        firstError = err instanceof Error ? err : new Error(String(err))
+        firstErrorContract = c?.id ?? null
+      }
       try {
         const cid = c?.id ?? '(no id)'
         console.error(`[getLiquidacionGridForPeriod] row failed for contract ${cid}:`, err)
@@ -775,6 +783,15 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       `no_tenant_junction=${cnt_no_tenant_link}`,
     )
   } catch { /* ignore logging failure */ }
+
+  // Loud failure when EVERY contract threw and the table would otherwise be
+  // empty for a non-DB reason. Throwing lets the page's safe() wrapper put
+  // the error message in the red diagnostic banner instead of hiding the
+  // bug behind a generic "no contracts" screen.
+  if (cnt_fetched > 0 && rows.length === 0 && firstError) {
+    const tail = firstErrorContract ? ` (primer contrato fallido: ${firstErrorContract})` : ''
+    throw new Error(`Todas las filas fallaron al construirse — ${firstError.message}${tail}`)
+  }
 
   // Default sort: alphabetical by propietario (Alejandro's explicit ask
   // — "que sea por orden alfabético de los propietarios"). The
