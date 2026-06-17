@@ -21,6 +21,8 @@
 -- ----------------------------------------------------------------------------
 drop table if exists pending_actions_sent cascade;
 drop table if exists contract_events cascade;
+drop table if exists liquidacion_payouts cascade;
+drop table if exists rendiciones cascade;
 drop table if exists liquidacion_lines cascade;
 drop table if exists liquidaciones cascade;
 drop table if exists recibos cascade;
@@ -68,6 +70,9 @@ create table administrators (
   phone text,
   default_commission_pct numeric(5,2) default 25.0,
   is_active boolean default true,
+  -- Phase 11: RI adds IVA on commission invoices, Monotributo doesn't.
+  -- Determines whether contracts billed by this administrator add IVA.
+  tax_category text not null default 'RI' check (tax_category in ('RI','MONOTRIBUTO','EXENTO')),
   created_at timestamptz default now()
 );
 create index idx_administrators_admin on administrators(administration_id);
@@ -99,6 +104,8 @@ create table landlords (
   dni_or_cuit text,
   external_accountant_id uuid references external_accountants(id) on delete set null,
   notes text,
+  -- Phase 11: tax classification for receipt generation
+  tax_category text not null default 'CF' check (tax_category in ('RI','MONOTRIBUTO','CF','EXENTO')),
   created_at timestamptz default now()
 );
 create index idx_landlords_admin on landlords(administration_id);
@@ -158,6 +165,9 @@ create table tenants (
   phone text,
   dni text,
   notes text,
+  -- Phase 11: tax classification. Commercial RI tenants pay IVA on rent;
+  -- commercial Monotributo tenants don't; residential = CF by default.
+  tax_category text not null default 'CF' check (tax_category in ('RI','MONOTRIBUTO','CF','EXENTO')),
   created_at timestamptz default now()
 );
 create index idx_tenants_admin on tenants(administration_id);
@@ -233,9 +243,42 @@ create table contracts (
   -- Pampa's commission percentage, applied to TOTAL COBRADO (alquiler
   -- + recuperos), per Alejandro's confirmed spec #2.
   commission_pct numeric(5,2) default 8.0,
+  -- ── Phase 11: billing identity + tax rules (2026-06-17) ───────────────
+  --
+  -- Who invoices the commission. RI administrators add IVA; Monotributo
+  -- administrators don't. NULL = use the administration's default partner.
+  billing_administrator_id   uuid references administrators(id),
+  -- Stored explicitly so a contract can override the billing entity's
+  -- default. Defaults to false, set to true when billed by an RI partner.
+  commission_includes_iva    boolean not null default false,
+  -- What the commission % applies against. Default = full cobrado.
+  -- Some landlords dispute and want it on rent only.
+  commission_base            text not null default 'gross_ingresos'
+                             check (commission_base in
+                               ('gross_ingresos','rent_only','rent_plus_iva','rent_plus_recuperos')),
+  -- Commercial contract IVA on rent itself (residential = 0).
+  is_commercial              boolean not null default false,
+  rent_iva_rate              numeric(5,2) not null default 0,
+  -- Sellado de rentas (one-time municipal stamp tax, 50/50 by default).
+  -- Deducted from the landlord's first liquidación when applied.
+  sellado_total              numeric(14,2),
+  sellado_landlord_share_pct numeric(5,2) default 50,
+  sellado_applied_at         date,
+  -- Depósito en garantía (paid by tenant on month 1, held by landlord,
+  -- refunded at contract end).
+  deposit_amount             numeric(14,2),
+  deposit_status             text not null default 'held'
+                             check (deposit_status in ('held','partially_used','refunded')),
+  -- Recurring ABL surcharge (some contracts: tenant pays rent + ABL monthly).
+  includes_abl               boolean not null default false,
+  abl_amount                 numeric(14,2),
+  -- Who pays the building consorcio expensas.
+  expensas_payer             text not null default 'tenant'
+                             check (expensas_payer in ('tenant','landlord','split')),
   notes text,
   created_at timestamptz default now()
 );
+create index idx_contracts_billing_admin on contracts(billing_administrator_id);
 create index idx_contracts_admin on contracts(administration_id);
 create index idx_contracts_property on contracts(property_id);
 create index idx_contracts_status on contracts(status);
@@ -300,18 +343,33 @@ create index idx_contract_period_notes_period on contract_period_notes(period);
 --      the application layer without a schema change.
 -- ----------------------------------------------------------------------------
 create table contract_events (
-  id            bigserial   primary key,
-  contract_id   uuid        not null references contracts(id) on delete cascade,
-  occurred_at   timestamptz not null default now(),
-  kind          text        not null,        -- arreglo | aumento | mail_enviado | observacion | status_change | ...
-  description   text,
-  amount        numeric(14,2),               -- repair cost / new rent / NULL for non-monetary kinds
-  payer         text        check (payer is null or payer in ('landlord', 'tenant')),
-  created_by    uuid,                        -- auth.users id (loose link, not FK)
-  created_at    timestamptz not null default now()
+  id                  bigserial    primary key,
+  contract_id         uuid         not null references contracts(id) on delete cascade,
+  occurred_at         timestamptz  not null default now(),
+  kind                text         not null,    -- arreglo | aumento | mail_enviado | observacion | status_change | ...
+  description         text,
+  -- Total monetary impact of the event (for arreglos: amount_landlord + amount_tenant).
+  amount              numeric(14,2),
+  -- Phase 11 (v2): payer is NOT binary. Split allowed (mitad y mitad, 70/30, etc.).
+  amount_landlord     numeric(14,2) default 0,
+  amount_tenant       numeric(14,2) default 0,
+  -- When the discount/charge lands in a liquidación. Drives the day-of-month
+  -- deferral rule (repair before payment_day → this period, after → next period).
+  applies_to_period   date,
+  -- Drives the planilla's red carryover reminder.
+  status              text not null default 'pending'
+                      check (status in ('pending','applied','cancelled')),
+  -- Photo / worker receipt URL (Supabase Storage).
+  attachment_url      text,
+  created_by          uuid,                       -- auth.users id (loose link, not FK)
+  created_at          timestamptz not null default now()
 );
 create index idx_contract_events_contract_occurred
   on contract_events (contract_id, occurred_at desc);
+-- "Pending repairs landing in this period" — drives the red carryover view.
+create index idx_contract_events_pending_by_period
+  on contract_events (applies_to_period, status)
+  where status = 'pending';
 
 -- ----------------------------------------------------------------------------
 -- 13c. PENDING_ACTIONS_SENT — bell/pendientes snooze tracker.
@@ -369,6 +427,33 @@ create index idx_transactions_status on transactions(status);
 create index idx_transactions_bank_date on transactions(bank_date);
 
 -- ----------------------------------------------------------------------------
+-- 15b. RENDICIONES — Phase 11. Aggregates one or more child liquidaciones
+--      for a single (landlord × period). Receipt 3 (SIMOES) had Orieta and
+--      Maguna contracts on ONE rendición because the landlord (Simoes
+--      brothers) was the same. Created BEFORE liquidaciones because the
+--      liquidaciones.rendicion_id FK references this table.
+-- ----------------------------------------------------------------------------
+create table rendiciones (
+  id                uuid primary key default gen_random_uuid(),
+  administration_id uuid not null references administrations(id) on delete cascade,
+  landlord_id       uuid not null references landlords(id) on delete restrict,
+  period            date not null,
+  total_gross       numeric(14,2) not null default 0,
+  total_deductions  numeric(14,2) not null default 0,
+  total_neto        numeric(14,2) not null default 0,
+  status            text not null default 'draft' check (status in ('draft','sent','paid')),
+  sent_at           timestamptz,
+  paid_at           timestamptz,
+  pdf_url           text,
+  notes             text,
+  created_at        timestamptz not null default now(),
+  unique (landlord_id, period)
+);
+create index idx_rendiciones_admin            on rendiciones (administration_id);
+create index idx_rendiciones_landlord_period  on rendiciones (landlord_id, period desc);
+create index idx_rendiciones_status           on rendiciones (status);
+
+-- ----------------------------------------------------------------------------
 -- 16. LIQUIDACIONES — monthly settlement to landlord (gray→green→blue flow)
 -- ----------------------------------------------------------------------------
 create table liquidaciones (
@@ -389,13 +474,31 @@ create table liquidaciones (
   -- = extra paid out, negative = extra deducted. Shown alongside notes in
   -- the OBSERVACIONES column of the liquidación grid.
   adjustment_amount numeric(12,2) default 0,
+  -- Phase 11: opt-in parent rendición for multi-contract aggregation
+  -- (Receipt 3 / SIMOES case). NULL = single-contract email flow.
+  rendicion_id uuid references rendiciones(id) on delete set null,
   created_at timestamptz default now(),
   unique (contract_id, landlord_id, period)
 );
-create index idx_liquidaciones_admin on liquidaciones(administration_id);
-create index idx_liquidaciones_contract on liquidaciones(contract_id);
-create index idx_liquidaciones_period on liquidaciones(period);
-create index idx_liquidaciones_status on liquidaciones(status);
+create index idx_liquidaciones_admin     on liquidaciones(administration_id);
+create index idx_liquidaciones_contract  on liquidaciones(contract_id);
+create index idx_liquidaciones_period    on liquidaciones(period);
+create index idx_liquidaciones_status    on liquidaciones(status);
+create index idx_liquidaciones_rendicion on liquidaciones(rendicion_id);
+
+-- ----------------------------------------------------------------------------
+-- 16b. LIQUIDACION_PAYOUTS — Phase 11. Per-landlord split rows on the
+--      receipt footer (Receipt 3's "JUAN $385k / ADRIAN $385k" lines).
+--      Persisted so re-printing the receipt later produces identical
+--      amounts regardless of subsequent ownership_pct edits.
+-- ----------------------------------------------------------------------------
+create table liquidacion_payouts (
+  liquidacion_id uuid          not null references liquidaciones(id) on delete cascade,
+  landlord_id    uuid          not null references landlords(id) on delete restrict,
+  amount         numeric(14,2) not null,
+  primary key (liquidacion_id, landlord_id)
+);
+create index idx_liquidacion_payouts_landlord on liquidacion_payouts (landlord_id);
 
 -- ----------------------------------------------------------------------------
 -- 17. LIQUIDACION_LINES — itemized breakdown linked to transactions
@@ -509,18 +612,26 @@ insert into transaction_types (code, label, direction, category, affects_liquida
   ('TRANSFER_OUT',      'Transferencia interna',           'OUT', 'transfer',   false),
   ('OTHER_OUT',         'Otro egreso',                     'OUT', 'other',      true);
 
--- Administration + 4 partners (matches Alejandro's real partnership)
+-- Administration + 4 partners (matches Alejandro's real partnership).
+-- 2026-06-17: real agency is "Patagonia Propiedades" — the seed names
+-- below were placeholders during early development.
 with admin_row as (
-  insert into administrations (name, legal_name)
-  values ('Pampa Administración', 'Pampa Administración SRL')
+  insert into administrations (name, legal_name, address, phone, email)
+  values (
+    'Patagonia Propiedades',
+    'Patagonia Propiedades',
+    'Mitre 674, (9000) Comodoro Rivadavia - Chubut',
+    '(0297) 444-4862 / 4441695',
+    'patagoniainmo@gmail.com'
+  )
   returning id
 )
 insert into administrators (administration_id, name, email, default_commission_pct)
 select id, n, e, p from admin_row, (values
-  ('Flavio H.',    'flavio@pampa-admin.com.ar',    25.0),
-  ('Lisa H.',      'lisa@pampa-admin.com.ar',      25.0),
-  ('Alejandro H.', 'alejandro@pampa-admin.com.ar', 25.0),
-  ('Dorso',        'dorso@pampa-admin.com.ar',     25.0)
+  ('Flavio H.',    'flavio@patagoniainmo.com.ar',    25.0),
+  ('Lisa H.',      'lisa@patagoniainmo.com.ar',      25.0),
+  ('Alejandro H.', 'alejandro@patagoniainmo.com.ar', 25.0),
+  ('Dorso',        'dorso@patagoniainmo.com.ar',     25.0)
 ) as t(n, e, p);
 
 -- ============================================================================
