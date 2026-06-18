@@ -223,8 +223,12 @@ function PendienteRow({ item }: { item: PendienteItem }) {
   const whatsappHref = target.phone
     ? `https://wa.me/${cleanPhone(target.phone)}?text=${encodeURIComponent(tmpl.body)}`
     : null
-  const mailtoHref = target.email
-    ? `mailto:${encodeURIComponent(target.email)}?subject=${encodeURIComponent(tmpl.subject)}&body=${encodeURIComponent(tmpl.body)}`
+  // Gmail compose URL — works in any browser without an OS-level mail client
+  // configured. Mirrors the handoff used by LiquidarYEnviarButton on
+  // /liquidacion. mailto: would silently no-op on Windows when no default
+  // mail program is set, which is exactly the bug this replaces.
+  const mailHref = target.email
+    ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(target.email)}&su=${encodeURIComponent(tmpl.subject)}&body=${encodeURIComponent(tmpl.body)}`
     : null
 
   const verContratoHref = `/contratos/${item.contractId}`
@@ -279,11 +283,15 @@ function PendienteRow({ item }: { item: PendienteItem }) {
           </span>
         )}
 
-        {/* Email icon — same enabled/disabled treatment. */}
-        {mailtoHref ? (
+        {/* Email icon — opens Gmail compose in a new tab with the draft
+            pre-filled. Same Gmail handoff as /liquidacion so behaviour
+            is identical across pages. */}
+        {mailHref ? (
           <a
-            href={mailtoHref}
-            title={`Mandar email a ${target.label}`}
+            href={mailHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Mandar email a ${target.label} (abre Gmail en una pestaña nueva)`}
             className="inline-flex items-center justify-center w-7 h-7 rounded bg-ink text-paper text-[13px] hover:opacity-90 transition-opacity"
           >
             ✉
