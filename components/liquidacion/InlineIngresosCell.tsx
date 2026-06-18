@@ -252,14 +252,12 @@ export function InlineIngresosCell({
   // Live total inside the popover (sum of current drafts).
   const liveTotal = drafts.reduce((s, d) => s + (isFinite(Number(d.amount)) ? Number(d.amount) : 0), 0)
 
-  // Background tint on the cell (aumento próximo highlight). Only applied
-  // when no cellBgClass override is passed (Phase 9C: Alquiler cell still
-  // gets the aumento highlight; Extras cell stays neutral).
-  const cellStyle: React.CSSProperties | undefined =
-    !cellBgClass && upcomingAdjustment
-      ? { backgroundColor: 'rgba(243,156,18,0.12)' }
-      : undefined
-
+  // Background tint is now driven exclusively by the persistent
+  // ALQUILER_AUMENTO_CELL_CLASS (orange) passed in via cellBgClass when
+  // periodHasAumento is true — see lib/liquidacion/thresholds.ts. The
+  // older 30-day-countdown orange (rgba inline) was removed on 2026-06-18:
+  // having two orange sources for the same cell produced double-tinting
+  // and conflicted with Alejandro's "one color per concept" rule.
   const defaultTitle = upcomingAdjustment
     ? `Ingresos · ⚠ Aumento de alquiler en ${upcomingAdjustment.days} días`
     : (filteredLines.length > 1
@@ -274,7 +272,6 @@ export function InlineIngresosCell({
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={buttonTitle ?? defaultTitle}
-        style={cellStyle}
         className={`w-full text-right px-0 hover:bg-blue-50 transition-colors tabular-nums truncate font-medium ${cobrado ? 'text-ink' : 'text-slate'} ${cellBgClass ?? ''}`}
       >
         {displayOverride !== undefined

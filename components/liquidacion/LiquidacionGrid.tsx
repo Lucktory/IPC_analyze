@@ -288,7 +288,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               // Row background priority (high → low):
               //   1. Validation ERROR        → pale red tint   (most urgent)
               //   2. Validation WARNING      → pale orange tint
-              //   3. Contract expiry tint    → yellow (next mo) / orange (this mo) / red (expired)
+              //   3. Contract expiry tint    → celeste (next mo) / azul oscuro (this mo) / red (expired)
               //                                — saved memory: ui_planilla_color_conventions
               //   4. Recently edited         → pale yellow tint
               //   5. Excel-style zebra       → white / very pale gray alternating
@@ -496,6 +496,17 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       cellBgClass={aumentoClass}
                       buttonTitle={r.periodHasAumento
                         ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
+                        : undefined}
+                      // Show the expected current_rent when no RENT_IN has
+                      // landed yet — the encargada sees the target amount at
+                      // a glance. Text color falls back to the cell's
+                      // cobrado=false light-slate, so light-gray = unpaid,
+                      // dark = paid (same visual code as every other amount
+                      // cell on the planilla). Per Alejandro's 2026-06-18
+                      // voice: "que aparezca el monto que tenemos que
+                      // recaudar en un grisecito muy clarito".
+                      displayOverride={alquilerSum === 0 && r.currentRent > 0
+                        ? <span className="tabular-nums">{fmtMoney(r.currentRent)}</span>
                         : undefined}
                     />
                   </Td>
