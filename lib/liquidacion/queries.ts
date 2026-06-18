@@ -968,6 +968,8 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           fechaBanco:       a.fechaBanco,
           diaTransf:        a.diaTransf,
           ingresosLines:    a.ingresosLines,
+          daysUntilPayment,
+          dueDateIso,
         },
         c.commission_pct != null ? Number(c.commission_pct) : undefined,
         commissionIncludesIva,

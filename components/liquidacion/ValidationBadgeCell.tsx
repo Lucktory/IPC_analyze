@@ -135,6 +135,7 @@ function prettyCode(code: string): string {
     case 'ADMI_DESTINATIONS_UNCLASSIFIED': return 'ADMI sin clasificar'
     case 'COMMISSION_PCT_DEVIATION':      return 'Comisión efectiva difiere'
     case 'RENT_AMOUNT_VARIANCE':          return 'Variación de alquiler'
+    case 'PAYMENT_OVERDUE':               return 'Alquiler vencido (recargo por mora)'
     default:                              return code
   }
 }

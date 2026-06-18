@@ -33,6 +33,13 @@ export const VALIDATION_TOLERANCES = {
    *  WARN ≤ x < ERROR = warning, ≥ ERROR = error. */
   RENT_VARIANCE_WARN:       0.20,
   RENT_VARIANCE_ERROR:      0.50,
+
+  /** Payment overdue (rent not yet collected past the due date). Days late
+   *  ≥ WARN → warning, ≥ ERROR → error. Late-fee territory in Argentine
+   *  rentals usually kicks in around day 1; chasing-the-tenant territory
+   *  is closer to day 8. */
+  PAYMENT_OVERDUE_WARN_DAYS:  1,
+  PAYMENT_OVERDUE_ERROR_DAYS: 8,
 } as const
 
 export interface ValidationIssue {
@@ -57,6 +64,7 @@ export type ValidationCode =
   | 'ADMI_DESTINATIONS_UNCLASSIFIED'
   | 'COMMISSION_PCT_DEVIATION'
   | 'RENT_AMOUNT_VARIANCE'
+  | 'PAYMENT_OVERDUE'
 
 // ── Row shape the validators read. Keep it minimal — only the fields
 //    actually used by the rules. Lets us evolve LiquidacionGridRow
@@ -79,6 +87,12 @@ export interface ValidatableRow {
   /** Per-line breakdown from the Phase 6 popover. Used to derive the
    *  RENT_IN-only sum for the rent-amount check. */
   ingresosLines:     { typeCode: string; amount: number }[]
+  /** Whole days from today to the contract's due date in this period.
+   *  Negative = overdue. NULL when the contract isn't active. */
+  daysUntilPayment:  number | null
+  /** ISO due date for the period — `YYYY-MM-DD`. Used in the overdue
+   *  message so the encargada sees exactly when payment was expected. */
+  dueDateIso:        string | null
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -191,27 +205,65 @@ function checkCommissionPctDeviation(r: ValidatableRow): ValidationIssue | null 
   return null
 }
 
-// 7. Rent amount variance — sum of RENT_IN-only transactions vs current_rent.
-//    Recuperos and expensas are excluded so we don't get false positives
-//    on rows where the tenant paid rent + ABL.
+// 7b. Payment overdue — rent not yet collected past the due date.
+//
+// Folds the Pago column's "vencido N días" state into the Check badge so
+// late payments are visible from the same single indicator as every other
+// issue. In Argentine rentals this is also the trigger for late-fee
+// (LATE_FEE_IN, "recargo por mora") application — the encargada should
+// chase the tenant AND consider whether the contract's late-fee schedule
+// has kicked in.
+//
+// Skipped when the rent is already collected (fechaBanco set) or when the
+// contract isn't active in this period (daysUntilPayment null).
+function checkPaymentOverdue(r: ValidatableRow): ValidationIssue | null {
+  if (r.fechaBanco)             return null  // already cobrado → not overdue
+  if (r.daysUntilPayment == null) return null  // contract not active this period
+  if (r.daysUntilPayment >= 0)  return null  // not yet due
+  const daysLate = -r.daysUntilPayment
+  if (daysLate < VALIDATION_TOLERANCES.PAYMENT_OVERDUE_WARN_DAYS) return null
+  const severity: 'error' | 'warning' =
+    daysLate >= VALIDATION_TOLERANCES.PAYMENT_OVERDUE_ERROR_DAYS ? 'error' : 'warning'
+  const dueLabel = r.dueDateIso
+    ? `${r.dueDateIso.slice(8, 10)}/${r.dueDateIso.slice(5, 7)}/${r.dueDateIso.slice(0, 4)}`
+    : null
+  const dueClause = dueLabel ? ` (vencía ${dueLabel})` : ''
+  return {
+    code:     'PAYMENT_OVERDUE',
+    severity,
+    message:  `Alquiler vencido hace ${daysLate} ${daysLate === 1 ? 'día' : 'días'}${dueClause}. Revisá si corresponde aplicar recargo por mora (LATE_FEE_IN).`,
+    expected: null,
+    actual:   null,
+    diff:     daysLate,
+  }
+}
+
+// 7. Rent amount variance — OVERPAYMENT only.
+//
+// Catches the extra-zero typo ($85.000 entered as $850.000) where the
+// recorded RENT_IN is meaningfully larger than the contract's vigente
+// rent. Underpayment is intentionally NOT flagged here: partial payments
+// are a normal real-world case, and the Deuda column already surfaces
+// them in the planilla. Flagging underpayment as an "error" produced
+// false positives on every partial-collection row.
 function checkRentAmountVariance(r: ValidatableRow): ValidationIssue | null {
   if (r.currentRent <= 0) return null
   const rentInSum = r.ingresosLines
     .filter(l => l.typeCode === 'RENT_IN')
     .reduce((s, l) => s + l.amount, 0)
-  if (rentInSum <= 0) return null  // not yet recorded
-  const variance = Math.abs(rentInSum - r.currentRent) / r.currentRent
+  if (rentInSum <= 0) return null              // not yet recorded
+  if (rentInSum <= r.currentRent) return null  // underpayment → Deuda handles it
+  const variance = (rentInSum - r.currentRent) / r.currentRent
   if (variance < VALIDATION_TOLERANCES.RENT_VARIANCE_WARN) return null
   const severity: 'error' | 'warning' =
     variance >= VALIDATION_TOLERANCES.RENT_VARIANCE_ERROR ? 'error' : 'warning'
-  const dir = rentInSum > r.currentRent ? 'mayor' : 'menor'
   return {
     code:     'RENT_AMOUNT_VARIANCE',
     severity,
-    message:  `Alquiler cobrado (${fmtMoney(rentInSum)}) es ${(variance * 100).toFixed(0)}% ${dir} que el vigente (${fmtMoney(r.currentRent)}). Verificá que no sea un error de tipeo.`,
+    message:  `Alquiler cobrado (${fmtMoney(rentInSum)}) es ${(variance * 100).toFixed(0)}% mayor que el vigente (${fmtMoney(r.currentRent)}). Verificá que no sea un error de tipeo (¿cero extra?).`,
     expected: r.currentRent,
     actual:   rentInSum,
-    diff:     Math.abs(rentInSum - r.currentRent),
+    diff:     rentInSum - r.currentRent,
   }
 }
 
@@ -243,6 +295,7 @@ export function validateRow(
   push(checkAdmiDestinationsClassification(r))
   push(checkCommissionPctDeviation(r))
   push(checkRentAmountVariance(r))
+  push(checkPaymentOverdue(r))
 
   // Commission deviation check is special: it needs the contract pct
   // which isn't on the row itself. Inline it here when caller provides it.
