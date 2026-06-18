@@ -40,6 +40,11 @@ export const VALIDATION_TOLERANCES = {
    *  is closer to day 8. */
   PAYMENT_OVERDUE_WARN_DAYS:  1,
   PAYMENT_OVERDUE_ERROR_DAYS: 8,
+
+  /** Allowed diff (percentage points) for junction SUM = 100 checks.
+   *  Float-arithmetic slop is well under 0.5 so this tolerance only
+   *  hides real-but-tiny rounding, never actual data bugs. */
+  PCT_SUM_TOLERANCE:           0.5,
 } as const
 
 export interface ValidationIssue {
@@ -65,6 +70,13 @@ export type ValidationCode =
   | 'COMMISSION_PCT_DEVIATION'
   | 'RENT_AMOUNT_VARIANCE'
   | 'PAYMENT_OVERDUE'
+  // ── Data integrity (Thread A — 2026-06-18) ──
+  | 'CONTRACT_EXPIRED_BUT_ACTIVE'
+  | 'CONTRACT_INVALID_DATE_RANGE'
+  | 'CONTRACT_LANDLORD_JUNCTION_EMPTY'
+  | 'CONTRACT_TENANT_JUNCTION_EMPTY'
+  | 'LANDLORD_PCT_SUM_NOT_100'
+  | 'TENANT_PCT_SUM_NOT_100'
 
 // ── Row shape the validators read. Keep it minimal — only the fields
 //    actually used by the rules. Lets us evolve LiquidacionGridRow
@@ -93,6 +105,23 @@ export interface ValidatableRow {
   /** ISO due date for the period — `YYYY-MM-DD`. Used in the overdue
    *  message so the encargada sees exactly when payment was expected. */
   dueDateIso:        string | null
+
+  // ── Thread A integrity payload ────────────────────────────────────────
+  /** Contract vigencia — ISO YYYY-MM-DD. Both NOT NULL in the schema but
+   *  modelled as nullable here so the validators fail closed if a
+   *  malformed row sneaks in. */
+  startDate:         string | null
+  endDate:           string | null
+  /** Today as YYYY-MM-DD. Passed in by the row builder so the validators
+   *  stay pure (no `new Date()` inside the rules). */
+  todayIso:          string
+  /** SUM(contract_landlords.ownership_pct) and row count, computed at the
+   *  row-builder layer from the same junction data the planilla already
+   *  reads. */
+  landlordPctSum:    number
+  landlordCount:     number
+  tenantPctSum:      number
+  tenantCount:       number
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -268,6 +297,107 @@ function checkRentAmountVariance(r: ValidatableRow): ValidationIssue | null {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// THREAD A — DATA INTEGRITY RULES (2026-06-18). These check the CONTRACT
+// SETUP itself (dates, junction sums, orphan junctions) rather than this
+// month's math. They surface "the row is broken because the data is wrong",
+// which the cashflow validators couldn't say. The grid query filters
+// status='active' so every contract reaching these rules is supposed to
+// be a live contract — if end_date < today the row is in a weird state.
+// ════════════════════════════════════════════════════════════════════════════
+
+function isoDayDiff(later: string, earlier: string): number {
+  return Math.round(
+    (new Date(later).getTime() - new Date(earlier).getTime()) / 86400000,
+  )
+}
+
+// 8. CONTRACT_EXPIRED_BUT_ACTIVE — end_date already past on an active row.
+function checkContractExpiredButActive(r: ValidatableRow): ValidationIssue | null {
+  if (!r.endDate) return null  // INVALID_DATE_RANGE handles malformed data
+  if (r.endDate >= r.todayIso) return null
+  const daysPast = isoDayDiff(r.todayIso, r.endDate)
+  return {
+    code:     'CONTRACT_EXPIRED_BUT_ACTIVE',
+    severity: 'error',
+    message:  `Contrato vencido hace ${daysPast} ${daysPast === 1 ? 'día' : 'días'} pero sigue en estado "activo". Renovalo o cerralo (status='ended').`,
+    expected: null,
+    actual:   null,
+    diff:     daysPast,
+  }
+}
+
+// 9. CONTRACT_INVALID_DATE_RANGE — end_date is not strictly after start_date.
+function checkContractInvalidDateRange(r: ValidatableRow): ValidationIssue | null {
+  if (!r.startDate || !r.endDate) return null
+  if (r.endDate > r.startDate) return null
+  return {
+    code:     'CONTRACT_INVALID_DATE_RANGE',
+    severity: 'error',
+    message:  `Vigencia inválida: fin (${r.endDate}) no es posterior al inicio (${r.startDate}).`,
+    expected: null,
+    actual:   null,
+    diff:     0,
+  }
+}
+
+// 10. CONTRACT_LANDLORD_JUNCTION_EMPTY — active contract with no propietarios.
+function checkLandlordJunctionEmpty(r: ValidatableRow): ValidationIssue | null {
+  if (r.landlordCount > 0) return null
+  return {
+    code:     'CONTRACT_LANDLORD_JUNCTION_EMPTY',
+    severity: 'error',
+    message:  'Contrato sin propietarios cargados — agregá al menos uno desde el contrato.',
+    expected: 1,
+    actual:   0,
+    diff:     1,
+  }
+}
+
+// 11. CONTRACT_TENANT_JUNCTION_EMPTY — active contract with no inquilinos.
+function checkTenantJunctionEmpty(r: ValidatableRow): ValidationIssue | null {
+  if (r.tenantCount > 0) return null
+  return {
+    code:     'CONTRACT_TENANT_JUNCTION_EMPTY',
+    severity: 'error',
+    message:  'Contrato sin inquilinos cargados — agregá al menos uno desde el contrato.',
+    expected: 1,
+    actual:   0,
+    diff:     1,
+  }
+}
+
+// 12. LANDLORD_PCT_SUM_NOT_100 — junction sum diverges from 100%.
+//     Skipped when junction is empty (covered by LANDLORD_JUNCTION_EMPTY).
+function checkLandlordPctSum(r: ValidatableRow): ValidationIssue | null {
+  if (r.landlordCount === 0) return null
+  const diff = Math.abs(r.landlordPctSum - 100)
+  if (diff <= VALIDATION_TOLERANCES.PCT_SUM_TOLERANCE) return null
+  return {
+    code:     'LANDLORD_PCT_SUM_NOT_100',
+    severity: 'warning',
+    message:  `Suma de % de propietarios = ${r.landlordPctSum.toFixed(2)}%, debería ser 100%. Diferencia: ${diff.toFixed(2)} pp.`,
+    expected: 100,
+    actual:   r.landlordPctSum,
+    diff,
+  }
+}
+
+// 13. TENANT_PCT_SUM_NOT_100 — same shape for inquilinos.
+function checkTenantPctSum(r: ValidatableRow): ValidationIssue | null {
+  if (r.tenantCount === 0) return null
+  const diff = Math.abs(r.tenantPctSum - 100)
+  if (diff <= VALIDATION_TOLERANCES.PCT_SUM_TOLERANCE) return null
+  return {
+    code:     'TENANT_PCT_SUM_NOT_100',
+    severity: 'warning',
+    message:  `Suma de % de inquilinos = ${r.tenantPctSum.toFixed(2)}%, debería ser 100%. Diferencia: ${diff.toFixed(2)} pp.`,
+    expected: 100,
+    actual:   r.tenantPctSum,
+    diff,
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // AGGREGATOR — runs every validator and returns the issues array.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -296,6 +426,13 @@ export function validateRow(
   push(checkCommissionPctDeviation(r))
   push(checkRentAmountVariance(r))
   push(checkPaymentOverdue(r))
+  // ── Thread A — data integrity ──
+  push(checkContractExpiredButActive(r))
+  push(checkContractInvalidDateRange(r))
+  push(checkLandlordJunctionEmpty(r))
+  push(checkTenantJunctionEmpty(r))
+  push(checkLandlordPctSum(r))
+  push(checkTenantPctSum(r))
 
   // Commission deviation check is special: it needs the contract pct
   // which isn't on the row itself. Inline it here when caller provides it.

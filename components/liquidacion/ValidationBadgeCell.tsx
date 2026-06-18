@@ -136,6 +136,12 @@ function prettyCode(code: string): string {
     case 'COMMISSION_PCT_DEVIATION':      return 'Comisión efectiva difiere'
     case 'RENT_AMOUNT_VARIANCE':          return 'Variación de alquiler'
     case 'PAYMENT_OVERDUE':               return 'Alquiler vencido (recargo por mora)'
+    case 'CONTRACT_EXPIRED_BUT_ACTIVE':   return 'Contrato vencido — sigue activo'
+    case 'CONTRACT_INVALID_DATE_RANGE':   return 'Vigencia inválida'
+    case 'CONTRACT_LANDLORD_JUNCTION_EMPTY': return 'Sin propietarios cargados'
+    case 'CONTRACT_TENANT_JUNCTION_EMPTY':   return 'Sin inquilinos cargados'
+    case 'LANDLORD_PCT_SUM_NOT_100':      return 'Suma % propietarios ≠ 100'
+    case 'TENANT_PCT_SUM_NOT_100':        return 'Suma % inquilinos ≠ 100'
     default:                              return code
   }
 }
