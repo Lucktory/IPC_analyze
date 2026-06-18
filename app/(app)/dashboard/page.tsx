@@ -43,24 +43,17 @@ import { TreemapChart }     from '@/components/charts/panel/TreemapChart'
 import { TintCard }         from '@/components/charts/panel/TintCard'
 import { PREMIUM, fmtCompactARS } from '@/components/charts/theme'
 
-// Pendientes category colors — vibrant saturated hex (not CSS variables)
-// so they render through ECharts cleanly and read with equal weight on
-// both light + dark surfaces. Categories carry MEANING — red = urgent —
-// so these stay fixed regardless of theme.
+// Pendientes category colors — vibrant saturated hex so they render through
+// ECharts cleanly and read with equal weight on both light and dark
+// surfaces. Categories carry MEANING (red = urgent action) so the colors
+// stay fixed regardless of theme.
 //
-// Categorization rules:
-//   • `key` MATCHES the StreamType emitted by getPendientesDigest. For
-//     'otros' (the catch-all) we sum validacion + workflow + datos.
-//   • `href` uses ?type= (the /pendientes page reads ?type=, not ?tipo=).
-//     'otros' has no single type → link goes to the bare /pendientes.
-//
-// Why FOUR categories instead of three: the previous three-card layout
-// silently dropped the 16-or-so urgent+important items from validacion +
-// workflow + datos. That made the donut center (sum of visible buckets)
-// disagree with the widget subtitle (sum of ALL actionable items, =
-// bell). With "Otros" present, every actionable item lands in exactly
-// one bucket and the three numbers agree.
-type PendienteBucketKey = 'cobranza' | 'aumento' | 'contrato' | 'otros'
+// Keys mirror the PendienteCategory union emitted by getPendientesDigest —
+// see lib/pending/digest.ts. URL filter param on /pendientes is `categoria`.
+type PendienteBucketKey =
+  | 'pendiente_transferencia'
+  | 'liquidacion_abierta'
+  | 'cobranza_proxima'
 const PENDIENTES_CATEGORIES: Array<{
   key:      PendienteBucketKey
   label:    string
@@ -68,12 +61,10 @@ const PENDIENTES_CATEGORIES: Array<{
   color:    string
   href:     string
 }> = [
-  { key: 'cobranza', label: 'Cobranza',     sublabel: 'vencidas',    color: '#E63946', href: '/pendientes?type=cobranza' },
-  { key: 'aumento',  label: 'Aumentos',     sublabel: 'a notificar', color: '#F39C12', href: '/pendientes?type=aumento'  },
-  { key: 'contrato', label: 'Renovaciones', sublabel: 'a confirmar', color: '#3B82F6', href: '/pendientes?type=contrato' },
-  { key: 'otros',    label: 'Otros',        sublabel: 'val. + sist.', color: '#7E8696', href: '/pendientes'              },
+  { key: 'pendiente_transferencia', label: 'Transferencia',  sublabel: 'falta cobro o pago al propietario', color: '#E63946', href: '/pendientes?categoria=pendiente_transferencia' },
+  { key: 'liquidacion_abierta',     label: 'Liquidación',    sublabel: 'transferida sin marcar pagada',     color: '#F39C12', href: '/pendientes?categoria=liquidacion_abierta' },
+  { key: 'cobranza_proxima',        label: 'Cobranza próxima', sublabel: 'vence en ≤7 días',                color: '#3B82F6', href: '/pendientes?categoria=cobranza_proxima' },
 ]
-const OTROS_TYPES = new Set(['validacion', 'workflow', 'datos'])
 
 /** % change from `from` to `to`. Returns null when the base is zero so we
  *  don't render misleading "∞%" trends. */
@@ -111,24 +102,16 @@ export default async function DashboardPage() {
     getTopLandlords(8),
   ])
 
-  // Pendientes counts — count ONLY actionable items (urgente + importante),
-  // grouped into the four buckets shown in the donut + cards. This is the
-  // SAME definition the topbar bell badge uses (lib/pending/queries.ts →
-  // getPendingCount), so the dashboard total now matches the bell.
-  //
-  // The four buckets are exhaustive: every actionable digest item lands in
-  // exactly one. Cobranza / Aumentos / Renovaciones are the operational
-  // streams Alejandro thinks about; "Otros" holds the smaller validacion
-  // + workflow + datos hygiene items so the donut sum equals the total.
-  const actionableItems = digest.items.filter(
-    i => i.severity === 'urgente' || i.severity === 'importante',
-  )
+  // Pendientes counts — drawn straight from the digest's three-category
+  // model. The dashboard panel and /pendientes page now share the same
+  // taxonomy (cobranza_proxima / pendiente_transferencia / liquidacion_abierta)
+  // so the numbers across the bell, the dashboard donut, and the inbox
+  // never disagree.
   const pendingCounts: Record<PendienteBucketKey, number> & { total: number } = {
-    cobranza: actionableItems.filter(i => i.type === 'cobranza').length,
-    aumento:  actionableItems.filter(i => i.type === 'aumento').length,
-    contrato: actionableItems.filter(i => i.type === 'contrato').length,
-    otros:    actionableItems.filter(i => OTROS_TYPES.has(i.type)).length,
-    total:    actionableItems.length,
+    pendiente_transferencia: digest.counts.pendiente_transferencia,
+    liquidacion_abierta:     digest.counts.liquidacion_abierta,
+    cobranza_proxima:        digest.counts.cobranza_proxima,
+    total:                   digest.counts.total,
   }
 
   const periodLabel = getCurrentPeriodLabel()
@@ -257,7 +240,7 @@ export default async function DashboardPage() {
                 </div>
               )}
               {collection.unpaidCount > 0 && (
-                <Link href="/pendientes?tipo=cobranza" className="block mt-3 text-[12px] text-ink hover:underline text-center">
+                <Link href="/pendientes?categoria=pendiente_transferencia" className="block mt-3 text-[12px] text-ink hover:underline text-center">
                   Ver {collection.unpaidCount} pendiente{collection.unpaidCount === 1 ? '' : 's'} →
                 </Link>
               )}
@@ -286,11 +269,10 @@ export default async function DashboardPage() {
                 legendPosition="bottom"
                 totalUnit={pendingCounts.total === 1 ? 'pendiente' : 'pendientes'}
               />
-              {/* Four vibrant per-category cards — each clicks through
-                  to the filtered Pendientes list. The fourth ("Otros")
-                  covers validación + workflow + datos so the per-card
-                  numbers sum to the donut total and the widget subtitle. */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
+              {/* Three vibrant per-category cards — each clicks through
+                  to the filtered Pendientes list. The per-card numbers
+                  sum to the donut total and the widget subtitle. */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4">
                 {PENDIENTES_CATEGORIES.map(cat => (
                   <TintCard
                     key={cat.key}

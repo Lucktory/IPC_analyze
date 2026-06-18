@@ -1,6 +1,6 @@
 import { AppShell } from '@/components/shell/AppShell'
 import { createSupabaseServer } from '@/lib/supabase/server'
-import { getPendingCount } from '@/lib/pending/queries'
+import { getPendingCount } from '@/lib/pending/digest'
 
 // Always-fresh: the bell badge in the topbar pulls from getPendingCount(),
 // and a stale 60-second cache made the bell show an outdated number even

@@ -1,171 +1,206 @@
+// ============================================================================
+// /pendientes — focused cashflow inbox (2026-06-18 redesign).
+//
+// Three categories, in priority order:
+//   1. Pendiente transferencia — overdue cobro OR cobrado-but-not-transferido
+//   2. Liquidación sin cerrar  — transferido but status != 'paid'
+//   3. Cobranza próxima         — vence en ≤7 días, no cobro aún
+//
+// Each row links directly to /contratos/[id] (the action surface for
+// everything: edit, register cobro, register transfer, mark paid). WhatsApp
+// + Email icons sit on the right, pre-filling messages targeted at whoever
+// the encargada needs to contact for that specific item (tenant vs landlord).
+// ============================================================================
+
 import Link from 'next/link'
-import { getPendientesDigest, type PendienteItem, type Severity, type StreamType } from '@/lib/pending/digest'
+import {
+  getPendientesDigest,
+  type PendienteItem,
+  type PendienteCategory,
+  type TransferenciaSubcase,
+} from '@/lib/pending/digest'
 import { fmtMoney } from '@/lib/format'
+import { getCurrentPeriodLabel } from '@/lib/period'
+import { StickyHeader } from '@/components/ui/StickyHeader'
+import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
+import { KPICard } from '@/components/ui/KPICard'
 import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon'
 
-// Always-dynamic — pendientes change every minute, never serve from cache.
-export const dynamic     = 'force-dynamic'
-export const fetchCache  = 'force-no-store'
+export const dynamic    = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 interface PageProps {
-  searchParams: Promise<{ severity?: string; type?: string }>
+  searchParams: Promise<{ categoria?: string }>
 }
 
-const SEVERITY_ORDER: Severity[] = ['urgente', 'importante', 'proximo', 'aviso']
+const CATEGORY_ORDER: PendienteCategory[] = [
+  'pendiente_transferencia',
+  'liquidacion_abierta',
+  'cobranza_proxima',
+]
 
-const SEVERITY_META: Record<Severity, { label: string; icon: string; dot: string; banner: string; ringActive: string }> = {
-  urgente:    { label: 'Urgente — acción hoy',      icon: '🔴', dot: 'bg-danger',  banner: 'bg-danger/10 border-danger/30 text-ink',     ringActive: 'ring-danger'  },
-  importante: { label: 'Importante — esta semana',  icon: '🟡', dot: 'bg-warn',    banner: 'bg-warn/10 border-warn/30 text-ink',         ringActive: 'ring-warn'    },
-  proximo:    { label: 'Próximo — próximas semanas',icon: '🟠', dot: 'bg-info/60', banner: 'bg-info/10 border-info/30 text-ink',         ringActive: 'ring-info'    },
-  aviso:      { label: 'Avisos — revisar cuando puedas', icon: '🔵', dot: 'bg-slate/50', banner: 'bg-slate/10 border-slate/30 text-ink', ringActive: 'ring-slate'   },
+const CATEGORY_META: Record<PendienteCategory, {
+  label:    string
+  sublabel: string
+  dot:      string
+  banner:   string
+}> = {
+  pendiente_transferencia: {
+    label:    'Transferencia pendiente',
+    sublabel: 'Falta cobro del inquilino o transferencia al propietario',
+    dot:      'bg-danger',
+    banner:   'bg-danger/10 border-danger/30 text-ink',
+  },
+  liquidacion_abierta: {
+    label:    'Liquidación sin cerrar',
+    sublabel: 'Transferencia hecha pero no marcada como pagada',
+    dot:      'bg-warn',
+    banner:   'bg-warn/10 border-warn/30 text-ink',
+  },
+  cobranza_proxima: {
+    label:    'Cobranza próxima',
+    sublabel: 'Alquiler vence en ≤7 días',
+    dot:      'bg-info/60',
+    banner:   'bg-info/10 border-info/30 text-ink',
+  },
 }
 
-const TYPE_META: Record<StreamType, { label: string; emoji: string }> = {
-  cobranza:   { label: 'Cobranza',   emoji: '💰' },
-  aumento:    { label: 'Aumento',    emoji: '📈' },
-  validacion: { label: 'Validación', emoji: '⚠️'  },
-  workflow:   { label: 'Workflow',   emoji: '📤' },
-  contrato:   { label: 'Contrato',   emoji: '📄' },
-  datos:      { label: 'Datos',      emoji: '🗂️' },
+function isCategory(s: string | undefined): s is PendienteCategory {
+  return s === 'pendiente_transferencia' || s === 'liquidacion_abierta' || s === 'cobranza_proxima'
 }
 
 export default async function PendientesPage({ searchParams }: PageProps) {
   const sp = await searchParams
-  const severityFilter: Severity | null =
-    sp.severity === 'urgente' || sp.severity === 'importante' || sp.severity === 'proximo' || sp.severity === 'aviso'
-      ? sp.severity : null
-  const typeFilter: StreamType | null =
-    sp.type === 'cobranza' || sp.type === 'aumento' || sp.type === 'validacion' ||
-    sp.type === 'workflow' || sp.type === 'contrato' || sp.type === 'datos'
-      ? sp.type : null
+  const filter: PendienteCategory | null = isCategory(sp.categoria) ? sp.categoria : null
 
-  // Wrap the digest call: if it throws (e.g. an unmigrated column in
-  // production), the page still renders with a visible error banner
-  // instead of going blank.
   let items: PendienteItem[] = []
-  let counts = { urgente: 0, importante: 0, proximo: 0, aviso: 0, total: 0 }
-  let period = ''
+  let counts = {
+    pendiente_transferencia: 0,
+    liquidacion_abierta:     0,
+    cobranza_proxima:        0,
+    total:                   0,
+  }
   let runtimeError: string | null = null
   try {
     const digest = await getPendientesDigest()
     items  = digest.items
     counts = digest.counts
-    period = digest.period
   } catch (err) {
     console.error('[/pendientes] getPendientesDigest threw:', err)
     runtimeError = err instanceof Error ? err.message : String(err)
   }
 
-  const filtered = items.filter(it =>
-    (!severityFilter || it.severity === severityFilter) &&
-    (!typeFilter     || it.type     === typeFilter)
-  )
+  const periodLabel = getCurrentPeriodLabel()
+  const filtered    = filter ? items.filter(i => i.category === filter) : items
 
-  // Group filtered items by severity for the accordion sections.
-  const grouped: Record<Severity, PendienteItem[]> = {
-    urgente: [], importante: [], proximo: [], aviso: [],
+  // Group filtered items by category for the sections.
+  const grouped: Record<PendienteCategory, PendienteItem[]> = {
+    pendiente_transferencia: [],
+    liquidacion_abierta:     [],
+    cobranza_proxima:        [],
   }
-  for (const item of filtered) grouped[item.severity].push(item)
+  for (const item of filtered) grouped[item.category].push(item)
 
-  function linkWith(overrides: Partial<{ severity: Severity | null; type: StreamType | null }>) {
-    const merged = { severity: severityFilter, type: typeFilter, ...overrides }
-    const qs = new URLSearchParams()
-    if (merged.severity) qs.set('severity', merged.severity)
-    if (merged.type)     qs.set('type', merged.type)
-    return qs.size > 0 ? `/pendientes?${qs.toString()}` : '/pendientes'
+  function hrefForCategory(cat: PendienteCategory | null): string {
+    if (!cat) return '/pendientes'
+    return `/pendientes?categoria=${cat}`
   }
+
+  const summaryBits: string[] = []
+  if (filter) summaryBits.push(CATEGORY_META[filter].label)
 
   return (
     <>
-      <div className="flex-none">
-        <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
+      <StickyHeader>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap sm:flex-nowrap mb-2">
           <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
             <strong className="text-ink font-medium">Pendientes</strong>
             {' · '}
-            <span className="text-slate">{counts.total} {counts.total === 1 ? 'acción' : 'acciones'} requieren atención · período {periodLabel(period)}</span>
+            {filtered.length === counts.total
+              ? `${counts.total} ${counts.total === 1 ? 'acción' : 'acciones'} · ${periodLabel}`
+              : `${filtered.length} de ${counts.total} · ${periodLabel}`}
+            {summaryBits.length > 0 && (
+              <span className="text-slate"> · {summaryBits.join(' · ')}</span>
+            )}
           </p>
         </div>
 
-        {/* ─── Severity KPI strip — click any chip to filter ─── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] mb-3">
-          {SEVERITY_ORDER.map(sev => {
-            const meta = SEVERITY_META[sev]
-            const active = severityFilter === sev
-            return (
-              <Link
-                key={sev}
-                href={linkWith({ severity: active ? null : sev })}
-                className={`flex items-center justify-between gap-2 border rounded px-3 py-2 transition-all hover:bg-cream-2 ${meta.banner} ${active ? `ring-2 ${meta.ringActive} ring-inset` : ''}`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`inline-block w-2 h-2 rounded-full ${meta.dot}`} aria-hidden />
-                  <span className="text-[11px] uppercase tracking-wider font-medium truncate">{meta.label.split('—')[0].trim()}</span>
-                </div>
-                <span className="font-display text-[18px] tabular-nums text-ink shrink-0">{counts[sev]}</span>
-              </Link>
-            )
-          })}
-        </div>
+        <StickyKPIStrip cols={3}>
+          <StickyKPIStripItem>
+            <KPICard
+              label="Transferencia pendiente"
+              value={counts.pendiente_transferencia.toString()}
+              delta="falta cobro o pago al propietario"
+              deltaTone={counts.pendiente_transferencia > 0 ? 'negative' : 'neutral'}
+              href={hrefForCategory('pendiente_transferencia')}
+              clearHref={hrefForCategory(null)}
+              active={filter === 'pendiente_transferencia'}
+            />
+          </StickyKPIStripItem>
+          <StickyKPIStripItem>
+            <KPICard
+              label="Liquidación sin cerrar"
+              value={counts.liquidacion_abierta.toString()}
+              delta="transferida sin marcar pagada"
+              deltaTone={counts.liquidacion_abierta > 0 ? 'negative' : 'neutral'}
+              href={hrefForCategory('liquidacion_abierta')}
+              clearHref={hrefForCategory(null)}
+              active={filter === 'liquidacion_abierta'}
+            />
+          </StickyKPIStripItem>
+          <StickyKPIStripItem>
+            <KPICard
+              label="Cobranza próxima"
+              value={counts.cobranza_proxima.toString()}
+              delta="vence en ≤7 días"
+              deltaTone="neutral"
+              href={hrefForCategory('cobranza_proxima')}
+              clearHref={hrefForCategory(null)}
+              active={filter === 'cobranza_proxima'}
+            />
+          </StickyKPIStripItem>
+        </StickyKPIStrip>
+      </StickyHeader>
 
-        {/* ─── Type filter pills ─── */}
-        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px] pb-2">
-          <span className="label-cap text-slate shrink-0">Tipo</span>
-          <TypePill href={linkWith({ type: null })} label="Todos" active={!typeFilter} />
-          {(Object.keys(TYPE_META) as StreamType[]).map(t => {
-            const cnt = items.filter(i =>
-              (!severityFilter || i.severity === severityFilter) && i.type === t
-            ).length
-            if (cnt === 0 && typeFilter !== t) return null
-            return (
-              <TypePill
-                key={t}
-                href={linkWith({ type: typeFilter === t ? null : t })}
-                label={`${TYPE_META[t].emoji} ${TYPE_META[t].label}`}
-                count={cnt}
-                active={typeFilter === t}
-              />
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-auto mt-2 space-y-4 pb-8">
+      <div className="mt-4 space-y-4 pb-8">
         {runtimeError && (
           <div className="bg-danger/10 border border-danger/40 rounded p-3 text-[12px] text-ink">
             <p className="font-medium text-danger">⚠ No se pudo calcular el listado de pendientes.</p>
             <p className="text-slate-dark mt-1">{runtimeError}</p>
-            <p className="text-[11px] text-gray-500 mt-1 italic">
-              Probablemente falta aplicar alguna migración en Supabase. Mirá los logs del servidor para el detalle.
-            </p>
           </div>
         )}
 
-        {SEVERITY_ORDER.map(sev => {
-          const list = grouped[sev]
+        {CATEGORY_ORDER.map(cat => {
+          const list = grouped[cat]
           if (list.length === 0) return null
-          const meta = SEVERITY_META[sev]
+          const meta = CATEGORY_META[cat]
           return (
-            <section key={sev} className="bg-paper border border-line rounded overflow-hidden">
-              <div className={`px-4 py-2 border-b border-line flex items-center justify-between ${meta.banner}`}>
-                <h2 className="font-display text-[14px] font-medium flex items-center gap-2">
-                  <span className={`inline-block w-2 h-2 rounded-full ${meta.dot}`} aria-hidden />
-                  {meta.label}
-                </h2>
-                <span className="text-[11px] text-slate-dark tabular-nums">{list.length} {list.length === 1 ? 'ítem' : 'ítems'}</span>
+            <section key={cat} className="bg-paper border border-line rounded shadow-card overflow-hidden">
+              <div className={`px-4 py-2.5 border-b border-line flex items-center justify-between ${meta.banner}`}>
+                <div>
+                  <h2 className="font-display text-[14px] font-medium flex items-center gap-2">
+                    <span className={`inline-block w-2 h-2 rounded-full ${meta.dot}`} aria-hidden />
+                    {meta.label}
+                  </h2>
+                  <p className="text-[11px] text-slate mt-0.5">{meta.sublabel}</p>
+                </div>
+                <span className="text-[11px] text-slate-dark tabular-nums">
+                  {list.length} {list.length === 1 ? 'ítem' : 'ítems'}
+                </span>
               </div>
               <ul>
-                {list.map(item => <PendienteRow key={item.id} item={item} period={period} />)}
+                {list.map(item => <PendienteRow key={item.id} item={item} />)}
               </ul>
             </section>
           )
         })}
 
-        {filtered.length === 0 && (
-          <div className="bg-paper border border-line rounded p-10 text-center">
+        {filtered.length === 0 && !runtimeError && (
+          <div className="bg-paper border border-line rounded shadow-card p-10 text-center">
             <p className="text-[14px] text-slate">
               {counts.total === 0
                 ? 'Todo al día — sin pendientes.'
-                : `Sin pendientes${severityFilter ? ` de severidad "${severityFilter}"` : ''}${typeFilter ? ` de tipo "${typeFilter}"` : ''}.`}
+                : `Sin pendientes en "${filter ? CATEGORY_META[filter].label : ''}".`}
             </p>
           </div>
         )}
@@ -176,111 +211,207 @@ export default async function PendientesPage({ searchParams }: PageProps) {
 
 // ────────────────────────────────────────────────────────────────────────────
 
-function PendienteRow({ item, period }: { item: PendienteItem; period: string }) {
-  const typeMeta = TYPE_META[item.type]
-  // Suggested action wiring:
-  //   • cobranza + tenant phone → WhatsApp deep link
-  //   • everything else → "Ver fila" jump to the planilla
-  const isCobranzaWithPhone = item.type === 'cobranza' && item.tenantPhone
-  const whatsappHref = isCobranzaWithPhone
-    ? buildWhatsappHref(item.tenantPhone!, buildCobranzaTemplate(item))
+function PendienteRow({ item }: { item: PendienteItem }) {
+  // Pick contact target by category + sub-case:
+  //   · cobranza_proxima           → tenant (gentle reminder)
+  //   · pendiente_transferencia/A  → tenant (chase the cobro)
+  //   · pendiente_transferencia/B  → landlord (announce upcoming transfer)
+  //   · liquidacion_abierta        → landlord (confirm receipt)
+  const target = pickContactTarget(item)
+  const tmpl   = buildTemplate(item)
+
+  const whatsappHref = target.phone
+    ? `https://wa.me/${cleanPhone(target.phone)}?text=${encodeURIComponent(tmpl.body)}`
+    : null
+  const mailtoHref = target.email
+    ? `mailto:${encodeURIComponent(target.email)}?subject=${encodeURIComponent(tmpl.subject)}&body=${encodeURIComponent(tmpl.body)}`
     : null
 
-  const verFilaHref = `/liquidacion?period=${period}&highlight=${item.contractId}`
+  const verContratoHref = `/contratos/${item.contractId}`
+
+  // Sub-case badge for category 2 ("Falta cobro" vs "Falta transferencia")
+  // so a quick scan tells the encargada which lane the row is in.
+  const subcaseBadge = item.subcase === 'falta_cobro'
+    ? { label: 'Falta cobro',         class: 'bg-danger/10 text-danger border-danger/30' }
+    : item.subcase === 'falta_transferencia'
+      ? { label: 'Falta transferencia', class: 'bg-warn/15 text-ink border-warn/40' }
+      : null
 
   return (
-    <li className="px-4 py-2 border-b border-line/40 last:border-b-0 flex items-center gap-3 hover:bg-cream-2/50 transition-colors">
-      <span className="text-[15px] shrink-0" aria-hidden>{typeMeta.emoji}</span>
+    <li className="px-4 py-2.5 border-b border-line/40 last:border-b-0 flex items-center gap-3 hover:bg-cream-2/50 transition-colors">
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] text-ink leading-snug">
+        <p className="text-[13px] text-ink leading-snug flex items-center gap-2 flex-wrap">
           <strong className="font-medium">{item.tenantName}</strong>
-          <span className="text-slate"> · prop. </span>
+          <span className="text-slate">· prop.</span>
           <span className="text-slate-dark">{item.landlordName}</span>
+          {subcaseBadge && (
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full border text-[10px] font-medium ${subcaseBadge.class}`}>
+              {subcaseBadge.label}
+            </span>
+          )}
         </p>
-        <p className="text-[11.5px] text-slate-dark mt-0.5 leading-snug">
-          <strong className="text-ink">{item.title}</strong>
-          {' — '}
-          {item.detail}
-        </p>
+        <p className="text-[11.5px] text-slate-dark mt-0.5 leading-snug">{item.detail}</p>
       </div>
+
       <div className="flex items-center gap-2 shrink-0">
         {item.amount != null && item.amount > 0 && (
-          <span className="text-[12px] tabular-nums text-slate-dark">{fmtMoney(item.amount)}</span>
+          <span className="text-[12px] tabular-nums text-slate-dark mr-1">{fmtMoney(item.amount)}</span>
         )}
-        {whatsappHref && (
+
+        {/* WhatsApp icon — muted when the relevant contact has no phone. */}
+        {whatsappHref ? (
           <a
             href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
-            title="Mandar recordatorio por WhatsApp"
-            // Inline brand color (#25D366 = WhatsApp green). Not adding to
-            // tailwind.config — single-use brand asset.
+            title={`Mandar WhatsApp a ${target.label}`}
             style={{ backgroundColor: '#25D366' }}
-            className="px-2 py-1 rounded text-white text-[11px] font-medium hover:opacity-90 transition-opacity inline-flex items-center gap-1.5"
+            className="inline-flex items-center justify-center w-7 h-7 rounded text-white hover:opacity-90 transition-opacity"
           >
-            <WhatsAppIcon size={13} title="" />
-            WhatsApp
+            <WhatsAppIcon size={14} title="" />
           </a>
+        ) : (
+          <span
+            title={`Sin teléfono cargado para ${target.label}`}
+            className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-100 text-gray-400 cursor-not-allowed"
+          >
+            <WhatsAppIcon size={14} title="" />
+          </span>
         )}
+
+        {/* Email icon — same enabled/disabled treatment. */}
+        {mailtoHref ? (
+          <a
+            href={mailtoHref}
+            title={`Mandar email a ${target.label}`}
+            className="inline-flex items-center justify-center w-7 h-7 rounded bg-ink text-paper text-[13px] hover:opacity-90 transition-opacity"
+          >
+            ✉
+          </a>
+        ) : (
+          <span
+            title={`Sin email cargado para ${target.label}`}
+            className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-100 text-gray-400 text-[13px] cursor-not-allowed"
+          >
+            ✉
+          </span>
+        )}
+
         <Link
-          href={verFilaHref}
+          href={verContratoHref}
+          title="Abrir la página del contrato"
           className="px-2 py-1 rounded border border-line text-slate-dark text-[11px] font-medium hover:bg-cream-2 transition-colors"
         >
-          Ver fila →
+          Ver contrato →
         </Link>
       </div>
     </li>
   )
 }
 
-function TypePill({ href, label, count, active }: { href: string; label: string; count?: number; active: boolean }) {
-  return (
-    <Link
-      href={href}
-      className={[
-        'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[11px] font-medium transition-colors shrink-0',
-        active
-          ? 'bg-ink text-paper border-ink'
-          : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
-      ].join(' ')}
-    >
-      <span>{label}</span>
-      {count != null && (
-        <span className={`inline-flex items-center justify-center text-[9px] font-medium tabular-nums px-1 rounded ${active ? 'bg-paper/15 text-paper' : 'bg-line/60 text-slate-dark'}`}>
-          {count}
-        </span>
-      )}
-    </Link>
-  )
-}
-
-function periodLabel(p: string): string {
-  if (!p || p.length < 7) return p
-  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-  const [y, m] = p.split('-')
-  return `${months[+m - 1]} ${y}`
-}
-
 // ────────────────────────────────────────────────────────────────────────────
-// WhatsApp helpers — uses wa.me deep link (no Business API needed). The
-// encargada confirms the send inside WhatsApp itself, respecting the saved
-// communication-model rule (drafting automated, sending decision = hers).
+// Contact targeting + message templates.
+//
+// Each category points at the right person to contact and produces a Spanish
+// draft. WhatsApp and email reuse the same body; subject is email-only.
+// Per the saved communication-model rule: drafting + recommendation are
+// automated, the encargada decides the send inside her own mail/WhatsApp UI.
 // ────────────────────────────────────────────────────────────────────────────
 
-function buildWhatsappHref(phone: string, body: string): string {
-  // Strip everything except digits and the leading +.
-  const cleaned = phone.replace(/[^\d+]/g, '').replace(/^\+/, '')
-  return `https://wa.me/${cleaned}?text=${encodeURIComponent(body)}`
+interface ContactTarget {
+  /** Who we're addressing — used in the icon tooltips. */
+  label: string
+  /** Who the message is FROM the perspective of — drives the greeting. */
+  name:  string
+  phone: string | null
+  email: string | null
 }
 
-function buildCobranzaTemplate(item: PendienteItem): string {
-  const lines = [
-    `Hola ${item.tenantName}, te escribo de la administración.`,
-    '',
-    `Te quería recordar que ${item.detail.toLowerCase()}.`,
-    '',
-    `Cualquier consulta quedamos a disposición.`,
-    `Saludos.`,
-  ]
-  return lines.join('\n')
+function pickContactTarget(item: PendienteItem): ContactTarget {
+  // Category 2b + Category 3 → contact the landlord.
+  if (
+    (item.category === 'pendiente_transferencia' && item.subcase === 'falta_transferencia') ||
+    item.category === 'liquidacion_abierta'
+  ) {
+    return {
+      label: 'el propietario',
+      name:  item.landlordName,
+      phone: null,                 // landlord phones aren't surfaced today
+      email: item.landlordEmail,
+    }
+  }
+  // Default (cat 1 and cat 2a) → contact the tenant.
+  return {
+    label: 'el inquilino',
+    name:  item.tenantName,
+    phone: item.tenantPhone,
+    email: item.tenantEmail,
+  }
+}
+
+interface MessageTemplate { subject: string; body: string }
+
+function buildTemplate(item: PendienteItem): MessageTemplate {
+  switch (item.category) {
+    case 'cobranza_proxima': {
+      const subject = 'Recordatorio de alquiler — Patagonia Propiedades'
+      const body = [
+        `Hola ${item.tenantName},`,
+        '',
+        `Te escribimos de Patagonia Propiedades. ${item.detail}`,
+        '',
+        `Si ya hiciste la transferencia, ignorá este mensaje. Cualquier consulta, quedamos a disposición.`,
+        '',
+        `Saludos.`,
+      ].join('\n')
+      return { subject, body }
+    }
+    case 'pendiente_transferencia':
+      if (item.subcase === 'falta_cobro') {
+        const subject = 'Alquiler vencido — Patagonia Propiedades'
+        const body = [
+          `Hola ${item.tenantName},`,
+          '',
+          `Te escribimos de Patagonia Propiedades. ${item.detail}`,
+          '',
+          `Te pedimos por favor regularizar el pago en cuanto puedas. Si ya hiciste la transferencia, pasanos el comprobante.`,
+          '',
+          `Saludos.`,
+        ].join('\n')
+        return { subject, body }
+      }
+      // falta_transferencia → addressing landlord
+      {
+        const subject = 'Cobro recibido — transferencia próxima'
+        const body = [
+          `Estimado/a ${item.landlordName},`,
+          '',
+          `Le informamos que ya recibimos el alquiler del período. ${item.detail}`,
+          '',
+          `En las próximas horas le acreditamos el saldo en su cuenta.`,
+          '',
+          `Saludos cordiales,`,
+          `Patagonia Propiedades`,
+        ].join('\n')
+        return { subject, body }
+      }
+    case 'liquidacion_abierta': {
+      const subject = 'Confirmación de liquidación'
+      const body = [
+        `Estimado/a ${item.landlordName},`,
+        '',
+        `Confirmamos que la transferencia por la liquidación del período fue realizada. ${item.detail}`,
+        '',
+        `Cualquier consulta, quedamos a disposición.`,
+        '',
+        `Saludos cordiales,`,
+        `Patagonia Propiedades`,
+      ].join('\n')
+      return { subject, body }
+    }
+  }
+}
+
+function cleanPhone(phone: string): string {
+  return phone.replace(/[^\d+]/g, '').replace(/^\+/, '')
 }
