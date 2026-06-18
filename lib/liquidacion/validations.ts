@@ -222,15 +222,16 @@ function checkRentAmountVariance(r: ValidatableRow): ValidationIssue | null {
 /**
  * Run all per-row validators against a row.
  *
- * Optional `contractPct` parameter enables the commission-deviation check
- * which compares the effective pct (admi/ingresos*100) against the
- * contract's configured commission_pct. The grid query has both values
- * and can pass them; callers that don't have the contract pct just skip
- * that one rule.
+ * `contractPct` enables the commission-deviation check: it compares the
+ * recorded ADMI against `ingresos × pct × (1 + IVA)`, where the IVA factor
+ * is 1.21 when the contract is invoiced by an RI administrator and 1
+ * otherwise. Without `commissionIncludesIva` the check assumes no IVA
+ * (matches Monotributo contracts and any caller that doesn't pass the flag).
  */
 export function validateRow(
-  r:           ValidatableRow,
-  contractPct?: number,
+  r:                     ValidatableRow,
+  contractPct?:          number,
+  commissionIncludesIva: boolean = false,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   const push = (i: ValidationIssue | null) => { if (i) issues.push(i) }
@@ -249,14 +250,19 @@ export function validateRow(
     contractPct != null && contractPct > 0 &&
     r.ingresos > 0 && r.admi > 0
   ) {
-    const effectivePct = (r.admi / r.ingresos) * 100
+    const ivaFactor    = commissionIncludesIva ? 1.21 : 1
+    const expectedAdmi = (r.ingresos * contractPct / 100) * ivaFactor
+    // Effective pct is computed against the IVA-inclusive expectation so
+    // an RI contract booked correctly shows 0 deviation, not the ~21%
+    // surplus you'd get if we ignored IVA.
+    const effectivePct = (r.admi / r.ingresos / ivaFactor) * 100
     const pctDiff      = Math.abs(effectivePct - contractPct)
     if (pctDiff > VALIDATION_TOLERANCES.COMMISSION_PP) {
-      const expectedAdmi = (r.ingresos * contractPct) / 100
+      const ivaSuffix = commissionIncludesIva ? ' (incluye IVA 21%)' : ''
       issues.push({
         code:     'COMMISSION_PCT_DEVIATION',
         severity: 'warning',
-        message:  `Comisión efectiva (${effectivePct.toFixed(2)}%) difiere del contrato (${contractPct.toFixed(2)}%) por ${pctDiff.toFixed(2)} puntos. ADMI esperado: ${fmtMoney(expectedAdmi)}.`,
+        message:  `Comisión efectiva (${effectivePct.toFixed(2)}%) difiere del contrato (${contractPct.toFixed(2)}%${ivaSuffix}) por ${pctDiff.toFixed(2)} puntos. ADMI esperado: ${fmtMoney(expectedAdmi)}.`,
         expected: expectedAdmi,
         actual:   r.admi,
         diff:     Math.abs(expectedAdmi - r.admi),

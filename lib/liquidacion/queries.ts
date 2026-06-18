@@ -36,6 +36,10 @@ export interface LiquidacionGridTotals {
   transferencia: number
   otros:         number
   admi:          number
+  /** IVA portion embedded inside `admi` for contracts where
+   *  commission_includes_iva = true. Sum across the period.
+   *  Rows with no IVA on commission contribute 0. */
+  iva:           number
   admGalicia:    number
   admFrances509: number
   admFrances516: number
@@ -44,7 +48,7 @@ export interface LiquidacionGridTotals {
 const ZERO_TOTALS: LiquidacionGridTotals = {
   expensas: 0, deuda: 0, ingresos: 0, alquiler: 0, extras: 0,
   transferencia: 0, otros: 0,
-  admi: 0, admGalicia: 0, admFrances509: 0, admFrances516: 0,
+  admi: 0, iva: 0, admGalicia: 0, admFrances509: 0, admFrances516: 0,
 }
 
 export function sumGridTotals(rows: LiquidacionGridRow[]): LiquidacionGridTotals {
@@ -59,6 +63,7 @@ export function sumGridTotals(rows: LiquidacionGridRow[]): LiquidacionGridTotals
       t.transferencia += Number(r.transferencia ?? 0) || 0
       t.otros         += Number(r.otros         ?? 0) || 0
       t.admi          += Number(r.admi          ?? 0) || 0
+      t.iva           += Number(r.iva           ?? 0) || 0
       t.admGalicia    += Number(r.admGalicia    ?? 0) || 0
       t.admFrances509 += Number(r.admFrances509 ?? 0) || 0
       t.admFrances516 += Number(r.admFrances516 ?? 0) || 0
@@ -268,7 +273,15 @@ export interface LiquidacionGridRow {
 
   // ── Commission breakdown (3 destinations stay SEPARATE per Alejandro's spec) ──
   pct:           number          // effective % = admi / ingresos × 100
-  admi:          number          // sum COMMISSION_OUT
+  admi:          number          // sum COMMISSION_OUT (already includes IVA when applicable)
+  /** True when the contract is invoiced by an RI administrator AND the
+   *  commission line includes IVA (contracts.commission_includes_iva).
+   *  Drives the IVA column and the validation's expected-ADMI calc. */
+  commissionIncludesIva: boolean
+  /** IVA portion embedded inside `admi`: `admi × 0.21 / 1.21` when
+   *  commissionIncludesIva is true, else 0. Derived so the encargada sees
+   *  what slice of ADMI is IVA without re-doing the arithmetic. */
+  iva:           number
   admGalicia:    number
   admFrances509: number
   admFrances516: number
@@ -465,7 +478,8 @@ export async function getGridDiagnostic(period: string): Promise<GridDiagnostic>
         .from('contracts')
         .select(`
           id, status, contract_number, lfa_code, expensas, current_rent,
-          cadence, start_date, end_date, created_at, updated_at, commission_pct,
+          cadence, start_date, end_date, created_at, updated_at,
+          commission_pct, commission_includes_iva,
           contract_tenants(is_primary, share_pct, tenants(id, name)),
           contract_landlords(ownership_pct, landlords(id, name, email))
         `)
@@ -549,7 +563,7 @@ async function probeFirstRowError(
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
         cadence, start_date, end_date, payment_day,
-        created_at, updated_at, commission_pct,
+        created_at, updated_at, commission_pct, commission_includes_iva,
         contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
@@ -593,7 +607,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
         cadence, start_date, end_date, payment_day,
-        created_at, updated_at, commission_pct,
+        created_at, updated_at, commission_pct, commission_includes_iva,
         contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
@@ -806,6 +820,15 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
 
     const pct = a.ingresos > 0 ? (a.admi / a.ingresos) * 100 : 0
 
+    // IVA portion embedded inside the recorded ADMI. When the contract is
+    // billed by an RI administrator (commission_includes_iva=true), the
+    // COMMISSION_OUT amount the encargada records is the full +21% IVA
+    // figure (matches the receipts: "ADM 9% + IVA = $100.188"). We split it
+    // back out so the planilla shows what slice of ADMI is tax. For
+    // Monotributo contracts the flag is false → IVA stays 0.
+    const commissionIncludesIva = c.commission_includes_iva === true
+    const iva = commissionIncludesIva ? a.admi * 0.21 / 1.21 : 0
+
     rows.push({
       contractId:           c.id,
       landlordId:           primary?.landlords.id ?? '',
@@ -830,6 +853,8 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       otros:         a.otros,
       pct,
       admi:          a.admi,
+      commissionIncludesIva,
+      iva,
       admGalicia:    a.galicia,
       admFrances509: a.frances509,
       admFrances516: a.frances516,
@@ -919,6 +944,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           ingresosLines:    a.ingresosLines,
         },
         c.commission_pct != null ? Number(c.commission_pct) : undefined,
+        commissionIncludesIva,
       ),
     })
     } catch (err) {

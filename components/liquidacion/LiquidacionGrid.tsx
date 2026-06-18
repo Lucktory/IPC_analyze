@@ -105,7 +105,13 @@ const W = {
   // unused in the new layout but preserved for any old code paths.
   alquiler: 95, extras: 85,
   ingresos: 95, transf: 105, otros: 80, diatransf: 70,
-  admi: 90, galicia: 85, fr509: 85, fr516: 85,
+  admi: 90,
+  // IVA — embedded inside ADMI when contract.commission_includes_iva = true
+  // (RI invoicer). Shows the 21% slice so the encargada can read the
+  // breakdown matching the receipts ("ADM 9% + IVA = $100.188"). Renders
+  // a muted dash for Monotributo contracts where no IVA applies.
+  iva: 80,
+  galicia: 85, fr509: 85, fr516: 85,
   estado: 55,
   // Column 20: Mail — per-row "Liquidar y enviar" action button.
   // Alejandro: "faltaría agregarle al final liquidar contrato y mandarle el mail."
@@ -212,7 +218,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
   const tableMinWidth =
     W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.cadencia +
     W.contrato + W.deuda + W.periodo + W.alquiler + W.extras + W.transf + W.otros +
-    W.diatransf + W.admi + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
+    W.diatransf + W.admi + W.iva + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
 
   return (
     <section className="bg-white border border-gray-300 overflow-hidden h-full flex flex-col">
@@ -243,6 +249,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               {/* 13 */}<Th width={W.otros}     align="right">Otros</Th>
               {/* 14 */}<Th width={W.diatransf} align="center">D. transf</Th>
               {/* 15 */}<Th width={W.admi}      align="right">ADMI</Th>
+              {/* 15b */}<Th width={W.iva}      align="right">IVA</Th>
               {/* 16 */}<Th width={W.galicia}   align="right">Galicia</Th>
               {/* 17 */}<Th width={W.fr509}     align="right">BBVA 50/9</Th>
               {/* 18 */}<Th width={W.fr516}     align="right">BBVA 51/6</Th>
@@ -569,13 +576,39 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                   <Td
                     width={W.admi}
                     align="right"
-                    title={r.admi > 0
-                      ? `ADMI = Galicia + BBVA 50/9 + BBVA 51/6 = ${fmtMoney(r.admGalicia)} + ${fmtMoney(r.admFrances509)} + ${fmtMoney(r.admFrances516)} = ${fmtMoney(r.admi)}`
-                      : 'ADMI = comisión total. Aún sin COMMISSION_OUT en el período.'}
+                    title={(() => {
+                      if (r.admi <= 0) return 'ADMI = comisión total. Aún sin COMMISSION_OUT en el período.'
+                      const ivaSuffix = r.commissionIncludesIva
+                        ? `\nIncluye IVA 21%: ${fmtMoney(r.iva)} sobre neto ${fmtMoney(r.admi - r.iva)}`
+                        : '\nSin IVA (administrador Monotributo).'
+                      return `ADMI = Galicia + BBVA 50/9 + BBVA 51/6 = ${fmtMoney(r.admGalicia)} + ${fmtMoney(r.admFrances509)} + ${fmtMoney(r.admFrances516)} = ${fmtMoney(r.admi)}.${ivaSuffix}`
+                    })()}
                   >
                     <span className={`tabular-nums ${cellTextClass(transferido)}`}>
                       {fmtMoneyOr(r.admi)}
                     </span>
+                  </Td>
+
+                  {/* 15b. IVA — embedded inside ADMI for RI-invoiced contracts.
+                       Derived as admi × 0.21 / 1.21 so the encargada sees the
+                       slice without re-doing the math. Muted dash for
+                       Monotributo contracts (commission_includes_iva = false). */}
+                  <Td
+                    width={W.iva}
+                    align="right"
+                    title={r.commissionIncludesIva
+                      ? r.admi > 0
+                        ? `IVA 21% sobre comisión neta ${fmtMoney(r.admi - r.iva)} = ${fmtMoney(r.iva)} (ya incluido dentro del ADMI).`
+                        : 'Contrato facturado por RI — el IVA 21% se aplica sobre la comisión cuando se registre el COMMISSION_OUT.'
+                      : 'Administrador Monotributo: la comisión no lleva IVA.'}
+                  >
+                    {r.commissionIncludesIva ? (
+                      <span className={`tabular-nums ${cellTextClass(transferido)}`}>
+                        {fmtMoneyOr(r.iva)}
+                      </span>
+                    ) : (
+                      <span className="tabular-nums text-gray-400">—</span>
+                    )}
                   </Td>
 
                   {/* 16-18. ADM destinations — each one validates against the
@@ -691,6 +724,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <Tf width={W.otros}     align="right" tabular>{footerMoney(totals.otros)}</Tf>
               <Tf width={W.diatransf} align="center"    />
               <Tf width={W.admi}      align="right" tabular>{footerMoney(totals.admi)}</Tf>
+              <Tf width={W.iva}       align="right" tabular>{footerMoney(totals.iva)}</Tf>
               <Tf width={W.galicia}   align="right" tabular>{footerMoney(totals.admGalicia)}</Tf>
               <Tf width={W.fr509}     align="right" tabular>{footerMoney(totals.admFrances509)}</Tf>
               <Tf width={W.fr516}     align="right" tabular>{footerMoney(totals.admFrances516)}</Tf>
