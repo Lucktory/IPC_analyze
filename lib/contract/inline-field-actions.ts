@@ -69,6 +69,24 @@ export async function updateContractCommissionPct(contractId: string, pct: numbe
   return { ok: true, error: null }
 }
 
+// ── Commission includes IVA (drives the IVA column on the planilla) ─────────
+// True when the invoicing administrator is RI (adds 21% IVA on the commission
+// invoice); false for Monotributo. Per-contract flag because Alejandro picks
+// the invoicer per contract depending on what the landlord prefers.
+export async function updateContractCommissionIncludesIva(
+  contractId: string,
+  includesIva: boolean,
+): Promise<InlineResult> {
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase
+    .from('contracts')
+    .update({ commission_includes_iva: includesIva })
+    .eq('id', contractId)
+  if (error) return dbFailure(error)
+  revalidate(contractId)
+  return { ok: true, error: null }
+}
+
 // ── Vigencia (start_date / end_date) ────────────────────────────────────────
 export async function updateContractVigencia(
   contractId: string,

@@ -55,6 +55,7 @@ import {
 } from './EditableCells'
 import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 import { InlineIngresosCell } from './InlineIngresosCell'
+import { InlineIvaToggleCell } from './InlineIvaToggleCell'
 import { ValidationBadgeCell } from './ValidationBadgeCell'
 import { highestSeverity } from '@/lib/liquidacion/validations'
 import {
@@ -590,25 +591,17 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                   </Td>
 
                   {/* 15b. IVA — embedded inside ADMI for RI-invoiced contracts.
-                       Derived as admi × 0.21 / 1.21 so the encargada sees the
-                       slice without re-doing the math. Muted dash for
-                       Monotributo contracts (commission_includes_iva = false). */}
-                  <Td
-                    width={W.iva}
-                    align="right"
-                    title={r.commissionIncludesIva
-                      ? r.admi > 0
-                        ? `IVA 21% sobre comisión neta ${fmtMoney(r.admi - r.iva)} = ${fmtMoney(r.iva)} (ya incluido dentro del ADMI).`
-                        : 'Contrato facturado por RI — el IVA 21% se aplica sobre la comisión cuando se registre el COMMISSION_OUT.'
-                      : 'Administrador Monotributo: la comisión no lleva IVA.'}
-                  >
-                    {r.commissionIncludesIva ? (
-                      <span className={`tabular-nums ${cellTextClass(transferido)}`}>
-                        {fmtMoneyOr(r.iva)}
-                      </span>
-                    ) : (
-                      <span className="tabular-nums text-gray-400">—</span>
-                    )}
+                       Click to toggle commission_includes_iva on the contract.
+                       Derived as admi × 0.21 / 1.21 when the flag is on so the
+                       encargada sees the slice without re-doing the math. */}
+                  <Td width={W.iva} align="right">
+                    <InlineIvaToggleCell
+                      contractId={r.contractId}
+                      includesIva={r.commissionIncludesIva}
+                      ivaAmount={r.iva}
+                      adminNet={r.admi - r.iva}
+                      amountClassName={cellTextClass(transferido)}
+                    />
                   </Td>
 
                   {/* 16-18. ADM destinations — each one validates against the
