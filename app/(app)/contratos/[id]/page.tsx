@@ -8,6 +8,7 @@ import {
 } from '@/lib/contract/queries'
 import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
+import { MovimientosPanel } from '@/components/shared/MovimientosPanel'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { computeUrgency, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 import { getCurrentPeriod } from '@/lib/period'
@@ -219,6 +220,22 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
             </div>
           </div>
         )}
+      </section>
+
+      {/* Movimientos del período — every cashflow row for this contract.
+         Same editable component used inside the planilla's Movs. modal. */}
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
+        <div className="px-6 py-4 border-b border-line">
+          <h2 className="font-display text-[15px] font-medium text-ink">
+            Movimientos · {PERIOD_LABEL(period)}
+          </h2>
+          <p className="text-[12px] text-slate mt-0.5">
+            Cash flow del contrato — entradas y salidas con fecha, monto y razón.
+          </p>
+        </div>
+        <div className="px-6 py-5">
+          <MovimientosPanel contractId={id} period={period} />
+        </div>
       </section>
 
       {/* Observaciones del período — Alejandro's DEUDA scratchpad */}

@@ -286,6 +286,15 @@ export interface LiquidacionGridRow {
   admFrances509: number
   admFrances516: number
 
+  // ── Movimientos — drives the Movs. cell + editable modal.
+  //    Count and signed totals across EVERY transaction the contract has
+  //    in the period (including non-affects_liquidacion entries like
+  //    deposits). The cell shows net = totalIn - totalOut; the modal
+  //    shows the per-row breakdown.
+  movimientosCount:    number
+  movimientosTotalIn:  number
+  movimientosTotalOut: number
+
   // ── Phase 10 — Contract adjustment cadence (mensual / bimestral / …) ──
   //   Alejandro: he asked for a column showing the cadence so he can
   //   answer "every how often is the rent adjusted for this contract?"
@@ -639,11 +648,18 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     /** Per-line breakdown for the Ingresos cell popover (Phase 6). One entry
      *  per affects_liquidacion IN transaction (RENT_IN + recuperos + others). */
     ingresosLines: IngresosLine[]
+    // ── Movimientos cell — every transaction the contract has for the period
+    //    regardless of affects_liquidacion. Drives the Movs. column on the
+    //    planilla and the editable modal.
+    movCount:    number
+    movTotalIn:  number
+    movTotalOut: number
   }
   const blank = (): Agg => ({
     ingresos: 0, admi: 0, otros: 0, payout: 0, galicia: 0, frances509: 0, frances516: 0,
     fechaBanco: null, diaTransf: null,
     ingresosLines: [],
+    movCount: 0, movTotalIn: 0, movTotalOut: 0,
   })
   const agg = new Map<string, Agg>()
 
@@ -659,6 +675,13 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     if (!typ || typeof typ.code !== 'string') continue
     const amt = Number(t.amount)
     if (!isFinite(amt)) continue
+
+    // Movimientos counters: every transaction on the contract+period counts
+    // here, including those that don't affect_liquidacion (deposits etc.).
+    // Direction comes straight from the transaction_types lookup.
+    entry.movCount += 1
+    if (typ.direction === 'IN')      entry.movTotalIn  += amt
+    else if (typ.direction === 'OUT') entry.movTotalOut += amt
 
     if (typ.code === 'RENT_IN') {
       if (typ.affects_liquidacion) entry.ingresos += amt
@@ -858,6 +881,9 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       admGalicia:    a.galicia,
       admFrances509: a.frances509,
       admFrances516: a.frances516,
+      movimientosCount:    a.movCount,
+      movimientosTotalIn:  a.movTotalIn,
+      movimientosTotalOut: a.movTotalOut,
       cadence:               c.cadence ?? null,
       paymentDay,
       dueDateIso,

@@ -56,6 +56,7 @@ import {
 import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 import { InlineIngresosCell } from './InlineIngresosCell'
 import { InlineIvaToggleCell } from './InlineIvaToggleCell'
+import { InlineMovimientosCell } from './InlineMovimientosCell'
 import { ValidationBadgeCell } from './ValidationBadgeCell'
 import { highestSeverity } from '@/lib/liquidacion/validations'
 import {
@@ -105,7 +106,12 @@ const W = {
   // extras (recuperos + signed adjustment). Keeping legacy `ingresos`
   // unused in the new layout but preserved for any old code paths.
   alquiler: 95, extras: 85,
-  ingresos: 95, transf: 105, otros: 80, diatransf: 70,
+  ingresos: 95, transf: 105, otros: 80,
+  // Movs. — net of every transaction on the contract+period (IN - OUT).
+  // Two-line label: amount on top, "N mov." underneath. Click opens the
+  // editable Movimientos modal with Fecha/Mov./Monto/Razón columns.
+  movim: 90,
+  diatransf: 70,
   admi: 90,
   // IVA — embedded inside ADMI when contract.commission_includes_iva = true
   // (RI invoicer). Shows the 21% slice so the encargada can read the
@@ -219,7 +225,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
   const tableMinWidth =
     W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.cadencia +
     W.contrato + W.deuda + W.periodo + W.alquiler + W.extras + W.transf + W.otros +
-    W.diatransf + W.admi + W.iva + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
+    W.movim + W.diatransf + W.admi + W.iva + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
 
   return (
     <section className="bg-white border border-gray-300 overflow-hidden h-full flex flex-col">
@@ -248,6 +254,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               {/* 12 */}<Th width={W.extras}    align="right">Extras</Th>
               {/* 12 */}<Th width={W.transf}    align="right">Transferencia</Th>
               {/* 13 */}<Th width={W.otros}     align="right">Otros</Th>
+              {/* 13b */}<Th width={W.movim}    align="right">Movs.</Th>
               {/* 14 */}<Th width={W.diatransf} align="center">D. transf</Th>
               {/* 15 */}<Th width={W.admi}      align="right">ADMI</Th>
               {/* 15b */}<Th width={W.iva}      align="right">IVA</Th>
@@ -562,6 +569,18 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     />
                   </Td>
 
+                  {/* 13b. MOVS. — click opens the per-contract cashflow modal. */}
+                  <Td width={W.movim} align="right">
+                    <InlineMovimientosCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      totalIn={r.movimientosTotalIn}
+                      totalOut={r.movimientosTotalOut}
+                      count={r.movimientosCount}
+                      contractLabel={`${r.propietario} · Inquilino: ${r.inquilino}`}
+                    />
+                  </Td>
+
                   {/* 14. DÍA TRANSFERENCIA — click-to-edit (drives LANDLORD_PAYOUT) */}
                   <Td width={W.diatransf} align="center">
                     <InlineDateCell
@@ -715,6 +734,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <Tf width={W.extras}    align="right" tabular>{footerMoney(totals.extras)}</Tf>
               <Tf width={W.transf}    align="right" tabular>{footerMoney(totals.transferencia)}</Tf>
               <Tf width={W.otros}     align="right" tabular>{footerMoney(totals.otros)}</Tf>
+              <Tf width={W.movim}     align="right"    />
               <Tf width={W.diatransf} align="center"    />
               <Tf width={W.admi}      align="right" tabular>{footerMoney(totals.admi)}</Tf>
               <Tf width={W.iva}       align="right" tabular>{footerMoney(totals.iva)}</Tf>
