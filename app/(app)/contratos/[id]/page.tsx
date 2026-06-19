@@ -9,6 +9,7 @@ import {
 import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { MovimientosPanel } from '@/components/shared/MovimientosPanel'
+import { AblSurchargeEditor } from '@/components/contract/AblSurchargeEditor'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { computeUrgency, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 import { getCurrentPeriod } from '@/lib/period'
@@ -130,6 +131,16 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
       {/* Próximo aumento callout — matches the "PROX. AUMENTO MAYO 2026"
          reminders Alejandro stuffs into the INQUILINOS cell of his ledger. */}
       {nextAdjustment && <NextAdjustmentCallout date={nextAdjustment} cadence={contract.cadence} />}
+
+      {/* ABL / recargo mensual — set per contract. Alejandro 2026-06-19. */}
+      <section className="mt-6">
+        <AblSurchargeEditor
+          contractId={id}
+          initialOn={contract.includesAbl}
+          initialAmount={contract.ablAmount}
+          currentRent={contract.currentRent}
+        />
+      </section>
 
       {/* Period filter */}
       {periods.length > 1 && (

@@ -487,36 +487,58 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                        stays after cobro is registered — that's the visual
                        confirmation the cobro arrived WITH the increase.
                        Class lives in lib/liquidacion/thresholds.ts. */}
-                  <Td width={W.alquiler} align="right">
-                    <InlineIngresosCell
-                      contractId={r.contractId}
-                      period={r.periodo}
-                      lines={r.ingresosLines}
-                      total={alquilerSum}
-                      cobrado={cobrado}
-                      upcomingAdjustment={r.hasUpcomingAdjustment && r.daysUntilAdjustment != null
-                        ? { days: r.daysUntilAdjustment }
-                        : null}
-                      onlyTypes={['RENT_IN']}
-                      defaultNewLineType="RENT_IN"
-                      popoverTitle="Alquiler — Sólo cobros de RENT_IN"
-                      cellBgClass={aumentoClass}
-                      buttonTitle={r.periodHasAumento
-                        ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
-                        : undefined}
-                      // Show the expected current_rent when no RENT_IN has
-                      // landed yet — the encargada sees the target amount at
-                      // a glance. Text color falls back to the cell's
-                      // cobrado=false light-slate, so light-gray = unpaid,
-                      // dark = paid (same visual code as every other amount
-                      // cell on the planilla). Per Alejandro's 2026-06-18
-                      // voice: "que aparezca el monto que tenemos que
-                      // recaudar en un grisecito muy clarito".
-                      displayOverride={alquilerSum === 0 && r.currentRent > 0
-                        ? <span className="tabular-nums">{fmtMoney(r.currentRent)}</span>
-                        : undefined}
-                    />
-                  </Td>
+                  {(() => {
+                    // Expected target shown in light gray when nothing has been
+                    // collected yet. When includesAbl=true the target adds the
+                    // recurring ABL surcharge so the encargada sees the real
+                    // cobro figure she should be expecting from the tenant.
+                    const expectedTarget = r.currentRent + (r.includesAbl ? r.ablAmount : 0)
+                    const ablTooltip = r.includesAbl && r.ablAmount > 0
+                      ? `Esperado: ${fmtMoney(r.currentRent)} alquiler + ${fmtMoney(r.ablAmount)} ABL = ${fmtMoney(expectedTarget)}`
+                      : null
+                    const aumentoTooltip = r.periodHasAumento
+                      ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
+                      : null
+                    const buttonTitle = [aumentoTooltip, ablTooltip].filter(Boolean).join(' · ') || undefined
+                    return (
+                      <Td width={W.alquiler} align="right">
+                        <InlineIngresosCell
+                          contractId={r.contractId}
+                          period={r.periodo}
+                          lines={r.ingresosLines}
+                          total={alquilerSum}
+                          cobrado={cobrado}
+                          upcomingAdjustment={r.hasUpcomingAdjustment && r.daysUntilAdjustment != null
+                            ? { days: r.daysUntilAdjustment }
+                            : null}
+                          onlyTypes={['RENT_IN']}
+                          defaultNewLineType="RENT_IN"
+                          popoverTitle="Alquiler — Sólo cobros de RENT_IN"
+                          cellBgClass={aumentoClass}
+                          buttonTitle={buttonTitle}
+                          // Show the expected target when no RENT_IN has
+                          // landed yet. Target = current_rent + ABL when the
+                          // contract has the ABL surcharge enabled. Text color
+                          // falls back to the cell's cobrado=false light-slate,
+                          // so light-gray = unpaid, dark = paid (same visual
+                          // code as every other amount cell). Per Alejandro
+                          // 2026-06-18 + 2026-06-19 voices.
+                          displayOverride={alquilerSum === 0 && expectedTarget > 0
+                            ? (
+                              <span className="tabular-nums">
+                                {fmtMoney(expectedTarget)}
+                                {r.includesAbl && r.ablAmount > 0 && (
+                                  <span className="block text-[9px] text-slate normal-case font-normal">
+                                    incluye ABL
+                                  </span>
+                                )}
+                              </span>
+                            )
+                            : undefined}
+                        />
+                      </Td>
+                    )
+                  })()}
 
                   {/* 12. EXTRAS — Phase 9C, everything except RENT_IN.
                        Recuperos (ABL/gas/etc.) + signed adjustment from

@@ -87,6 +87,36 @@ export async function updateContractCommissionIncludesIva(
   return { ok: true, error: null }
 }
 
+// ── ABL surcharge (sums onto the rent each month for some contracts) ────────
+// Alejandro's voice 2026-06-19: "un lugar para poner el ABL o el gas que a
+// veces lo tenemos que sumar al alquiler". When `includes_abl=true`, the
+// planilla's expected rent target = current_rent + abl_amount, and the
+// Alquiler cell tooltip shows the breakdown. The flag and the amount are
+// edited together so the contract can never be `includes_abl=true` with
+// abl_amount=0 (= meaningless).
+export async function updateContractAblSurcharge(
+  contractId:  string,
+  includesAbl: boolean,
+  ablAmount:   number | null,
+): Promise<InlineResult> {
+  if (includesAbl) {
+    if (ablAmount == null || !isFinite(ablAmount) || ablAmount <= 0) {
+      return { ok: false, error: 'Ingresá un monto mayor a 0 para el ABL.' }
+    }
+  }
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase
+    .from('contracts')
+    .update({
+      includes_abl: includesAbl,
+      abl_amount:   includesAbl ? ablAmount : null,
+    })
+    .eq('id', contractId)
+  if (error) return dbFailure(error)
+  revalidate(contractId)
+  return { ok: true, error: null }
+}
+
 // ── Vigencia (start_date / end_date) ────────────────────────────────────────
 export async function updateContractVigencia(
   contractId: string,

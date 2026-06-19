@@ -336,6 +336,14 @@ export interface LiquidacionGridRow {
   // ── Current contract rent (used to compute DEUDA) ──
   currentRent:       number
 
+  // ── Recurring ABL/surcharge added to the rent for some contracts.
+  //    When `includesAbl=true`, the planilla's expected target shown in
+  //    the Alquiler cell becomes currentRent + ablAmount instead of just
+  //    currentRent. Per Alejandro 2026-06-19: "un lugar para poner el ABL
+  //    o el gas que a veces lo tenemos que sumar al alquiler". ──
+  includesAbl:       boolean
+  ablAmount:         number
+
   // ── Vigencia (for the CONTRATO column in the 19-col layout) ──
   startDate:         string | null
   endDate:           string | null
@@ -573,6 +581,7 @@ async function probeFirstRowError(
         id, status, contract_number, lfa_code, expensas, current_rent,
         cadence, start_date, end_date, payment_day,
         created_at, updated_at, commission_pct, commission_includes_iva,
+        includes_abl, abl_amount,
         contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
@@ -617,6 +626,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         id, status, contract_number, lfa_code, expensas, current_rent,
         cadence, start_date, end_date, payment_day,
         created_at, updated_at, commission_pct, commission_includes_iva,
+        includes_abl, abl_amount,
         contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
@@ -897,6 +907,8 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       sentAt:        liq?.sent_at ?? null,
       paidAt:        liq?.paid_at ?? null,
       currentRent,
+      includesAbl:   c.includes_abl === true,
+      ablAmount:     Number(c.abl_amount ?? 0),
       startDate:     c.start_date ?? null,
       endDate:       c.end_date   ?? null,
       wasRecentlyEdited: (() => {
