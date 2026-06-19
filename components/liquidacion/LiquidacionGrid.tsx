@@ -288,10 +288,15 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               // Row background priority (high → low):
               //   1. Validation ERROR        → pale red tint   (most urgent)
               //   2. Validation WARNING      → pale orange tint
-              //   3. Contract expiry tint    → celeste (next mo) / azul oscuro (this mo) / red (expired)
-              //                                — saved memory: ui_planilla_color_conventions
-              //   4. Recently edited         → pale yellow tint
-              //   5. Excel-style zebra       → white / very pale gray alternating
+              //   3. Recently edited         → pale yellow tint
+              //   4. Excel-style zebra       → white / very pale gray alternating
+              //
+              // Contract expiry tint is NOT on the row — it lives on the
+              // Contrato cell (see `expiryClass` applied to <Td> below).
+              // Alejandro's voice 2026-06-19: "el color vaya cambiando en
+              // la columna de donde dice cuándo empieza y cuándo termina
+              // el contrato." Moving it cell-side also removes the priority
+              // conflict where validation tints used to mask the blues.
               //
               // Editing focus (`[&:has([data-editing])]:bg-blue-100` further
               // down) overrides all of these — clicking into a cell wins
@@ -301,11 +306,9 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                 ? 'bg-danger/10'
                 : severity === 'warning'
                   ? 'bg-warn/10'
-                  : expiryClass
-                    ? expiryClass
-                    : r.wasRecentlyEdited
-                      ? 'bg-yellow-50'
-                      : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
+                  : r.wasRecentlyEdited
+                    ? 'bg-yellow-50'
+                    : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
 
               return (
                 <tr
@@ -424,12 +427,16 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                   })()}
 
                   {/* 9. CONTRATO (vigencia) — editable date range.
-                       2026-06-17: the expiry tint moved from this cell to
-                       the whole <tr>, so we only keep a descriptive tooltip
-                       here. The row's background carries the visual signal. */}
+                       2026-06-19: expiry tint lives HERE, on this cell.
+                       Alejandro's voice: "el color vaya cambiando en la
+                       columna de donde dice cuándo empieza y cuándo termina
+                       el contrato." Celeste = next month, azul oscuro =
+                       this month, red = expired. Validation row tints
+                       (error / warning) coexist on the row independently. */}
                   <Td
                     width={W.contrato}
                     align="center"
+                    className={expiryClass}
                     title={
                       expiryStatus === 'expired'
                         ? `Contrato vencido hace ${Math.abs(r.daysUntilContractEnd ?? 0)} días — hablar con el inquilino`
