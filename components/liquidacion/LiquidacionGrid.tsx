@@ -90,6 +90,23 @@ function cellTextClass(done: boolean): string {
   return done ? 'text-ink' : 'text-slate'
 }
 
+/**
+ * Translate translucent validation-tint classes into their fully opaque
+ * Tailwind equivalents for use on sticky-left cells. The <tr> keeps its
+ * 10%-alpha tint so non-sticky cells look unchanged, but the sticky <td>
+ * needs a SOLID background — otherwise horizontally-scrolled cells bleed
+ * through the sticky column and produce overlapping text.
+ *
+ *   bg-danger/10  →  bg-red-50      (visually matches over white paper)
+ *   bg-warn/10    →  bg-orange-50   (same idea for warnings)
+ *   anything else →  passed through (already solid: bg-white, bg-gray-50, bg-yellow-50)
+ */
+function solidifyForSticky(zebra: string): string {
+  if (zebra === 'bg-danger/10') return 'bg-red-50'
+  if (zebra === 'bg-warn/10')   return 'bg-orange-50'
+  return zebra
+}
+
 // ── Column widths (in px). Sticky-left runs from col 1 → 4 (OBS, LFA,
 //    FECHA BANCO, PROPIETARIO) to mirror Excel "freeze through column E"
 //    behaviour. Left offsets are cumulative sums.
@@ -310,6 +327,12 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     ? 'bg-yellow-50'
                     : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
 
+              // Sticky cells need an OPAQUE background so scrolling cells
+              // don't bleed through. The <tr> keeps the translucent zebra
+              // for the rest of the row; only the four sticky <td>s get the
+              // solidified variant. See solidifyForSticky() at top of file.
+              const zebraStickyBg = solidifyForSticky(zebra)
+
               return (
                 <tr
                   key={`${r.contractId}-${r.landlordId}`}
@@ -317,7 +340,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                   className={`${zebra} hover:bg-blue-50 transition-colors border-b border-gray-200 [&:has([data-editing])]:bg-blue-100 [&:has([data-editing])]:ring-2 [&:has([data-editing])]:ring-info [&:has([data-editing])]:ring-inset`}
                 >
                   {/* 1. OBSERVACIÓN — sticky */}
-                  <Td sticky left={STICKY_LEFTS.obs} width={W.obs} bg={zebra}>
+                  <Td sticky left={STICKY_LEFTS.obs} width={W.obs} bg={zebraStickyBg}>
                     <InlineObservacionCell
                       contractId={r.contractId}
                       landlordId={r.landlordId}
@@ -328,12 +351,12 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                   </Td>
 
                   {/* 2. LFA — sticky, editable dropdown */}
-                  <Td sticky left={STICKY_LEFTS.lfa} width={W.lfa} bg={zebra} align="center">
+                  <Td sticky left={STICKY_LEFTS.lfa} width={W.lfa} bg={zebraStickyBg} align="center">
                     <EditableLfaCell contractId={r.contractId} value={r.lfa} />
                   </Td>
 
                   {/* 3. FECHA BANCO — sticky, click-to-edit (drives the RENT_IN cobro) */}
-                  <Td sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} bg={zebra} align="center">
+                  <Td sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} bg={zebraStickyBg} align="center">
                     <InlineDateCell
                       contractId={r.contractId}
                       period={r.periodo}
@@ -346,7 +369,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                   {/* 4. PROPIETARIOS — sticky, multi-owner editor (Phase 11).
                        Reads all co-owners + their % from r.landlordsList.
                        Click → popover with chip-x 10s delete + Σ% pill. */}
-                  <Td sticky left={STICKY_LEFTS.prop} width={W.prop} bg={zebra}>
+                  <Td sticky left={STICKY_LEFTS.prop} width={W.prop} bg={zebraStickyBg}>
                     <InlineParticipantsCell
                       kind="landlord"
                       contractId={r.contractId}
