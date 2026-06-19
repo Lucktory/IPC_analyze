@@ -142,6 +142,12 @@ function prettyCode(code: string): string {
     case 'CONTRACT_TENANT_JUNCTION_EMPTY':   return 'Sin inquilinos cargados'
     case 'LANDLORD_PCT_SUM_NOT_100':      return 'Suma % propietarios ≠ 100'
     case 'TENANT_PCT_SUM_NOT_100':        return 'Suma % inquilinos ≠ 100'
+    case 'ADMIN_PCT_SUM_INVALID':         return 'Suma % administradores ≠ 100'
+    case 'CONTRACT_MISSING_COMMISSION_PCT': return 'Sin % de comisión cargado'
+    case 'CONTRACT_NEXT_ADJUSTMENT_OVERDUE': return 'Aumento programado vencido'
+    case 'CONTRACT_SELLADO_PENDING':      return 'Sellado sin aplicar'
+    case 'CONTRACT_DEPOSIT_STATE_INVALID': return 'Depósito devuelto en contrato activo'
+    case 'BILLING_IVA_MISMATCH':          return 'IVA contrato vs administrador no coincide'
     default:                              return code
   }
 }

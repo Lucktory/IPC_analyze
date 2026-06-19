@@ -70,13 +70,20 @@ export type ValidationCode =
   | 'COMMISSION_PCT_DEVIATION'
   | 'RENT_AMOUNT_VARIANCE'
   | 'PAYMENT_OVERDUE'
-  // ── Data integrity (Thread A — 2026-06-18) ──
+  // ── Data integrity Tier 1 (Thread A2a — 2026-06-18) ──
   | 'CONTRACT_EXPIRED_BUT_ACTIVE'
   | 'CONTRACT_INVALID_DATE_RANGE'
   | 'CONTRACT_LANDLORD_JUNCTION_EMPTY'
   | 'CONTRACT_TENANT_JUNCTION_EMPTY'
   | 'LANDLORD_PCT_SUM_NOT_100'
   | 'TENANT_PCT_SUM_NOT_100'
+  // ── Data integrity Tier 2 (Thread A2b — 2026-06-19) ──
+  | 'ADMIN_PCT_SUM_INVALID'
+  | 'CONTRACT_MISSING_COMMISSION_PCT'
+  | 'CONTRACT_NEXT_ADJUSTMENT_OVERDUE'
+  | 'CONTRACT_SELLADO_PENDING'
+  | 'CONTRACT_DEPOSIT_STATE_INVALID'
+  | 'BILLING_IVA_MISMATCH'
 
 // ── Row shape the validators read. Keep it minimal — only the fields
 //    actually used by the rules. Lets us evolve LiquidacionGridRow
@@ -122,6 +129,31 @@ export interface ValidatableRow {
   landlordCount:     number
   tenantPctSum:      number
   tenantCount:       number
+
+  // ── Thread A2b — additional integrity payload (2026-06-19) ────────────
+  /** SUM(contract_administrators.share_pct) and row count. Skipped when
+   *  count=0 (no split defined = use default allocation). */
+  adminPctSum:        number
+  adminCount:         number
+  /** Raw contracts.commission_pct (NULL or 0 → missing). */
+  commissionPct:      number | null
+  /** ISO YYYY-MM-DD of the contract's stored next_adjustment_date.
+   *  When null the contract has no scheduled adjustment (e.g. FIXED indexer). */
+  nextAdjustmentDate: string | null
+  /** One-time sellado fields (Phase 11). */
+  selladoTotal:       number | null
+  selladoAppliedAt:   string | null
+  /** Deposit state — when 'refunded' on an active contract the row is
+   *  in an inconsistent post-close state. */
+  depositStatus:      'held' | 'partially_used' | 'refunded' | null
+  /** Drives the commission-IVA-vs-administrator cross-check. */
+  commissionIncludesIva:    boolean
+  /** tax_category of the contract's billing_administrator. NULL when
+   *  billing_administrator_id is unset on the contract. */
+  billingAdminTaxCategory:  'RI' | 'MONOTRIBUTO' | 'EXENTO' | null
+  /** Display label for the billing administrator (name, surfaced in the
+   *  IVA mismatch message). Null when admin not assigned. */
+  billingAdminLabel:        string | null
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -398,6 +430,122 @@ function checkTenantPctSum(r: ValidatableRow): ValidationIssue | null {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// THREAD A2b — TIER 2 INTEGRITY (2026-06-19). Round out the data-hygiene
+// coverage with rules that catch silently-default config (missing
+// commission %), un-applied one-time fees (sellado), out-of-state
+// lifecycle markers (deposit refunded on active), and config / billing
+// inconsistency (RI mismatch). All warnings except DEPOSIT (= error)
+// because depositing-refunded-on-active is a real lifecycle bug.
+// ════════════════════════════════════════════════════════════════════════════
+
+// 14. ADMIN_PCT_SUM_INVALID — contract_administrators sum != 100 (when split exists).
+//     Skipped when adminCount === 0 (no split = use the default allocation).
+function checkAdminPctSum(r: ValidatableRow): ValidationIssue | null {
+  if (r.adminCount === 0) return null
+  const diff = Math.abs(r.adminPctSum - 100)
+  if (diff <= VALIDATION_TOLERANCES.PCT_SUM_TOLERANCE) return null
+  return {
+    code:     'ADMIN_PCT_SUM_INVALID',
+    severity: 'warning',
+    message:  `Suma de % entre administradores = ${r.adminPctSum.toFixed(2)}%, debería ser 100% cuando hay un split definido. Diferencia: ${diff.toFixed(2)} pp.`,
+    expected: 100,
+    actual:   r.adminPctSum,
+    diff,
+  }
+}
+
+// 15. CONTRACT_MISSING_COMMISSION_PCT — commission_pct null or 0.
+//     The deviation validator silently skips when commission_pct is 0;
+//     surface it explicitly so the encargada cargue el valor real.
+function checkContractMissingCommissionPct(r: ValidatableRow): ValidationIssue | null {
+  if (r.commissionPct != null && r.commissionPct > 0) return null
+  return {
+    code:     'CONTRACT_MISSING_COMMISSION_PCT',
+    severity: 'warning',
+    message:  `Contrato sin % de comisión cargado (${r.commissionPct == null ? 'NULL' : r.commissionPct}). El chequeo de comisión efectiva queda inactivo hasta que lo cargues.`,
+    expected: null,
+    actual:   r.commissionPct,
+    diff:     0,
+  }
+}
+
+// 16. CONTRACT_NEXT_ADJUSTMENT_OVERDUE — scheduled aumento date already
+//     past while the contract is still running. Uses the STORED
+//     next_adjustment_date (not the computed-from-cadence value) — that's
+//     the date the encargada or the IPC automation maintains.
+function checkContractNextAdjustmentOverdue(r: ValidatableRow): ValidationIssue | null {
+  if (!r.nextAdjustmentDate) return null            // no scheduled adjustment (FIXED indexer, etc.)
+  if (!r.endDate) return null                       // can't reason without end_date
+  if (r.nextAdjustmentDate >= r.todayIso) return null  // not overdue
+  if (r.endDate < r.todayIso) return null           // contract already over → EXPIRED_BUT_ACTIVE handles it
+  const daysPast = isoDayDiff(r.todayIso, r.nextAdjustmentDate)
+  return {
+    code:     'CONTRACT_NEXT_ADJUSTMENT_OVERDUE',
+    severity: 'warning',
+    message:  `Aumento programado para ${r.nextAdjustmentDate} vencido hace ${daysPast} ${daysPast === 1 ? 'día' : 'días'}. Aplicalo y actualizá la fecha del próximo ajuste.`,
+    expected: null,
+    actual:   null,
+    diff:     daysPast,
+  }
+}
+
+const SELLADO_GRACE_DAYS = 35
+
+// 17. CONTRACT_SELLADO_PENDING — one-time sellado not yet applied past grace.
+//     Fires when sellado_total > 0 AND sellado_applied_at is NULL AND today
+//     is at least 35 days past start_date (Alejandro's "applies to month 1"
+//     window plus a buffer).
+function checkContractSelladoPending(r: ValidatableRow): ValidationIssue | null {
+  if (r.selladoTotal == null || r.selladoTotal <= 0) return null
+  if (r.selladoAppliedAt != null) return null
+  if (!r.startDate) return null
+  const daysSinceStart = isoDayDiff(r.todayIso, r.startDate)
+  if (daysSinceStart < SELLADO_GRACE_DAYS) return null
+  return {
+    code:     'CONTRACT_SELLADO_PENDING',
+    severity: 'warning',
+    message:  `Sellado de ${r.selladoTotal} sin aplicar después de ${daysSinceStart} días desde inicio. Aplicalo en la próxima liquidación.`,
+    expected: r.selladoTotal,
+    actual:   null,
+    diff:     daysSinceStart,
+  }
+}
+
+// 18. CONTRACT_DEPOSIT_STATE_INVALID — deposit refunded on an active contract.
+//     The grid filters status='active', so reaching this rule with
+//     deposit_status='refunded' is a true lifecycle inconsistency.
+function checkContractDepositStateInvalid(r: ValidatableRow): ValidationIssue | null {
+  if (r.depositStatus !== 'refunded') return null
+  return {
+    code:     'CONTRACT_DEPOSIT_STATE_INVALID',
+    severity: 'error',
+    message:  'El depósito figura como devuelto pero el contrato sigue activo. Revertí el estado del depósito o cerrá el contrato (status="ended").',
+    expected: null,
+    actual:   null,
+    diff:     0,
+  }
+}
+
+// 19. BILLING_IVA_MISMATCH — contract says it includes IVA but the billing
+//     administrator isn't RI. Either the contract flag is wrong or the
+//     wrong partner is assigned as invoicer.
+function checkBillingIvaMismatch(r: ValidatableRow): ValidationIssue | null {
+  if (!r.commissionIncludesIva) return null
+  if (r.billingAdminTaxCategory === 'RI') return null
+  const admin = r.billingAdminLabel
+    ? `el administrador "${r.billingAdminLabel}" (${r.billingAdminTaxCategory ?? 'sin categoría'})`
+    : 'el administrador asignado (no asignado)'
+  return {
+    code:     'BILLING_IVA_MISMATCH',
+    severity: 'warning',
+    message:  `Contrato marcado con IVA incluido pero ${admin} no es RI. Desactivá el flag o asigná un administrador RI como facturador.`,
+    expected: null,
+    actual:   null,
+    diff:     0,
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // AGGREGATOR — runs every validator and returns the issues array.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -426,13 +574,20 @@ export function validateRow(
   push(checkCommissionPctDeviation(r))
   push(checkRentAmountVariance(r))
   push(checkPaymentOverdue(r))
-  // ── Thread A — data integrity ──
+  // ── Thread A2a — data integrity Tier 1 ──
   push(checkContractExpiredButActive(r))
   push(checkContractInvalidDateRange(r))
   push(checkLandlordJunctionEmpty(r))
   push(checkTenantJunctionEmpty(r))
   push(checkLandlordPctSum(r))
   push(checkTenantPctSum(r))
+  // ── Thread A2b — data integrity Tier 2 ──
+  push(checkAdminPctSum(r))
+  push(checkContractMissingCommissionPct(r))
+  push(checkContractNextAdjustmentOverdue(r))
+  push(checkContractSelladoPending(r))
+  push(checkContractDepositStateInvalid(r))
+  push(checkBillingIvaMismatch(r))
 
   // Commission deviation check is special: it needs the contract pct
   // which isn't on the row itself. Inline it here when caller provides it.

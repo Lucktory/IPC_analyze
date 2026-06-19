@@ -627,8 +627,12 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         cadence, start_date, end_date, payment_day,
         created_at, updated_at, commission_pct, commission_includes_iva,
         includes_abl, abl_amount,
+        next_adjustment_date, sellado_total, sellado_applied_at, deposit_status,
+        billing_administrator_id,
+        billing_administrator:administrators!billing_administrator_id(name, tax_category),
         contract_tenants(is_primary, share_pct, tenants(id, name)),
-        contract_landlords(ownership_pct, landlords(id, name, email))
+        contract_landlords(ownership_pct, landlords(id, name, email)),
+        contract_administrators(share_pct)
       `)
       .eq('status', 'active'),
     supabase
@@ -990,6 +994,18 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           landlordCount:    landlordsList.length,
           tenantPctSum:     tenantsList.reduce((s, t) => s + (Number.isFinite(t.sharePct) ? t.sharePct : 0), 0),
           tenantCount:      tenantsList.length,
+          // ── Thread A2b extra fields ──
+          adminPctSum:      ((c.contract_administrators ?? []) as any[])
+                              .reduce((s, ca) => s + (Number.isFinite(Number(ca.share_pct)) ? Number(ca.share_pct) : 0), 0),
+          adminCount:       ((c.contract_administrators ?? []) as any[]).length,
+          commissionPct:    c.commission_pct != null ? Number(c.commission_pct) : null,
+          nextAdjustmentDate: c.next_adjustment_date ?? null,
+          selladoTotal:     c.sellado_total != null ? Number(c.sellado_total) : null,
+          selladoAppliedAt: c.sellado_applied_at ?? null,
+          depositStatus:    (c.deposit_status ?? null) as 'held' | 'partially_used' | 'refunded' | null,
+          commissionIncludesIva,
+          billingAdminTaxCategory: ((c.billing_administrator as any)?.tax_category ?? null) as 'RI' | 'MONOTRIBUTO' | 'EXENTO' | null,
+          billingAdminLabel:       ((c.billing_administrator as any)?.name ?? null) as string | null,
         },
         c.commission_pct != null ? Number(c.commission_pct) : undefined,
         commissionIncludesIva,
