@@ -223,13 +223,17 @@ function PendienteRow({ item }: { item: PendienteItem }) {
   const whatsappHref = target.phone
     ? `https://wa.me/${cleanPhone(target.phone)}?text=${encodeURIComponent(tmpl.body)}`
     : null
-  // Gmail compose URL — works in any browser without an OS-level mail client
-  // configured. Mirrors the handoff used by LiquidarYEnviarButton on
-  // /liquidacion. mailto: would silently no-op on Windows when no default
-  // mail program is set, which is exactly the bug this replaces.
-  const mailHref = target.email
-    ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(target.email)}&su=${encodeURIComponent(tmpl.subject)}&body=${encodeURIComponent(tmpl.body)}`
-    : null
+  // Gmail compose URL — always rendered, even when no email is on file.
+  // When the contact has no email, the `to` param is empty and Gmail
+  // compose opens with subject + body pre-filled; the encargada types the
+  // address inside Gmail. Better than disabling the button entirely (which
+  // forced her to abandon the action and go cargar the email first).
+  // mailto: would silently no-op on Windows without a default mail client.
+  const mailHref =
+    `https://mail.google.com/mail/?view=cm&fs=1` +
+    `&to=${encodeURIComponent(target.email ?? '')}` +
+    `&su=${encodeURIComponent(tmpl.subject)}` +
+    `&body=${encodeURIComponent(tmpl.body)}`
 
   const verContratoHref = `/contratos/${item.contractId}`
 
@@ -283,27 +287,25 @@ function PendienteRow({ item }: { item: PendienteItem }) {
           </span>
         )}
 
-        {/* Email icon — opens Gmail compose in a new tab with the draft
-            pre-filled. Same Gmail handoff as /liquidacion so behaviour
-            is identical across pages. */}
-        {mailHref ? (
-          <a
-            href={mailHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`Mandar email a ${target.label} (abre Gmail en una pestaña nueva)`}
-            className="inline-flex items-center justify-center w-7 h-7 rounded bg-ink text-paper text-[13px] hover:opacity-90 transition-opacity"
-          >
-            ✉
-          </a>
-        ) : (
-          <span
-            title={`Sin email cargado para ${target.label}`}
-            className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-100 text-gray-400 text-[13px] cursor-not-allowed"
-          >
-            ✉
-          </span>
-        )}
+        {/* Email icon — always opens Gmail compose with the draft pre-filled.
+            When `target.email` is null the `to` field comes through empty;
+            the encargada types the address inside Gmail. A small "sin
+            email" hint sits above the icon so she knows she has to. */}
+        <a
+          href={mailHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={target.email
+            ? `Mandar email a ${target.label} (${target.email}) — abre Gmail en una pestaña nueva`
+            : `Sin email cargado para ${target.label} — abrirá Gmail con el cuerpo armado y vos completás el destinatario`}
+          className={`inline-flex items-center justify-center w-7 h-7 rounded text-[13px] transition-opacity ${
+            target.email
+              ? 'bg-ink text-paper hover:opacity-90'
+              : 'bg-ink/60 text-paper hover:opacity-90 ring-1 ring-warn/60'
+          }`}
+        >
+          ✉
+        </a>
 
         <Link
           href={verContratoHref}
