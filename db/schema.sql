@@ -628,12 +628,21 @@ insert into banks (name, short_code) values
 
 -- Transaction types (21 codes covering everything Alejandro records)
 insert into transaction_types (code, label, direction, category, affects_liquidacion) values
-  ('RENT_IN',           'Alquiler cobrado',                'IN',  'rent',       true),
-  ('EXPENSAS_IN',       'Expensas cobradas',               'IN',  'expense',    true),
-  ('DEPOSIT_IN',        'Depósito de garantía',            'IN',  'deposit',    false),
-  ('LATE_FEE_IN',       'Recargo por mora',                'IN',  'rent',       true),
-  ('UTILITY_REFUND_IN', 'Reintegro servicios',             'IN',  'refund',     true),
-  ('OTHER_IN',          'Otro ingreso',                    'IN',  'other',      true),
+  ('RENT_IN',              'Alquiler cobrado',              'IN',  'rent',       true),
+  ('EXPENSAS_IN',          'Expensas cobradas',             'IN',  'expense',    true),
+  ('DEPOSIT_IN',           'Depósito de garantía',          'IN',  'deposit',    false),
+  ('LATE_FEE_IN',          'Recargo por mora',              'IN',  'rent',       true),
+  ('UTILITY_REFUND_IN',    'Reintegro servicios',           'IN',  'refund',     true),
+  ('OTHER_IN',             'Otro ingreso',                  'IN',  'other',      true),
+  -- Labeled recupero types so the planilla's Ingresos breakdown can show
+  -- which service the tenant paid back (Phase 6 / migration 2026-06-16).
+  -- Without these the seeded transaction_types only has UTILITY_REFUND_IN
+  -- and the InlineIngresosCell dropdown breaks for fresh installs.
+  ('RECUPERO_ABL_IN',      'Recupero ABL',                  'IN',  'refund',     true),
+  ('RECUPERO_AYSA_IN',     'Recupero AySA',                 'IN',  'refund',     true),
+  ('RECUPERO_METROGAS_IN', 'Recupero Metrogas / Gas',       'IN',  'refund',     true),
+  ('RECUPERO_EDESUR_IN',   'Recupero Edesur / Luz',         'IN',  'refund',     true),
+  ('RECUPERO_OTRO_IN',     'Recupero otro servicio',        'IN',  'refund',     true),
 
   ('COMMISSION_OUT',    'Comisión administrador',          'OUT', 'commission', true),
   ('LANDLORD_PAYOUT',   'Pago a propietario',              'OUT', 'rent',       false),
