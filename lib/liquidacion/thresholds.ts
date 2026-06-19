@@ -27,9 +27,9 @@
 // codes hardcoded in components (see ui_planilla_color_conventions.md).
 export const CONTRACT_EXPIRY_ROW_CLASSES = {
   normal:     '',
-  next_month: 'bg-sky-100',        // celeste — primer aviso (vencimiento el mes que viene)
-  this_month: 'bg-sky-300/70',     // azul más oscuro — vencimiento este mes
-  expired:    'bg-red-100',        // past due — already expired
+  next_month: 'bg-sky-200',        // celeste — primer aviso (vencimiento el mes que viene)
+  this_month: 'bg-sky-400/70',     // azul más oscuro — vencimiento este mes
+  expired:    'bg-red-200',        // past due — already expired
 } as const
 
 export type ContractExpiryRowStatus =
@@ -49,7 +49,7 @@ export type ContractExpiryRowStatus =
 //
 // Text color of the cell already encodes "cobrado vs pending" (dark
 // ink vs light slate). This tint is independent of that.
-export const ALQUILER_AUMENTO_CELL_CLASS = 'bg-orange-200/60'
+export const ALQUILER_AUMENTO_CELL_CLASS = 'bg-orange-300/70'
 
 // ── Phase 10 — Cadence column display labels ────────────────────────────────
 //

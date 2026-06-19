@@ -311,11 +311,11 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               // visually regardless of validation state.
               const severity = highestSeverity(issues)
               const zebra = severity === 'error'
-                ? 'bg-red-50'
+                ? 'bg-red-100'
                 : severity === 'warning'
-                  ? 'bg-orange-50'
+                  ? 'bg-orange-100'
                   : r.wasRecentlyEdited
-                    ? 'bg-yellow-50'
+                    ? 'bg-yellow-100'
                     : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
 
               return (
