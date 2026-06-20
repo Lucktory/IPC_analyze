@@ -57,6 +57,7 @@ import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 import { InlineIngresosCell } from './InlineIngresosCell'
 import { InlineIvaToggleCell } from './InlineIvaToggleCell'
 import { InlineMovimientosCell } from './InlineMovimientosCell'
+import { InlineDeudaBreakdownCell } from './InlineDeudaBreakdownCell'
 import { ValidationBadgeCell } from './ValidationBadgeCell'
 import { highestSeverity } from '@/lib/liquidacion/validations'
 import {
@@ -462,17 +463,14 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     />
                   </Td>
 
-                  {/* 9. DEUDA */}
-                  <Td
-                    width={W.deuda}
-                    align="right"
-                    title={r.deuda > 0
-                      ? `Deuda = Alquiler − Ingresos = ${fmtMoney(r.currentRent)} − ${fmtMoney(r.ingresos)} = ${fmtMoney(r.deuda)}`
-                      : 'Deuda = 0 (cobro completo o por completar)'}
-                  >
-                    <span className={`tabular-nums ${r.deuda > 0 ? 'text-danger font-medium' : 'text-slate/60'}`}>
-                      {r.deuda > 0 ? fmtMoney(r.deuda) : '—'}
-                    </span>
+                  {/* 9. DEUDA — clickable when there's anything to expand. Opens
+                       the global DeudaBreakdownPanel with current-period debt,
+                       last 3 prior periods carryover, and intereses estimate. */}
+                  <Td width={W.deuda} align="right">
+                    <InlineDeudaBreakdownCell
+                      deuda={r.deuda}
+                      breakdown={r.deudaBreakdown}
+                    />
                   </Td>
 
                   {/* 10. PAGO — countdown until the contract's payment_day

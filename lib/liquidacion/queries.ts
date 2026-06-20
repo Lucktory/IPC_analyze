@@ -16,8 +16,9 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { classifyDestination } from '@/lib/reconciliation/queries'
 import { validateRow, type ValidationIssue } from './validations'
 import { type ContractExpiryRowStatus } from './thresholds'
+import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 
-export type { ValidationIssue, ContractExpiryRowStatus }
+export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown }
 
 // ── Phase 9B: planilla footer totals — sums across every visible row,
 //    rendered as a sticky <tfoot> at the bottom of the grid so Alejandro
@@ -336,6 +337,13 @@ export interface LiquidacionGridRow {
   // ── Current contract rent (used to compute DEUDA) ──
   currentRent:       number
 
+  // ── Pre-computed Deuda breakdown (current period + last 3 carryover
+  //    periods + intereses estimate). Null when the bulk fetch couldn't
+  //    build one (very rare — defensive). The inline cell decides whether
+  //    to show the popover affordance based on whether this is non-null
+  //    AND there's actually something to display.
+  deudaBreakdown:    DeudaBreakdown | null
+
   // ── Recurring ABL/surcharge added to the rent for some contracts.
   //    When `includesAbl=true`, the planilla's expected target shown in
   //    the Alquiler cell becomes currentRent + ablAmount instead of just
@@ -627,6 +635,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         cadence, start_date, end_date, payment_day,
         created_at, updated_at, commission_pct, commission_includes_iva,
         includes_abl, abl_amount,
+        late_interest_enabled, late_interest_rate,
         next_adjustment_date, sellado_total, sellado_applied_at, deposit_status,
         billing_administrator_id,
         billing_administrator:administrators!billing_administrator_id(name, tax_category),
@@ -738,6 +747,22 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
   for (const l of (liqsRes.data ?? []) as any[]) {
     liqByKey.set(`${l.contract_id}|${l.landlord_id}`, l)
   }
+
+  // Deuda breakdown — bulk-built for every active contract in one
+  // additional Supabase query (prior 3 periods' RENT_IN sums). Attached
+  // per-row below so the inline cell can open the global popover panel
+  // without further fetching.
+  const deudaBreakdownsByContract = await buildDeudaBreakdownsBulk(
+    ((contractsRes.data ?? []) as any[]).map((c: any) => ({
+      id:                  c.id,
+      currentRent:         Number(c.current_rent ?? 0),
+      paymentDay:          Number(c.payment_day ?? 5),
+      startDate:           c.start_date ?? null,
+      lateInterestEnabled: c.late_interest_enabled === true,
+      lateInterestRate:    Number(c.late_interest_rate ?? 0),
+    })),
+    period,
+  )
 
   const rows: LiquidacionGridRow[] = []
   // Diagnostic counters: surfaced via console so the cause of an empty
@@ -911,6 +936,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       sentAt:        liq?.sent_at ?? null,
       paidAt:        liq?.paid_at ?? null,
       currentRent,
+      deudaBreakdown: deudaBreakdownsByContract.get(c.id) ?? null,
       includesAbl:   c.includes_abl === true,
       ablAmount:     Number(c.abl_amount ?? 0),
       startDate:     c.start_date ?? null,

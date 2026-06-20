@@ -10,6 +10,8 @@ import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { MovimientosPanel } from '@/components/shared/MovimientosPanel'
 import { AblSurchargeEditor } from '@/components/contract/AblSurchargeEditor'
+import { DeudaBreakdownPanel } from '@/components/shared/DeudaBreakdownPanel'
+import { getDeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { computeUrgency, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 import { getCurrentPeriod } from '@/lib/period'
@@ -61,9 +63,10 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
 
   const periods = await getContractPeriods(id)
   const period  = paramPeriod ?? periods[0] ?? getCurrentPeriod()
-  const [embudo, note] = await Promise.all([
+  const [embudo, note, deudaBreakdown] = await Promise.all([
     getEmbudoForContract(id, period),
     getNoteForPeriod(id, period),
+    getDeudaBreakdown(id, period),
   ])
 
   const primaryTenant   = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
@@ -232,6 +235,25 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
           </div>
         )}
       </section>
+
+      {/* Deuda — current period + last 3 carryover periods + intereses
+         estimate. Same shared panel used inside the planilla's per-row
+         popover (clicked on the Deuda cell). */}
+      {deudaBreakdown && (
+        <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
+          <div className="px-6 py-4 border-b border-line">
+            <h2 className="font-display text-[15px] font-medium text-ink">
+              Deuda · {PERIOD_LABEL(period)}
+            </h2>
+            <p className="text-[12px] text-slate mt-0.5">
+              Desglose con arrastrado anterior y estimación de intereses por mora.
+            </p>
+          </div>
+          <div className="px-6 py-5 max-w-2xl">
+            <DeudaBreakdownPanel breakdown={deudaBreakdown} />
+          </div>
+        </section>
+      )}
 
       {/* Movimientos del período — every cashflow row for this contract.
          Same editable component used inside the planilla's Movs. modal. */}
