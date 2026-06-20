@@ -12,6 +12,8 @@ import { MovimientosPanel } from '@/components/shared/MovimientosPanel'
 import { AblSurchargeEditor } from '@/components/contract/AblSurchargeEditor'
 import { DeudaBreakdownPanel } from '@/components/shared/DeudaBreakdownPanel'
 import { getDeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
+import { ValidationIssueRow } from '@/components/shared/ValidationIssueRow'
+import { getContractDiagnostico } from '@/lib/liquidacion/diagnostico'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { computeUrgency, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 import { getCurrentPeriod } from '@/lib/period'
@@ -63,10 +65,11 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
 
   const periods = await getContractPeriods(id)
   const period  = paramPeriod ?? periods[0] ?? getCurrentPeriod()
-  const [embudo, note, deudaBreakdown] = await Promise.all([
+  const [embudo, note, deudaBreakdown, contractIssues] = await Promise.all([
     getEmbudoForContract(id, period),
     getNoteForPeriod(id, period),
     getDeudaBreakdown(id, period),
+    getContractDiagnostico(id, period),
   ])
 
   const primaryTenant   = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
@@ -235,6 +238,30 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
           </div>
         )}
       </section>
+
+      {/* Diagnóstico — same validation rules that drive the planilla's
+         Check column, filtered to this contract for the current period.
+         Shared ValidationIssueRow so per-rule labels stay consistent. */}
+      {contractIssues.length > 0 && (
+        <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
+          <div className="px-6 py-4 border-b border-line">
+            <h2 className="font-display text-[15px] font-medium text-ink">
+              Diagnóstico · {PERIOD_LABEL(period)}
+            </h2>
+            <p className="text-[12px] text-slate mt-0.5">
+              {contractIssues.length} {contractIssues.length === 1 ? 'issue detectado' : 'issues detectados'} por las reglas de validación.
+            </p>
+          </div>
+          <ul>
+            {contractIssues.map((item, idx) => (
+              <ValidationIssueRow
+                key={`${item.issue.code}-${idx}`}
+                issue={item.issue}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Deuda — current period + last 3 carryover periods + intereses
          estimate. Same shared panel used inside the planilla's per-row

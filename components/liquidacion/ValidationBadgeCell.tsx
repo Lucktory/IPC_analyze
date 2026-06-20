@@ -16,7 +16,7 @@ import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useFloatingPopover } from './useFloatingPopover'
 import { highestSeverity, type ValidationIssue } from '@/lib/liquidacion/validations'
-import { fmtMoney } from '@/lib/format'
+import { ValidationIssueRow } from '@/components/shared/ValidationIssueRow'
 
 interface Props {
   issues: ValidationIssue[]
@@ -74,47 +74,7 @@ export function ValidationBadgeCell({ issues }: Props) {
             </div>
             <ul className="max-h-[360px] overflow-y-auto">
               {issues.map((issue, idx) => (
-                <li
-                  key={`${issue.code}-${idx}`}
-                  className={`px-3 py-2 border-b border-gray-100 last:border-b-0 ${issue.severity === 'error' ? 'bg-danger/5' : 'bg-warn/5'}`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span
-                      className={`inline-block w-2 h-2 rounded-full mt-1 shrink-0 ${issue.severity === 'error' ? 'bg-danger' : 'bg-warn'}`}
-                      aria-hidden
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] uppercase tracking-wider text-gray-500 font-medium">
-                        {issue.severity === 'error' ? 'Error' : 'Aviso'} · {prettyCode(issue.code)}
-                      </p>
-                      <p className="text-[12.5px] text-ink mt-0.5 leading-snug">{issue.message}</p>
-                      {(issue.expected !== null || issue.actual !== null) && (
-                        <div className="mt-1.5 grid grid-cols-3 gap-2 text-[11px]">
-                          {issue.expected !== null && (
-                            <div>
-                              <span className="text-gray-500 block">Esperado</span>
-                              <span className="text-ink tabular-nums">{fmtMoney(issue.expected)}</span>
-                            </div>
-                          )}
-                          {issue.actual !== null && (
-                            <div>
-                              <span className="text-gray-500 block">Actual</span>
-                              <span className="text-ink tabular-nums">{fmtMoney(issue.actual)}</span>
-                            </div>
-                          )}
-                          {issue.diff > 0 && (
-                            <div>
-                              <span className="text-gray-500 block">Diferencia</span>
-                              <span className={`tabular-nums font-medium ${issue.severity === 'error' ? 'text-danger' : 'text-warn'}`}>
-                                {fmtMoney(issue.diff)}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </li>
+                <ValidationIssueRow key={`${issue.code}-${idx}`} issue={issue} />
               ))}
             </ul>
           </div>
@@ -125,29 +85,6 @@ export function ValidationBadgeCell({ issues }: Props) {
   )
 }
 
-// Map the rule code to a short human-readable Spanish category label.
-function prettyCode(code: string): string {
-  switch (code) {
-    case 'TRANSFERENCIA_IMBALANCE':       return 'Transferencia no balancea'
-    case 'TRANSFERENCIA_NEGATIVE':        return 'Transferencia negativa'
-    case 'PAID_STATUS_INCONSISTENT':      return 'Estado pagada inconsistente'
-    case 'BANK_DATES_OUT_OF_ORDER':       return 'Fechas bancarias fuera de orden'
-    case 'ADMI_DESTINATIONS_UNCLASSIFIED': return 'ADMI sin clasificar'
-    case 'COMMISSION_PCT_DEVIATION':      return 'Comisión efectiva difiere'
-    case 'RENT_AMOUNT_VARIANCE':          return 'Variación de alquiler'
-    case 'PAYMENT_OVERDUE':               return 'Alquiler vencido (recargo por mora)'
-    case 'CONTRACT_EXPIRED_BUT_ACTIVE':   return 'Contrato vencido — sigue activo'
-    case 'CONTRACT_INVALID_DATE_RANGE':   return 'Vigencia inválida'
-    case 'CONTRACT_LANDLORD_JUNCTION_EMPTY': return 'Sin propietarios cargados'
-    case 'CONTRACT_TENANT_JUNCTION_EMPTY':   return 'Sin inquilinos cargados'
-    case 'LANDLORD_PCT_SUM_NOT_100':      return 'Suma % propietarios ≠ 100'
-    case 'TENANT_PCT_SUM_NOT_100':        return 'Suma % inquilinos ≠ 100'
-    case 'ADMIN_PCT_SUM_INVALID':         return 'Suma % administradores ≠ 100'
-    case 'CONTRACT_MISSING_COMMISSION_PCT': return 'Sin % de comisión cargado'
-    case 'CONTRACT_NEXT_ADJUSTMENT_OVERDUE': return 'Aumento programado vencido'
-    case 'CONTRACT_SELLADO_PENDING':      return 'Sellado sin aplicar'
-    case 'CONTRACT_DEPOSIT_STATE_INVALID': return 'Depósito devuelto en contrato activo'
-    case 'BILLING_IVA_MISMATCH':          return 'IVA contrato vs administrador no coincide'
-    default:                              return code
-  }
-}
+// Rule-code → Spanish label map lives in components/shared/ValidationIssueRow.tsx
+// (see `prettyValidationCode`) so /diagnostico, the contract page, and this
+// badge's popover all render labels from one source.

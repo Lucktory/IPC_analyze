@@ -7,7 +7,7 @@ import { getSection } from '@/lib/sections'
 interface NavItem {
   to: string
   label: string
-  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile' | 'sheet' | 'bell' | 'funnel'
+  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile' | 'sheet' | 'bell' | 'funnel' | 'shield'
 }
 
 const mainItems: NavItem[] = [
@@ -15,6 +15,7 @@ const mainItems: NavItem[] = [
   // direction 2026-06-15). The other views are secondary.
   { to: '/liquidacion',  label: 'Liquidación',   icon: 'funnel'     },
   { to: '/pendientes',   label: 'Pendientes',    icon: 'bell'       },
+  { to: '/diagnostico',  label: 'Diagnóstico',   icon: 'shield'     },
   { to: '/dashboard',    label: 'Panel',         icon: 'dashboard'  },
   { to: '/contratos',    label: 'Contratos',     icon: 'contracts'  },
   { to: '/propietarios', label: 'Propietarios',  icon: 'owners'     },
@@ -129,6 +130,13 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
       return (
         <svg {...common} strokeLinejoin="round">
           <path d="M2.5 3 H17.5 L12 10 V16 L8 17.5 V10 Z" />
+        </svg>
+      )
+    case 'shield':
+      return (
+        <svg {...common} strokeLinejoin="round">
+          <path d="M10 2.5 L16 4.5 V10 a6 6 0 0 1 -6 6 a6 6 0 0 1 -6 -6 V4.5 Z" />
+          <path d="M7 10 L9.5 12 L13 8" />
         </svg>
       )
   }
