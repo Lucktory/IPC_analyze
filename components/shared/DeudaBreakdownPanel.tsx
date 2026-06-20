@@ -16,7 +16,7 @@
 //   • Final total bolded
 // ============================================================================
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { fmtMoney } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
 import type { DeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
@@ -25,8 +25,30 @@ interface Props {
   breakdown: DeudaBreakdown
 }
 
+const STORAGE_KEY = (contractId: string) => `deuda-apply-intereses:${contractId}`
+
 export function DeudaBreakdownPanel({ breakdown }: Props) {
-  const [applyIntereses, setApplyIntereses] = useState(breakdown.lateInterestEnabled)
+  // Persist the intereses checkbox per contract in localStorage. The panel
+  // is unmounted every time the popover closes, so without persistence the
+  // user's toggle resets to contracts.late_interest_enabled on every open.
+  // Storage key is per contractId; survives modal close/reopen and reloads.
+  // Falls back to the contract's stored flag when no choice has been saved.
+  const [applyIntereses, setApplyIntereses] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return breakdown.lateInterestEnabled
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY(breakdown.contractId))
+      if (stored === 'true')  return true
+      if (stored === 'false') return false
+    } catch { /* ignore disabled storage */ }
+    return breakdown.lateInterestEnabled
+  })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(STORAGE_KEY(breakdown.contractId), String(applyIntereses))
+    } catch { /* ignore */ }
+  }, [applyIntereses, breakdown.contractId])
   const interesesShown = applyIntereses ? breakdown.interesesEstimado : 0
   const total          = breakdown.deudaCurrent + breakdown.deudaCarryover + interesesShown
   const carryoverCount = breakdown.carryover.length
