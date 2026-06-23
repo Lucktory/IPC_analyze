@@ -20,6 +20,7 @@
 -- 1. DROP EXISTING (reverse order of create due to FKs)
 -- ----------------------------------------------------------------------------
 drop table if exists contract_events cascade;
+drop table if exists contract_recurring_charges cascade;
 drop table if exists rendicion_landlords cascade;
 drop table if exists rendiciones cascade;
 drop table if exists liquidacion_lines cascade;
@@ -275,9 +276,10 @@ create table contracts (
   deposit_amount             numeric(14,2),
   deposit_status             text not null default 'held'
                              check (deposit_status in ('held','partially_used','refunded')),
-  -- Recurring ABL surcharge (some contracts: tenant pays rent + ABL monthly).
-  includes_abl               boolean not null default false,
-  abl_amount                 numeric(14,2),
+  -- (Recurring charges that get added to the rent — ABL, THU, Camuzzi, etc.
+  -- — live in the `contract_recurring_charges` table below. The old
+  -- includes_abl + abl_amount columns were dropped 2026-06-20 in favor of
+  -- the more general N-per-contract design.)
   -- Who pays the building consorcio expensas.
   expensas_payer             text not null default 'tenant'
                              check (expensas_payer in ('tenant','landlord','split')),
@@ -345,6 +347,33 @@ create table contract_period_notes (
   primary key (contract_id, period)
 );
 create index idx_contract_period_notes_period on contract_period_notes(period);
+
+-- ----------------------------------------------------------------------------
+-- 13b-ter. CONTRACT_RECURRING_CHARGES — recargos mensuales (ABL, THU,
+--      Camuzzi, Tasa de Limpieza, Edesur, AySA, ...). Each contract can
+--      have many; each has an optional `recupero_type_code` linking to
+--      transaction_types so the planilla can check "this charge was
+--      recorded this month" automatically. Replaces the single-ABL
+--      contracts.includes_abl/abl_amount columns (migration 2026-06-20).
+-- ----------------------------------------------------------------------------
+create table contract_recurring_charges (
+  id                  uuid primary key default gen_random_uuid(),
+  contract_id         uuid not null references contracts(id) on delete cascade,
+  label               text not null,
+  amount              numeric(12,2) not null check (amount > 0),
+  -- Optional FK to transaction_types.code. When set, drives the cobro
+  -- completeness check used by the planilla Recargos cell + validation rule.
+  recupero_type_code  text references transaction_types(code) on delete set null,
+  active              boolean not null default true,
+  sort_order          int not null default 0,
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+create index idx_contract_recurring_charges_contract
+  on contract_recurring_charges(contract_id);
+create index idx_contract_recurring_charges_active
+  on contract_recurring_charges(contract_id, active)
+  where active = true;
 
 -- ----------------------------------------------------------------------------
 -- 13b-bis. CONTRACT_EVENTS — unified per-contract timeline / dossier (Phase 11).

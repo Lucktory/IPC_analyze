@@ -58,6 +58,7 @@ import { InlineIngresosCell } from './InlineIngresosCell'
 import { InlineIvaToggleCell } from './InlineIvaToggleCell'
 import { InlineMovimientosCell } from './InlineMovimientosCell'
 import { InlineDeudaBreakdownCell } from './InlineDeudaBreakdownCell'
+import { InlineRecurringChargesCell } from './InlineRecurringChargesCell'
 import { ValidationBadgeCell } from './ValidationBadgeCell'
 import { highestSeverity } from '@/lib/liquidacion/validations'
 import {
@@ -114,7 +115,13 @@ const W = {
   // Phase 9C: ingresos column split into alquiler (RENT_IN only) and
   // extras (recuperos + signed adjustment). Keeping legacy `ingresos`
   // unused in the new layout but preserved for any old code paths.
-  alquiler: 95, extras: 85,
+  alquiler: 95,
+  // Recargos — sum of monthly recurring extras (ABL / THU / Camuzzi /
+  // Tasa de Limpieza / etc.) configured per contract. Total + green/red
+  // status dot. Click opens the read-only RecurringChargesPanel popover.
+  // Per Alejandro 2026-06-20: Alquiler stays pure, recargos go HERE.
+  recargos: 100,
+  extras: 85,
   ingresos: 95, transf: 105, otros: 80,
   // Movs. — net of every transaction on the contract+period (IN - OUT).
   // Two-line label: amount on top, "N mov." underneath. Click opens the
@@ -233,7 +240,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
 
   const tableMinWidth =
     W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.cadencia +
-    W.contrato + W.deuda + W.periodo + W.alquiler + W.extras + W.transf + W.otros +
+    W.contrato + W.deuda + W.periodo + W.alquiler + W.recargos + W.extras + W.transf + W.otros +
     W.movim + W.diatransf + W.admi + W.iva + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
 
   return (
@@ -260,6 +267,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               {/* 9 */}<Th width={W.deuda}    align="right">Deuda</Th>
               {/* 10 */}<Th width={W.periodo}   align="center">Pago</Th>
               {/* 11 */}<Th width={W.alquiler}  align="right">Alquiler</Th>
+              {/* 11b */}<Th width={W.recargos} align="right">Recargos</Th>
               {/* 12 */}<Th width={W.extras}    align="right">Extras</Th>
               {/* 12 */}<Th width={W.transf}    align="right">Transferencia</Th>
               {/* 13 */}<Th width={W.otros}     align="right">Otros</Th>
@@ -486,65 +494,48 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     {renderPaymentCell(r, cobrado)}
                   </Td>
 
-                  {/* 11. ALQUILER — Phase 9C, RENT_IN-only popover.
-                       Alejandro: "figura a simple vista cuál es el alquiler."
-                       Persistent light-blue tint when this period contains a
-                       rent-adjustment date (r.periodHasAumento). The tint
-                       stays after cobro is registered — that's the visual
-                       confirmation the cobro arrived WITH the increase.
-                       Class lives in lib/liquidacion/thresholds.ts. */}
-                  {(() => {
-                    // Expected target shown in light gray when nothing has been
-                    // collected yet. When includesAbl=true the target adds the
-                    // recurring ABL surcharge so the encargada sees the real
-                    // cobro figure she should be expecting from the tenant.
-                    const expectedTarget = r.currentRent + (r.includesAbl ? r.ablAmount : 0)
-                    const ablTooltip = r.includesAbl && r.ablAmount > 0
-                      ? `Esperado: ${fmtMoney(r.currentRent)} alquiler + ${fmtMoney(r.ablAmount)} ABL = ${fmtMoney(expectedTarget)}`
-                      : null
-                    const aumentoTooltip = r.periodHasAumento
-                      ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
-                      : null
-                    const buttonTitle = [aumentoTooltip, ablTooltip].filter(Boolean).join(' · ') || undefined
-                    return (
-                      <Td width={W.alquiler} align="right">
-                        <InlineIngresosCell
-                          contractId={r.contractId}
-                          period={r.periodo}
-                          lines={r.ingresosLines}
-                          total={alquilerSum}
-                          cobrado={cobrado}
-                          upcomingAdjustment={r.hasUpcomingAdjustment && r.daysUntilAdjustment != null
-                            ? { days: r.daysUntilAdjustment }
-                            : null}
-                          onlyTypes={['RENT_IN']}
-                          defaultNewLineType="RENT_IN"
-                          popoverTitle="Alquiler — Sólo cobros de RENT_IN"
-                          cellBgClass={aumentoClass}
-                          buttonTitle={buttonTitle}
-                          // Show the expected target when no RENT_IN has
-                          // landed yet. Target = current_rent + ABL when the
-                          // contract has the ABL surcharge enabled. Text color
-                          // falls back to the cell's cobrado=false light-slate,
-                          // so light-gray = unpaid, dark = paid (same visual
-                          // code as every other amount cell). Per Alejandro
-                          // 2026-06-18 + 2026-06-19 voices.
-                          displayOverride={alquilerSum === 0 && expectedTarget > 0
-                            ? (
-                              <span className="tabular-nums">
-                                {fmtMoney(expectedTarget)}
-                                {r.includesAbl && r.ablAmount > 0 && (
-                                  <span className="block text-[9px] text-slate normal-case font-normal">
-                                    incluye ABL
-                                  </span>
-                                )}
-                              </span>
-                            )
-                            : undefined}
-                        />
-                      </Td>
-                    )
-                  })()}
+                  {/* 11. ALQUILER — pure rent, no extras mixed in.
+                       Per Alejandro 2026-06-20: "la columna alquiler tiene
+                       que permanecer limpia, libre — es el alquiler y nada
+                       más." Recargos (ABL / THU / Camuzzi / etc.) live in
+                       the dedicated Recargos column on the right. The
+                       persistent orange tint (aumentoClass) still marks
+                       periods where an aumento applies so the encargada
+                       can see at a glance "estaba en X, ahora va en Y". */}
+                  <Td width={W.alquiler} align="right">
+                    <InlineIngresosCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      lines={r.ingresosLines}
+                      total={alquilerSum}
+                      cobrado={cobrado}
+                      upcomingAdjustment={r.hasUpcomingAdjustment && r.daysUntilAdjustment != null
+                        ? { days: r.daysUntilAdjustment }
+                        : null}
+                      onlyTypes={['RENT_IN']}
+                      defaultNewLineType="RENT_IN"
+                      popoverTitle="Alquiler — Sólo cobros de RENT_IN"
+                      cellBgClass={aumentoClass}
+                      buttonTitle={r.periodHasAumento
+                        ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
+                        : undefined}
+                      // Light-gray expected current_rent until the cobro
+                      // arrives. No ABL / extras merged — those live in
+                      // the Recargos column next door.
+                      displayOverride={alquilerSum === 0 && r.currentRent > 0
+                        ? <span className="tabular-nums">{fmtMoney(r.currentRent)}</span>
+                        : undefined}
+                    />
+                  </Td>
+
+                  {/* 11b. RECARGOS — sum of monthly recurring extras + status dot. */}
+                  <Td width={W.recargos} align="right">
+                    <InlineRecurringChargesCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      summary={r.recurringCharges}
+                    />
+                  </Td>
 
                   {/* 12. EXTRAS — Phase 9C, everything except RENT_IN.
                        Recuperos (ABL/gas/etc.) + signed adjustment from
@@ -777,6 +768,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <Tf width={W.deuda}     align="right" tabular>{footerMoney(totals.deuda)}</Tf>
               <Tf width={W.periodo}   align="center"    />
               <Tf width={W.alquiler}  align="right" tabular>{footerMoney(totals.alquiler)}</Tf>
+              <Tf width={W.recargos}  align="right" />{/* per-row totals only */}
               <Tf width={W.extras}    align="right" tabular>{footerMoney(totals.extras)}</Tf>
               <Tf width={W.transf}    align="right" tabular>{footerMoney(totals.transferencia)}</Tf>
               <Tf width={W.otros}     align="right" tabular>{footerMoney(totals.otros)}</Tf>

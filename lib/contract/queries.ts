@@ -23,10 +23,6 @@ export interface ContractDetail {
   nextAdjustmentDate: string | null
   paymentDay:      number
   notes:           string | null
-  /** When true, the tenant pays alquiler + ABL each month — the planilla's
-   *  expected amount becomes currentRent + ablAmount instead of just currentRent. */
-  includesAbl:     boolean
-  ablAmount:       number
   landlords:       { id: string; name: string; ownershipPct: number }[]
   tenants:         { id: string; name: string; phone: string | null; isPrimary: boolean }[]
   property:        { id: string; address: string; propertyType: string } | null
@@ -40,7 +36,6 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     .select(`
       id, status, current_rent, initial_rent, expensas, currency, cadence, indexer,
       start_date, end_date, next_adjustment_date, payment_day, notes,
-      includes_abl, abl_amount,
       contract_landlords(ownership_pct, landlords(id, name)),
       contract_tenants(is_primary, tenants(id, name, phone)),
       properties(id, address, property_type)
@@ -65,8 +60,6 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     nextAdjustmentDate: c.next_adjustment_date,
     paymentDay:      c.payment_day,
     notes:           c.notes,
-    includesAbl:     c.includes_abl === true,
-    ablAmount:       Number(c.abl_amount ?? 0),
     landlords:       (c.contract_landlords ?? []).map((cl: any) => ({
       id:           cl.landlords.id,
       name:         cl.landlords.name,

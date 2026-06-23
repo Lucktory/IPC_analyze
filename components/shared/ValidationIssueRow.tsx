@@ -50,6 +50,7 @@ const CODE_LABEL: Record<ValidationCode, string> = {
   CONTRACT_SELLADO_PENDING:          'Sellado sin aplicar',
   CONTRACT_DEPOSIT_STATE_INVALID:    'Depósito devuelto en contrato activo',
   BILLING_IVA_MISMATCH:              'IVA contrato vs administrador no coincide',
+  RECURRING_CHARGE_NOT_RECORDED:     'Recargo recurrente sin registrar',
 }
 
 export function prettyValidationCode(code: ValidationCode | string): string {

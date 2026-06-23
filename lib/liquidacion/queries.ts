@@ -17,8 +17,9 @@ import { classifyDestination } from '@/lib/reconciliation/queries'
 import { validateRow, type ValidationIssue } from './validations'
 import { type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
+import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
 
-export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown }
+export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown, RecurringChargesSummary }
 
 // ── Phase 9B: planilla footer totals — sums across every visible row,
 //    rendered as a sticky <tfoot> at the bottom of the grid so Alejandro
@@ -344,13 +345,14 @@ export interface LiquidacionGridRow {
   //    AND there's actually something to display.
   deudaBreakdown:    DeudaBreakdown | null
 
-  // ── Recurring ABL/surcharge added to the rent for some contracts.
-  //    When `includesAbl=true`, the planilla's expected target shown in
-  //    the Alquiler cell becomes currentRent + ablAmount instead of just
-  //    currentRent. Per Alejandro 2026-06-19: "un lugar para poner el ABL
-  //    o el gas que a veces lo tenemos que sumar al alquiler". ──
-  includesAbl:       boolean
-  ablAmount:         number
+  // ── Recurring charges (ABL, THU, Camuzzi, etc.) — drives the new
+  //    Recargos column on the planilla. Per Alejandro 2026-06-20:
+  //    the Alquiler column stays pure (only rent); recargos go in a
+  //    separate column with N items per contract. The summary holds
+  //    the line items, the expected total, and the green/red status
+  //    dot driven by which recupero transactions were recorded
+  //    this period. ──
+  recurringCharges:  RecurringChargesSummary | null
 
   // ── Vigencia (for the CONTRATO column in the 19-col layout) ──
   startDate:         string | null
@@ -589,7 +591,6 @@ async function probeFirstRowError(
         id, status, contract_number, lfa_code, expensas, current_rent,
         cadence, start_date, end_date, payment_day,
         created_at, updated_at, commission_pct, commission_includes_iva,
-        includes_abl, abl_amount,
         contract_tenants(is_primary, share_pct, tenants(id, name)),
         contract_landlords(ownership_pct, landlords(id, name, email))
       `)
@@ -634,7 +635,6 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         id, status, contract_number, lfa_code, expensas, current_rent,
         cadence, start_date, end_date, payment_day,
         created_at, updated_at, commission_pct, commission_includes_iva,
-        includes_abl, abl_amount,
         late_interest_enabled, late_interest_rate,
         next_adjustment_date, sellado_total, sellado_applied_at, deposit_status,
         billing_administrator_id,
@@ -748,21 +748,29 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     liqByKey.set(`${l.contract_id}|${l.landlord_id}`, l)
   }
 
-  // Deuda breakdown — bulk-built for every active contract in one
-  // additional Supabase query (prior 3 periods' RENT_IN sums). Attached
-  // per-row below so the inline cell can open the global popover panel
-  // without further fetching.
-  const deudaBreakdownsByContract = await buildDeudaBreakdownsBulk(
-    ((contractsRes.data ?? []) as any[]).map((c: any) => ({
-      id:                  c.id,
-      currentRent:         Number(c.current_rent ?? 0),
-      paymentDay:          Number(c.payment_day ?? 5),
-      startDate:           c.start_date ?? null,
-      lateInterestEnabled: c.late_interest_enabled === true,
-      lateInterestRate:    Number(c.late_interest_rate ?? 0),
-    })),
-    period,
-  )
+  const allContractIds = ((contractsRes.data ?? []) as any[]).map((c: any) => c.id)
+
+  // Two bulk helpers fire in parallel:
+  //   • Deuda breakdown — prior 3 periods' RENT_IN sums per contract.
+  //   • Recurring charges summary — per-contract list of ABL / THU /
+  //     Camuzzi / etc. plus the "was this paid this period?" check used
+  //     by the planilla Recargos cell's status dot and the
+  //     RECURRING_CHARGE_NOT_RECORDED validation rule.
+  // Both attach to each row below so the inline cells don't fetch again.
+  const [deudaBreakdownsByContract, recurringChargesByContract] = await Promise.all([
+    buildDeudaBreakdownsBulk(
+      ((contractsRes.data ?? []) as any[]).map((c: any) => ({
+        id:                  c.id,
+        currentRent:         Number(c.current_rent ?? 0),
+        paymentDay:          Number(c.payment_day ?? 5),
+        startDate:           c.start_date ?? null,
+        lateInterestEnabled: c.late_interest_enabled === true,
+        lateInterestRate:    Number(c.late_interest_rate ?? 0),
+      })),
+      period,
+    ),
+    buildRecurringChargesSummariesBulk(allContractIds, period),
+  ])
 
   const rows: LiquidacionGridRow[] = []
   // Diagnostic counters: surfaced via console so the cause of an empty
@@ -936,9 +944,8 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       sentAt:        liq?.sent_at ?? null,
       paidAt:        liq?.paid_at ?? null,
       currentRent,
-      deudaBreakdown: deudaBreakdownsByContract.get(c.id) ?? null,
-      includesAbl:   c.includes_abl === true,
-      ablAmount:     Number(c.abl_amount ?? 0),
+      deudaBreakdown:   deudaBreakdownsByContract.get(c.id) ?? null,
+      recurringCharges: recurringChargesByContract.get(c.id) ?? null,
       startDate:     c.start_date ?? null,
       endDate:       c.end_date   ?? null,
       wasRecentlyEdited: (() => {
@@ -1032,6 +1039,14 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           commissionIncludesIva,
           billingAdminTaxCategory: ((c.billing_administrator as any)?.tax_category ?? null) as 'RI' | 'MONOTRIBUTO' | 'EXENTO' | null,
           billingAdminLabel:       ((c.billing_administrator as any)?.name ?? null) as string | null,
+          // Recurring charges — surface typed-but-missing as a validation
+          // warning so the Check column matches the Recargos cell's red dot.
+          recurringChargesMissingLabels: ((): string[] => {
+            const sum = recurringChargesByContract.get(c.id)
+            if (!sum) return []
+            return sum.lines.filter(l => l.recorded === false).map(l => l.label)
+          })(),
+          recurringChargesTypedCount: recurringChargesByContract.get(c.id)?.typedCount ?? 0,
         },
         c.commission_pct != null ? Number(c.commission_pct) : undefined,
         commissionIncludesIva,

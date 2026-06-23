@@ -9,7 +9,7 @@ import {
 import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { MovimientosPanel } from '@/components/shared/MovimientosPanel'
-import { AblSurchargeEditor } from '@/components/contract/AblSurchargeEditor'
+import { RecurringChargesEditor } from '@/components/contract/RecurringChargesEditor'
 import { DeudaBreakdownPanel } from '@/components/shared/DeudaBreakdownPanel'
 import { getDeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
 import { ValidationIssueRow } from '@/components/shared/ValidationIssueRow'
@@ -138,12 +138,13 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
          reminders Alejandro stuffs into the INQUILINOS cell of his ledger. */}
       {nextAdjustment && <NextAdjustmentCallout date={nextAdjustment} cadence={contract.cadence} />}
 
-      {/* ABL / recargo mensual — set per contract. Alejandro 2026-06-19. */}
+      {/* Recargos mensuales (ABL / THU / Camuzzi / etc.) — set per contract.
+         Replaces the single-row AblSurchargeEditor (2026-06-19) with the
+         N-rows editor per Alejandro's 2026-06-20 voice: each contract may
+         have many recurring charges. */}
       <section className="mt-6">
-        <AblSurchargeEditor
+        <RecurringChargesEditor
           contractId={id}
-          initialOn={contract.includesAbl}
-          initialAmount={contract.ablAmount}
           currentRent={contract.currentRent}
         />
       </section>

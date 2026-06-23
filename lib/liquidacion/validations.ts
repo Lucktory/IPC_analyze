@@ -84,6 +84,8 @@ export type ValidationCode =
   | 'CONTRACT_SELLADO_PENDING'
   | 'CONTRACT_DEPOSIT_STATE_INVALID'
   | 'BILLING_IVA_MISMATCH'
+  // ── Recurring charges (2026-06-20) ──
+  | 'RECURRING_CHARGE_NOT_RECORDED'
 
 // ── Row shape the validators read. Keep it minimal — only the fields
 //    actually used by the rules. Lets us evolve LiquidacionGridRow
@@ -154,6 +156,14 @@ export interface ValidatableRow {
   /** Display label for the billing administrator (name, surfaced in the
    *  IVA mismatch message). Null when admin not assigned. */
   billingAdminLabel:        string | null
+
+  // ── Recurring charges payload (2026-06-20) ──────────────────────────
+  /** Labels of typed recurring charges this contract has that DON'T have a
+   *  matching transaction recorded this period. Drives the
+   *  RECURRING_CHARGE_NOT_RECORDED rule. Empty array = all good. */
+  recurringChargesMissingLabels: string[]
+  /** Count of typed charges total (eligible for the check). Skipped when 0. */
+  recurringChargesTypedCount:    number
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -545,6 +555,25 @@ function checkBillingIvaMismatch(r: ValidatableRow): ValidationIssue | null {
   }
 }
 
+// 20. RECURRING_CHARGE_NOT_RECORDED — typed recurring charge has no
+//     matching transaction this period. Mirrors the red status dot on the
+//     planilla's Recargos cell. Warning severity because the bill may not
+//     have arrived yet (e.g., ABL due day 20). Per Alejandro 2026-06-20.
+function checkRecurringChargeNotRecorded(r: ValidatableRow): ValidationIssue | null {
+  if (r.recurringChargesTypedCount === 0) return null
+  if (r.recurringChargesMissingLabels.length === 0) return null
+  const labels = r.recurringChargesMissingLabels.join(', ')
+  const count  = r.recurringChargesMissingLabels.length
+  return {
+    code:     'RECURRING_CHARGE_NOT_RECORDED',
+    severity: 'warning',
+    message:  `Recargo${count === 1 ? '' : 's'} ${labels} sin registrar este período. Revisá si ya entró el cobro y cargalo en Movs.`,
+    expected: r.recurringChargesTypedCount,
+    actual:   r.recurringChargesTypedCount - count,
+    diff:     count,
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // AGGREGATOR — runs every validator and returns the issues array.
 // ════════════════════════════════════════════════════════════════════════════
@@ -588,6 +617,8 @@ export function validateRow(
   push(checkContractSelladoPending(r))
   push(checkContractDepositStateInvalid(r))
   push(checkBillingIvaMismatch(r))
+  // ── Recurring charges (2026-06-20) ──
+  push(checkRecurringChargeNotRecorded(r))
 
   // Commission deviation check is special: it needs the contract pct
   // which isn't on the row itself. Inline it here when caller provides it.
