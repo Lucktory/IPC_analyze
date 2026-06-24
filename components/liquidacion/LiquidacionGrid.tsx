@@ -555,6 +555,8 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       contractId={r.contractId}
                       period={r.periodo}
                       summary={r.recurringCharges}
+                      currentRent={r.currentRent}
+                      contractLabel={`${r.propietario} · ${r.inquilino}`}
                     />
                   </Td>
 
