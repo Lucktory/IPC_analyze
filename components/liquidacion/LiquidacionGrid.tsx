@@ -362,16 +362,30 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
 
                   {/* 4. PROPIETARIOS — sticky, multi-owner editor (Phase 11).
                        Reads all co-owners + their % from r.landlordsList.
-                       Click → popover with chip-x 10s delete + Σ% pill. */}
+                       Click name → popover with chip-x 10s delete + Σ% pill.
+                       Small "→" pill on the right jumps to the contract page
+                       where the encargada can edit recargos, vigencia, IVA,
+                       comisión, etc. Per Alejandro 2026-06-20. */}
                   <Td sticky left={STICKY_LEFTS.prop} width={W.prop} bg={zebra}>
-                    <InlineParticipantsCell
-                      kind="landlord"
-                      contractId={r.contractId}
-                      initial={r.landlordsList.map(l => ({ id: l.id, name: l.name, pct: l.ownershipPct }))}
-                      options={landlordOptions}
-                      isOrphan={r.isOrphan && r.landlordsList.length === 0}
-                      orphanReason={r.orphanReason}
-                    />
+                    <div className="flex items-start gap-1">
+                      <div className="flex-1 min-w-0">
+                        <InlineParticipantsCell
+                          kind="landlord"
+                          contractId={r.contractId}
+                          initial={r.landlordsList.map(l => ({ id: l.id, name: l.name, pct: l.ownershipPct }))}
+                          options={landlordOptions}
+                          isOrphan={r.isOrphan && r.landlordsList.length === 0}
+                          orphanReason={r.orphanReason}
+                        />
+                      </div>
+                      <Link
+                        href={`/contratos/${r.contractId}`}
+                        title="Abrir página del contrato (recargos, IVA, comisión, vigencia…)"
+                        className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-slate-dark text-[12px] font-medium hover:bg-ink/10 hover:text-ink transition-colors"
+                      >
+                        →
+                      </Link>
+                    </div>
                   </Td>
 
                   {/* 5. EXPENSAS — editable number */}
@@ -383,7 +397,14 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     />
                   </Td>
 
-                  {/* 6. INQUILINOS — multi-tenant editor (Phase 11) + ↗ to detail */}
+                  {/* 6. INQUILINOS — multi-tenant editor + "→" pill to the
+                       contract page (same destination as the Propietario
+                       arrow). 2026-06-20: target switched from
+                       /liquidacion/[id] (per-period rendición detail) to
+                       /contratos/[id] (contract config — where the
+                       Recargos editor lives) and the pill made more
+                       visible. Per Alejandro's request after struggling
+                       to find the recargos editor. */}
                   <Td width={W.inq}>
                     <div className="flex items-start gap-1">
                       <div className="flex-1 min-w-0">
@@ -397,11 +418,11 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                         />
                       </div>
                       <Link
-                        href={`/liquidacion/${r.contractId}?period=${period}`}
-                        title="Abrir detalle del contrato"
-                        className="text-slate hover:text-ink text-[11px] shrink-0 px-0.5"
+                        href={`/contratos/${r.contractId}`}
+                        title="Abrir página del contrato (recargos, IVA, comisión, vigencia…)"
+                        className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-slate-dark text-[12px] font-medium hover:bg-ink/10 hover:text-ink transition-colors"
                       >
-                        ↗
+                        →
                       </Link>
                     </div>
                   </Td>
