@@ -46,8 +46,8 @@ export function RecurringChargesPanel({ summary, period, editHref }: Props) {
         <>
           <ul className="space-y-1">
             {summary.lines.map(l => (
-              <li key={l.id} className="grid grid-cols-[16px_1fr_auto] gap-2 items-baseline">
-                <span aria-hidden className="text-[13px] text-center">
+              <li key={l.id} className="grid grid-cols-[28px_1fr_auto] gap-2 items-center">
+                <span aria-hidden className="text-[18px] text-center font-medium leading-none">
                   {l.recorded === true && <span className="text-success">✓</span>}
                   {l.recorded === false && <span className="text-warn">⚠</span>}
                   {l.recorded === null && <span className="text-gray-300">·</span>}
