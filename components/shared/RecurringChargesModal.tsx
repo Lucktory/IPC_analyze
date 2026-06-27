@@ -57,7 +57,7 @@ export function RecurringChargesModal({
         onClick={onClose}
         className="absolute inset-0 bg-ink/40 backdrop-blur-[1px]"
       />
-      <div className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[820px] max-h-[92vh] overflow-y-auto">
+      <div className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[880px] max-h-[92vh] overflow-y-auto">
         <div className="px-5 py-3 border-b border-gray-200 sticky top-0 bg-white z-10 flex items-center justify-between">
           <div>
             <h2 className="font-display text-[15px] font-medium text-ink">

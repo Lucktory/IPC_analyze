@@ -58,13 +58,16 @@ const toMonthInput   = (period: string | null): string => (period ? period.slice
 /** 'YYYY-MM' → 'YYYY-MM-01'; null when empty (= "siempre", legacy). */
 const fromMonthInput = (m: string): string | null => (m ? `${m}-01` : null)
 
+// Friendly labels for the "Tipo" dropdown — the technical RECUPERO_*_IN code
+// stays as the stored value (it's what the cobro auto-check matches against),
+// but the encargada sees a plain name.
 const SUGGESTED_TYPE_CODES: Array<{ code: string; label: string }> = [
   { code: '',                       label: 'Sin tipo' },
-  { code: 'RECUPERO_ABL_IN',        label: 'RECUPERO_ABL_IN — ABL' },
-  { code: 'RECUPERO_METROGAS_IN',   label: 'RECUPERO_METROGAS_IN — Gas' },
-  { code: 'RECUPERO_EDESUR_IN',     label: 'RECUPERO_EDESUR_IN — Luz' },
-  { code: 'RECUPERO_AYSA_IN',       label: 'RECUPERO_AYSA_IN — Agua' },
-  { code: 'RECUPERO_OTRO_IN',       label: 'RECUPERO_OTRO_IN — Otro servicio' },
+  { code: 'RECUPERO_ABL_IN',        label: 'ABL' },
+  { code: 'RECUPERO_METROGAS_IN',   label: 'Gas' },
+  { code: 'RECUPERO_EDESUR_IN',     label: 'Luz' },
+  { code: 'RECUPERO_AYSA_IN',       label: 'Agua' },
+  { code: 'RECUPERO_OTRO_IN',       label: 'Otro' },
 ]
 
 const emptyDraft = (startMonth: string): DraftLine => ({
@@ -163,15 +166,15 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
       )}
 
       <div className="border border-gray-200 rounded overflow-x-auto">
-        <table className="w-full text-[12.5px] border-collapse min-w-[780px]">
+        <table className="w-full text-[12.5px] border-collapse min-w-[700px]">
           <thead className="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-600">
             <tr className="border-b border-gray-200">
-              <th className="text-left  px-2 py-1.5 font-medium w-[140px]">Etiqueta</th>
-              <th className="text-right px-2 py-1.5 font-medium w-[110px]">Monto</th>
-              <th className="text-left  px-2 py-1.5 font-medium">Tipo (RECUPERO_*_IN)</th>
-              <th className="text-left  px-2 py-1.5 font-medium w-[120px]">Desde</th>
-              <th className="text-left  px-2 py-1.5 font-medium w-[110px]">Cada</th>
-              <th className="text-center px-2 py-1.5 font-medium w-[60px]">Activo</th>
+              <th className="text-left  px-2 py-1.5 font-medium w-[130px]">Etiqueta</th>
+              <th className="text-right px-2 py-1.5 font-medium w-[92px]">Monto</th>
+              <th className="text-left  px-2 py-1.5 font-medium">Tipo</th>
+              <th className="text-left  px-2 py-1.5 font-medium w-[130px]">Desde</th>
+              <th className="text-left  px-2 py-1.5 font-medium w-[100px]">Cada</th>
+              <th className="text-center px-2 py-1.5 font-medium w-[52px]">Activo</th>
               <th className="w-8"></th>
             </tr>
           </thead>
@@ -274,7 +277,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
         <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium mb-1.5">
           + Agregar recargo
         </p>
-        <div className="grid grid-cols-[140px_110px_1fr_120px_120px_auto] gap-2 items-center">
+        <div className="grid grid-cols-[130px_92px_minmax(110px,1fr)_130px_100px_auto] gap-2 items-center">
           <input
             type="text"
             list="recurring-charge-labels"
