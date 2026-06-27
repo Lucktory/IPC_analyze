@@ -57,7 +57,10 @@ export function RecurringChargesModal({
         onClick={onClose}
         className="absolute inset-0 bg-ink/40 backdrop-blur-[1px]"
       />
-      <div className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[880px] max-h-[92vh] overflow-y-auto">
+      {/* text-left resets the text-align inherited from the planilla's
+          right-aligned Recargos <td> (this modal is rendered inside that cell,
+          not portaled), which otherwise right-aligns every label and paragraph. */}
+      <div className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[880px] max-h-[92vh] overflow-y-auto text-left">
         <div className="px-5 py-3 border-b border-gray-200 sticky top-0 bg-white z-10 flex items-center justify-between">
           <div>
             <h2 className="font-display text-[15px] font-medium text-ink">

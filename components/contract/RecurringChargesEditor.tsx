@@ -142,23 +142,23 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
 
   return (
     <div className="bg-paper border border-line rounded p-4">
-      <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
-        <div>
+      <div className="mb-3">
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
           <p className="label-cap text-slate">Recargos mensuales</p>
-          <p className="text-[12px] text-slate mt-0.5 max-w-[560px]">
-            Cargos fijos que se suman al alquiler (ABL, THU, Camuzzi, etc.). Indicá
-            desde qué mes se cobran y cada cuánto (mensual, bimestral…). Aparecen en
-            la columna <strong className="text-ink">Recargos</strong> de la planilla
-            con un puntito verde cuando el cobro está cargado o rojo cuando falta —
-            solo en los meses que corresponde.
-          </p>
+          {charges.length > 0 && (
+            <p className="text-[12px] text-slate-dark">
+              Total activo: <strong className="text-ink tabular-nums">{fmtMoney(totalActive)}</strong>
+              <span className="text-gray-400 text-[10.5px] ml-2">sobre alquiler {fmtMoney(currentRent)}</span>
+            </p>
+          )}
         </div>
-        {charges.length > 0 && (
-          <p className="text-[12px] text-slate-dark">
-            Total activo: <strong className="text-ink tabular-nums">{fmtMoney(totalActive)}</strong>
-            <span className="text-gray-400 text-[10.5px] ml-2">sobre alquiler {fmtMoney(currentRent)}</span>
-          </p>
-        )}
+        <p className="text-[12px] text-slate mt-1">
+          Cargos fijos que se suman al alquiler (ABL, THU, Camuzzi, etc.). Indicá
+          desde qué mes se cobran y cada cuánto (mensual, bimestral…). Aparecen en
+          la columna <strong className="text-ink">Recargos</strong> de la planilla
+          con un puntito verde cuando el cobro está cargado o rojo cuando falta —
+          solo en los meses que corresponde.
+        </p>
       </div>
 
       {error && (
