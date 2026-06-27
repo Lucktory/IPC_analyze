@@ -43,6 +43,16 @@ export function periodAxisLabel(period: string): string {
 }
 
 /**
+ * Whole months from period `a` to period `b` (both 'YYYY-MM-01').
+ * Positive when `b` is after `a`. monthsBetween('2026-01-01','2026-03-01') === 2.
+ */
+export function monthsBetween(a: string, b: string): number {
+  const [ay, am] = a.split('-').map(Number)
+  const [by, bm] = b.split('-').map(Number)
+  return (by - ay) * 12 + (bm - am)
+}
+
+/**
  * Last `n` periods including the current one, ordered oldest → newest.
  * Used by the dashboard trend widgets.
  */

@@ -13,6 +13,27 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { monthsBetween } from '@/lib/period'
+
+/**
+ * Does a recurring charge apply to the given period?
+ *   • start_period null → legacy "always" (no lower bound, treated monthly).
+ *   • period before start_period → no (don't paint history red).
+ *   • interval_months ≤ 1 → every month from start_period on.
+ *   • else → only on-cycle months (monthsBetween % interval === 0), e.g. a
+ *     bimonthly gas charge is skipped on its off months.
+ * Both period strings are 'YYYY-MM-01', so lexical comparison is chronological.
+ */
+export function recurringChargeAppliesToPeriod(
+  startPeriod:    string | null,
+  intervalMonths: number,
+  period:         string,
+): boolean {
+  if (!startPeriod) return true
+  if (period < startPeriod) return false
+  if (!intervalMonths || intervalMonths <= 1) return true
+  return monthsBetween(startPeriod, period) % intervalMonths === 0
+}
 
 export interface RecurringChargeLine {
   id:                string
@@ -69,7 +90,7 @@ export async function buildRecurringChargesSummariesBulk(
   const [chargesRes, txnsRes] = await Promise.all([
     supabase
       .from('contract_recurring_charges')
-      .select('id, contract_id, label, amount, recupero_type_code, sort_order')
+      .select('id, contract_id, label, amount, recupero_type_code, sort_order, start_period, interval_months')
       .in('contract_id', contractIds)
       .eq('active', true)
       .order('sort_order', { ascending: true }),
@@ -100,6 +121,13 @@ export async function buildRecurringChargesSummariesBulk(
   for (const c of (chargesRes.data ?? []) as any[]) {
     const summary = out.get(c.contract_id)
     if (!summary) continue
+    // Schedule gate: a charge only counts in periods where it actually bills.
+    // Skipping it here keeps it out of totalExpected, the dot, the panel, and
+    // the RECURRING_CHARGE_NOT_RECORDED validation in one move.
+    if (!recurringChargeAppliesToPeriod(
+          c.start_period ?? null,
+          Number(c.interval_months ?? 1),
+          period)) continue
     const amount = Number(c.amount)
     const typeCode: string | null = c.recupero_type_code ?? null
     let recorded: boolean | null = null

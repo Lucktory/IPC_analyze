@@ -91,6 +91,7 @@ export function RecurringChargesModal({
             <RecurringChargesEditor
               contractId={contractId}
               currentRent={currentRent}
+              currentPeriod={period}
             />
           </section>
         </div>

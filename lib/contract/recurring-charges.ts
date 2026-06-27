@@ -29,6 +29,10 @@ export interface RecurringCharge {
   recuperoTypeCode:  string | null
   active:            boolean
   sortOrder:         number
+  /** First period the charge bills ('YYYY-MM-01'). Null = always (legacy). */
+  startPeriod:       string | null
+  /** Billing cadence in months: 1 = mensual, 2 = bimestral, 3 = trimestral… */
+  intervalMonths:    number
 }
 
 interface InlineResult {
@@ -47,7 +51,7 @@ export async function listRecurringCharges(contractId: string): Promise<Recurrin
   const supabase = await createSupabaseServer()
   const { data } = await supabase
     .from('contract_recurring_charges')
-    .select('id, contract_id, label, amount, recupero_type_code, active, sort_order')
+    .select('id, contract_id, label, amount, recupero_type_code, active, sort_order, start_period, interval_months')
     .eq('contract_id', contractId)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
@@ -59,6 +63,8 @@ export async function listRecurringCharges(contractId: string): Promise<Recurrin
     recuperoTypeCode:  r.recupero_type_code ?? null,
     active:            r.active === true,
     sortOrder:         Number(r.sort_order ?? 0),
+    startPeriod:       r.start_period ?? null,
+    intervalMonths:    Number(r.interval_months ?? 1),
   }))
 }
 
@@ -68,11 +74,19 @@ export async function addRecurringCharge(args: {
   label:             string
   amount:            number
   recuperoTypeCode:  string | null
+  /** 'YYYY-MM-01' the charge starts billing. Null/omitted = always (legacy). */
+  startPeriod?:      string | null
+  /** Billing cadence in months (1 = mensual). Defaults to 1. */
+  intervalMonths?:   number
 }): Promise<InlineResult> {
   const label = args.label.trim()
   if (!label) return { ok: false, error: 'Cargá una etiqueta para el recargo.' }
   if (!isFinite(args.amount) || args.amount <= 0) {
     return { ok: false, error: 'El monto debe ser mayor a 0.' }
+  }
+  const intervalMonths = args.intervalMonths ?? 1
+  if (!Number.isInteger(intervalMonths) || intervalMonths < 1 || intervalMonths > 12) {
+    return { ok: false, error: 'La frecuencia debe ser entre 1 y 12 meses.' }
   }
 
   const supabase = await createSupabaseServer()
@@ -95,6 +109,8 @@ export async function addRecurringCharge(args: {
       recupero_type_code:  args.recuperoTypeCode,
       active:              true,
       sort_order:          nextOrder,
+      start_period:        args.startPeriod ?? null,
+      interval_months:     intervalMonths,
     })
     .select('id')
     .single()
@@ -111,6 +127,8 @@ export async function updateRecurringCharge(
     amount:            number
     recuperoTypeCode:  string | null
     active:            boolean
+    startPeriod:       string | null
+    intervalMonths:    number
   }>,
 ): Promise<InlineResult> {
   const supabase = await createSupabaseServer()
@@ -128,6 +146,14 @@ export async function updateRecurringCharge(
   }
   if ('recuperoTypeCode' in patch) updates.recupero_type_code = patch.recuperoTypeCode
   if ('active' in patch)           updates.active = patch.active
+  if ('startPeriod' in patch)      updates.start_period = patch.startPeriod
+  if ('intervalMonths' in patch) {
+    const iv = patch.intervalMonths as number
+    if (!Number.isInteger(iv) || iv < 1 || iv > 12) {
+      return { ok: false, error: 'La frecuencia debe ser entre 1 y 12 meses.' }
+    }
+    updates.interval_months = iv
+  }
 
   if (Object.keys(updates).length === 0) return { ok: true, error: null }
 

@@ -146,6 +146,7 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
         <RecurringChargesEditor
           contractId={id}
           currentRent={contract.currentRent}
+          currentPeriod={period}
         />
       </section>
 
