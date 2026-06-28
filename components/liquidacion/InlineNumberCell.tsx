@@ -43,6 +43,9 @@ interface Props {
    * commission that exceeds what's plausible for the period.
    */
   validate?:    (value: number) => { warn: boolean; message: string } | null
+  /** Heading shown on the confirm panel when `validate` flags a value.
+   *  Defaults to "¿Confirmar el monto?" — override e.g. "¿Recalcular la comisión?". */
+  confirmTitle?: string
 }
 
 function format(value: number | null, fmt: 'money' | 'percent' | 'plain'): string {
@@ -54,7 +57,7 @@ function format(value: number | null, fmt: 'money' | 'percent' | 'plain'): strin
 
 export function InlineNumberCell({
   value, format: fmt = 'money', min, max, unit, onSave,
-  displayClassName, title, placeholder = '—', validate,
+  displayClassName, title, placeholder = '—', validate, confirmTitle,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<string>(value != null ? value.toString() : '')
@@ -157,7 +160,7 @@ export function InlineNumberCell({
             <div className="space-y-2">
               <p className="text-[12px] text-ink font-medium flex items-start gap-1.5">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn mt-1.5 shrink-0" />
-                <span>¿Confirmar el monto?</span>
+                <span>{confirmTitle ?? '¿Confirmar el monto?'}</span>
               </p>
               <p className="text-[11.5px] text-slate-dark leading-snug">{warnMessage}</p>
               <div className="flex items-center justify-end gap-1.5">

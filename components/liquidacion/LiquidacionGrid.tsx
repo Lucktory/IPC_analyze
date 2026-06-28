@@ -427,11 +427,15 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     </div>
                   </Td>
 
-                  {/* 7. PCT — editable; persists contracts.commission_pct */}
+                  {/* 7. PCT — editable; saves commission_pct AND recomputes the
+                       period's commission at the new rate (confirm shows $X→$Y). */}
                   <Td width={W.pct} align="right">
                     <EditableCommissionPctCell
                       contractId={r.contractId}
+                      period={r.periodo}
                       value={r.pct}
+                      ingresos={r.ingresos}
+                      admi={r.admi}
                       cobrado={cobrado}
                     />
                   </Td>

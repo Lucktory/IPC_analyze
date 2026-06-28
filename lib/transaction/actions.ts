@@ -22,11 +22,16 @@ import { revalidatePath } from 'next/cache'
 import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
+import { updateContractCommissionPct } from '@/lib/contract/inline-field-actions'
 
 export interface TransactionResult {
   ok:    boolean
   error: string | null
   transactionId?: string
+  /** Machine-readable reason on a non-fatal failure, so callers can branch
+   *  without string-matching the message. 'NO_INCOME' = the period has no
+   *  cobro yet, so there's nothing to compute a commission from. */
+  code?: 'NO_INCOME'
 }
 
 interface UpsertArgs {
@@ -239,7 +244,11 @@ export async function generateCommissionForPeriod(
     }
   }
   if (totalCobrado <= 0) {
-    return { ok: false, error: 'No hay ingresos cobrados todavía para este período — la comisión sería $0.' }
+    return {
+      ok: false,
+      error: 'No hay ingresos cobrados todavía para este período — la comisión sería $0.',
+      code: 'NO_INCOME',
+    }
   }
 
   const commissionAmount = Math.round((totalCobrado * pct) / 100 * 100) / 100  // 2-decimal precision
@@ -253,6 +262,33 @@ export async function generateCommissionForPeriod(
     amount:      commissionAmount,
     description: `Comisión ${pct}% sobre total cobrado`,
   })
+}
+
+// ============================================================================
+// updateCommissionPctAndRecalc — change a contract's commission % AND
+// recompute the COMMISSION_OUT for the period at the new rate, in one
+// confirmed step. Powers the planilla Pct cell: edit % → confirm "$X → $Y"
+// → done, with the recorded commission actually updated so the effective %
+// reflects the change (no snap-back).
+//
+// Reuses the two existing actions verbatim — no duplicated validation or
+// commission math. If the period has no cobro yet there's nothing to
+// recompute: the % is still saved and we return ok with code 'NO_INCOME'
+// so the cell shows a soft note instead of a false error.
+// ============================================================================
+export async function updateCommissionPctAndRecalc(
+  contractId: string,
+  period:     string,
+  pct:        number,
+): Promise<TransactionResult> {
+  const upd = await updateContractCommissionPct(contractId, pct)
+  if (!upd.ok) return { ok: false, error: upd.error }
+
+  const gen = await generateCommissionForPeriod(contractId, period)
+  if (!gen.ok && gen.code === 'NO_INCOME') {
+    return { ok: true, error: null, code: 'NO_INCOME' }
+  }
+  return gen
 }
 
 // ============================================================================

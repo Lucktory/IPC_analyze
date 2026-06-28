@@ -18,12 +18,12 @@ import { InlineDateRangeCell } from './InlineDateRangeCell'
 import {
   updateContractLfa,
   updateContractExpensas,
-  updateContractCommissionPct,
   updateContractVigencia,
   upsertCellTransaction,
   cycleLiquidacionStatus,
   type DestinationCode,
 } from '@/lib/contract/inline-field-actions'
+import { updateCommissionPctAndRecalc } from '@/lib/transaction/actions'
 import type { LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { fmtMoney } from '@/lib/format'
 
@@ -102,9 +102,40 @@ export function EditableExpensasCell({
 }
 
 // ── Pct (commission %) ─────────────────────────────────────────────────────
+//
+// Editing the % saves contracts.commission_pct AND recomputes the period's
+// COMMISSION_OUT at the new rate (updateCommissionPctAndRecalc), so the
+// effective % shown here actually moves instead of snapping back. The confirm
+// panel previews the impact: ADMI registrada ($X) → $Y, where $Y = ingresos ×
+// n% — the exact figure the recompute writes.
 export function EditableCommissionPctCell({
-  contractId, value, cobrado,
-}: { contractId: string; value: number; cobrado: boolean }) {
+  contractId, period, value, ingresos, admi, cobrado,
+}: {
+  contractId: string
+  period:     string
+  value:      number
+  ingresos:   number
+  admi:       number
+  cobrado:    boolean
+}) {
+  // Only ask to confirm when the recorded commission actually changes.
+  // Compare the formatted figures so the gate uses fmtMoney's own rounding —
+  // no duplicated precision constant, no magic tolerance.
+  function validate(n: number) {
+    if (ingresos <= 0) {
+      return {
+        warn:    true,
+        message: `Todavía no hay cobros en el período. Se guarda el ${n}% y se aplica cuando entre el primer cobro.`,
+      }
+    }
+    const expected = (ingresos * n) / 100
+    if (fmtMoney(expected) === fmtMoney(admi)) return null
+    return {
+      warn:    true,
+      message: `La comisión del período pasa de ${fmtMoney(admi)} a ${fmtMoney(expected)} (${n}% sobre lo cobrado).`,
+    }
+  }
+
   return (
     <InlineNumberCell
       value={value}
@@ -112,9 +143,11 @@ export function EditableCommissionPctCell({
       min={0}
       max={100}
       unit="%"
-      onSave={(n) => updateContractCommissionPct(contractId, n)}
+      validate={validate}
+      confirmTitle="¿Recalcular la comisión?"
+      onSave={(n) => updateCommissionPctAndRecalc(contractId, period, n)}
       displayClassName={cobrado ? 'text-ink' : 'text-slate'}
-      title="Comisión de administración (% sobre total cobrado)"
+      title="Comisión de administración (% sobre total cobrado) — al cambiarla, recalcula la comisión del período"
     />
   )
 }
