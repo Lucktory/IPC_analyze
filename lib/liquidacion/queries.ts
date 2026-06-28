@@ -275,6 +275,10 @@ export interface LiquidacionGridRow {
 
   // ── Commission breakdown (3 destinations stay SEPARATE per Alejandro's spec) ──
   pct:           number          // effective % = admi / ingresos × 100
+  /** Configured commission % from contracts.commission_pct — what the Pct
+   *  cell shows + edits. The effective `pct` above stays for the deviation
+   *  check; showing it in the cell read as 0% / stale to the encargada. */
+  commissionPctConfigured: number | null
   admi:          number          // sum COMMISSION_OUT (already includes IVA when applicable)
   /** True when the contract is invoiced by an RI administrator AND the
    *  commission line includes IVA (contracts.commission_includes_iva).
@@ -922,6 +926,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       transferencia,
       otros:         a.otros,
       pct,
+      commissionPctConfigured: c.commission_pct != null ? Number(c.commission_pct) : null,
       admi:          a.admi,
       commissionIncludesIva,
       iva,

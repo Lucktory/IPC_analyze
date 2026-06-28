@@ -433,7 +433,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     <EditableCommissionPctCell
                       contractId={r.contractId}
                       period={r.periodo}
-                      value={r.pct}
+                      value={r.commissionPctConfigured}
                       ingresos={r.ingresos}
                       admi={r.admi}
                       cobrado={cobrado}

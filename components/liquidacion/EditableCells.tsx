@@ -113,7 +113,8 @@ export function EditableCommissionPctCell({
 }: {
   contractId: string
   period:     string
-  value:      number
+  /** Configured commission % (null when the contract has none set yet). */
+  value:      number | null
   ingresos:   number
   admi:       number
   cobrado:    boolean
