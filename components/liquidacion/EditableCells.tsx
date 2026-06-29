@@ -25,6 +25,7 @@ import {
 } from '@/lib/contract/inline-field-actions'
 import { updateCommissionPctAndRecalc } from '@/lib/transaction/actions'
 import type { LiquidacionStatus } from '@/lib/liquidacion/queries'
+import { COMMISSION_IVA_RATE } from '@/lib/liquidacion/thresholds'
 import { fmtMoney } from '@/lib/format'
 
 // ── Money-cell validators ──────────────────────────────────────────────────
@@ -109,7 +110,7 @@ export function EditableExpensasCell({
 // panel previews the impact: ADMI registrada ($X) → $Y, where $Y = ingresos ×
 // n% — the exact figure the recompute writes.
 export function EditableCommissionPctCell({
-  contractId, period, value, ingresos, admi, cobrado,
+  contractId, period, value, ingresos, admi, includesIva, cobrado,
 }: {
   contractId: string
   period:     string
@@ -117,6 +118,9 @@ export function EditableCommissionPctCell({
   value:      number | null
   ingresos:   number
   admi:       number
+  /** RI invoicer → the recorded commission carries 21% IVA. Must match the
+   *  recompute so the preview shows the figure that actually gets written. */
+  includesIva: boolean
   cobrado:    boolean
 }) {
   // Only ask to confirm when the recorded commission actually changes.
@@ -129,11 +133,13 @@ export function EditableCommissionPctCell({
         message: `Todavía no hay cobros en el período. Se guarda el ${n}% y se aplica cuando entre el primer cobro.`,
       }
     }
-    const expected = (ingresos * n) / 100
+    // Match generateCommissionForPeriod exactly: RI invoicers add 21% IVA.
+    const ivaFactor = includesIva ? 1 + COMMISSION_IVA_RATE : 1
+    const expected  = (ingresos * n / 100) * ivaFactor
     if (fmtMoney(expected) === fmtMoney(admi)) return null
     return {
       warn:    true,
-      message: `La comisión del período pasa de ${fmtMoney(admi)} a ${fmtMoney(expected)} (${n}% sobre lo cobrado).`,
+      message: `La comisión del período pasa de ${fmtMoney(admi)} a ${fmtMoney(expected)} (${n}%${includesIva ? ' + IVA' : ''} sobre lo cobrado).`,
     }
   }
 

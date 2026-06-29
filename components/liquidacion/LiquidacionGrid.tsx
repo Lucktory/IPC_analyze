@@ -436,6 +436,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       value={r.commissionPctConfigured}
                       ingresos={r.ingresos}
                       admi={r.admi}
+                      includesIva={r.commissionIncludesIva}
                       cobrado={cobrado}
                     />
                   </Td>

@@ -77,3 +77,13 @@ export const CADENCE_FULL: Record<string, string> = {
   semestral:     'Semestral',
   anual:         'Anual',
 }
+
+// ── IVA on the administration commission ────────────────────────────────────
+//
+// When a contract is invoiced by a Responsable Inscripto administrator
+// (contracts.commission_includes_iva = true), the recorded COMMISSION_OUT is
+// the commission + 21% IVA — Alejandro's "ADM 9% + IVA". Monotributo invoicers
+// add no IVA. Single source for the rate: the commission generator, the
+// COMMISSION_PCT_DEVIATION check, and the IVA-column split all read it here,
+// so they can never drift apart.
+export const COMMISSION_IVA_RATE = 0.21

@@ -23,6 +23,7 @@ import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { updateContractCommissionPct } from '@/lib/contract/inline-field-actions'
+import { COMMISSION_IVA_RATE } from '@/lib/liquidacion/thresholds'
 
 export interface TransactionResult {
   ok:    boolean
@@ -217,7 +218,7 @@ export async function generateCommissionForPeriod(
 
   const { data: contract, error: contractErr } = await supabase
     .from('contracts')
-    .select('administration_id, commission_pct')
+    .select('administration_id, commission_pct, commission_includes_iva')
     .eq('id', contractId)
     .maybeSingle()
   if (contractErr) return dbFailure(contractErr)
@@ -227,6 +228,12 @@ export async function generateCommissionForPeriod(
   if (!isFinite(pct) || pct <= 0) {
     return { ok: false, error: 'El contrato no tiene un % de comisión válido.' }
   }
+  // RI invoicers record the commission + 21% IVA on top ("ADM 9% + IVA"); the
+  // same factor the deviation check and the IVA column use. Without this the
+  // recompute wrote a 21%-short ADMI for IVA contracts, leaving the row
+  // inconsistent. Monotributo: no IVA.
+  const includesIva = (contract as any).commission_includes_iva === true
+  const ivaFactor   = includesIva ? 1 + COMMISSION_IVA_RATE : 1
 
   // Sum total cobrado for the period
   const { data: ins, error: insErr } = await supabase
@@ -251,7 +258,8 @@ export async function generateCommissionForPeriod(
     }
   }
 
-  const commissionAmount = Math.round((totalCobrado * pct) / 100 * 100) / 100  // 2-decimal precision
+  const commissionAmount =
+    Math.round((totalCobrado * pct / 100) * ivaFactor * 100) / 100  // 2-decimal precision
 
   // Use the upsert helper — it preserves existing description if any.
   return upsertTransactionByContractPeriod({
@@ -260,7 +268,7 @@ export async function generateCommissionForPeriod(
     typeCode:    'COMMISSION_OUT',
     bankDate:    null,   // not yet transferred when computed
     amount:      commissionAmount,
-    description: `Comisión ${pct}% sobre total cobrado`,
+    description: `Comisión ${pct}%${includesIva ? ' + IVA' : ''} sobre total cobrado`,
   })
 }
 

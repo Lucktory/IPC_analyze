@@ -15,7 +15,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { classifyDestination } from '@/lib/reconciliation/queries'
 import { validateRow, type ValidationIssue } from './validations'
-import { type ContractExpiryRowStatus } from './thresholds'
+import { COMMISSION_IVA_RATE, type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
 
@@ -901,7 +901,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     // back out so the planilla shows what slice of ADMI is tax. For
     // Monotributo contracts the flag is false → IVA stays 0.
     const commissionIncludesIva = c.commission_includes_iva === true
-    const iva = commissionIncludesIva ? a.admi * 0.21 / 1.21 : 0
+    const iva = commissionIncludesIva ? a.admi * COMMISSION_IVA_RATE / (1 + COMMISSION_IVA_RATE) : 0
 
     rows.push({
       contractId:           c.id,

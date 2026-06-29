@@ -18,6 +18,7 @@
 // ============================================================================
 
 import { fmtMoney } from '@/lib/format'
+import { COMMISSION_IVA_RATE } from './thresholds'
 
 export const VALIDATION_TOLERANCES = {
   /** Allowed diff (in pesos) between recorded transferencia and computed. */
@@ -626,7 +627,7 @@ export function validateRow(
     contractPct != null && contractPct > 0 &&
     r.ingresos > 0 && r.admi > 0
   ) {
-    const ivaFactor    = commissionIncludesIva ? 1.21 : 1
+    const ivaFactor    = commissionIncludesIva ? 1 + COMMISSION_IVA_RATE : 1
     const expectedAdmi = (r.ingresos * contractPct / 100) * ivaFactor
     // Effective pct is computed against the IVA-inclusive expectation so
     // an RI contract booked correctly shows 0 deviation, not the ~21%
