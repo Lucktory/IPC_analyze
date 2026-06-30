@@ -223,8 +223,10 @@ export function InlineParticipantsCell({
     })
   }
 
-  // Cell-button display: stacked names + pct. Orphan rows get a yellow
-  // background + warning tooltip so the encargada knows to fix the data.
+  // Cell-button display: stacked names + pct. Show the SAME rebalanced shares
+  // the popover does (initialRebalance.rows) — otherwise a bulk-imported
+  // 100%/100% pair reads "100 / 100" in the cell but "50 / 50" in the modal.
+  // Orphan rows get a yellow background + warning tooltip.
   return (
     <>
       <button
@@ -239,7 +241,7 @@ export function InlineParticipantsCell({
       >
         <NamesCell
           noun={kind === 'landlord' ? ['propietario', 'propietarios'] : ['inquilino', 'inquilinos']}
-          items={initial.map(p => ({ id: p.id, name: p.name, pct: p.pct }))}
+          items={initialRebalance.rows.map(p => ({ id: p.id, name: p.name, pct: p.pct }))}
           emptyFallback={
             <span className="text-warn text-[11px]">
               {isOrphan ? '⚠ sin cargar' : '—'}
