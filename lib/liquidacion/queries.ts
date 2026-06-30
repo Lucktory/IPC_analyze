@@ -253,7 +253,7 @@ export interface LiquidacionGridRow {
   // ── Cobro side (light gray until fechaBanco set, then dark gray) ──
   fechaBanco:    string | null   // max(RENT_IN.bank_date)
   ingresos:      number          // sum IN affects_liquidacion (alquilerSum + extrasSum_recuperos_only)
-  deuda:         number          // current_rent - ingresos (positive = owed)
+  deuda:         number          // unpaid RENT this period (= deudaBreakdown.deudaCurrent)
 
   // ── Phase 9C: Ingresos column split into Alquiler + Extras ──────────────
   //   Alejandro: "figura a simple vista cuál es el alquiler. Y al lado
@@ -836,7 +836,15 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
 
     const a = agg.get(c.id) ?? blank()
     const currentRent = Number(c.current_rent ?? 0)
-    const deuda       = Math.max(0, currentRent - a.ingresos)
+    // Deuda = unpaid RENT for the period. Single source of truth: the deuda
+    // breakdown's deudaCurrent (RENT_IN only), so the cell label, the popover
+    // and the validations all agree. a.ingresos includes recuperos (ABL/gas),
+    // so subtracting it understated rent debt — a tenant who underpaid rent but
+    // paid an ABL recupero showed deuda $0 / "—" while the popover showed debt.
+    const deudaBreakdown = deudaBreakdownsByContract.get(c.id) ?? null
+    const deuda = deudaBreakdown
+      ? deudaBreakdown.deudaCurrent
+      : Math.max(0, currentRent - a.ingresos)
 
     // Aumento próximo: reuse same function the Pendientes bell uses
     const nextAdj    = c.start_date && c.cadence ? nextAdjustmentDate(c.start_date, c.cadence, today) : null
@@ -949,7 +957,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       sentAt:        liq?.sent_at ?? null,
       paidAt:        liq?.paid_at ?? null,
       currentRent,
-      deudaBreakdown:   deudaBreakdownsByContract.get(c.id) ?? null,
+      deudaBreakdown,
       recurringCharges: recurringChargesByContract.get(c.id) ?? null,
       startDate:     c.start_date ?? null,
       endDate:       c.end_date   ?? null,

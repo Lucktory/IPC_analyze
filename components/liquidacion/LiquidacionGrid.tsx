@@ -577,6 +577,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       period={r.periodo}
                       lines={r.ingresosLines}
                       total={extrasSum}
+                      adjustmentAmount={r.adjustmentAmount}
                       cobrado={cobrado}
                       excludeTypes={['RENT_IN']}
                       defaultNewLineType="RECUPERO_ABL_IN"

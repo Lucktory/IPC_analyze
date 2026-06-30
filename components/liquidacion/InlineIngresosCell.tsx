@@ -48,6 +48,10 @@ interface Props {
   period:      string
   lines:       IngresosLine[]
   total:       number          // sum of lines.amount (precomputed by the grid)
+  /** Signed adjustment from the liquidación (edited in Observación). When set
+   *  and non-zero, the popover shows it as a read-only line so its TOTAL
+   *  reconciles with the cell value, which already includes it (Extras only). */
+  adjustmentAmount?: number
   /** When true, the row's bank_date has been set — display switches to ink. */
   cobrado:     boolean
   /** Inline alert: a warning for aumento próximo, etc. */
@@ -104,7 +108,7 @@ const emptyNewLine = (): DraftLine => ({
 })
 
 export function InlineIngresosCell({
-  contractId, period, lines, total, cobrado, upcomingAdjustment,
+  contractId, period, lines, total, adjustmentAmount, cobrado, upcomingAdjustment,
   onlyTypes, excludeTypes, popoverTitle, defaultNewLineType,
   displayOverride, buttonTitle, cellBgClass,
 }: Props) {
@@ -339,6 +343,19 @@ export function InlineIngresosCell({
                   </button>
                 </div>
               ))}
+              {/* Read-only Observación adjustment: not a transaction line, so
+                  it isn't editable here, but it's part of the cell value — show
+                  it so the TOTAL below reconciles with the planilla cell. */}
+              {!!adjustmentAmount && (
+                <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
+                  <span className="text-[12px] text-slate-dark">
+                    Ajuste <span className="text-[10px] text-gray-500 italic">— se edita en Observación</span>
+                  </span>
+                  <span className={`text-[12px] tabular-nums font-medium ${adjustmentAmount > 0 ? 'text-success' : 'text-danger'}`}>
+                    {adjustmentAmount > 0 ? '+' : ''}{fmtMoney(adjustmentAmount)}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="px-3 py-2 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
@@ -350,7 +367,7 @@ export function InlineIngresosCell({
                 + Agregar concepto
               </button>
               <span className="text-[12px] text-ink font-display font-medium tabular-nums">
-                TOTAL: {fmtMoney(liveTotal)}
+                TOTAL: {fmtMoney(liveTotal + (adjustmentAmount ?? 0))}
               </span>
             </div>
 
