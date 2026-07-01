@@ -23,7 +23,7 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
-import { periodLabel } from '@/lib/period'
+import { periodLabel, getArgentinaToday } from '@/lib/period'
 
 export const CARRYOVER_PERIODS = 3
 const DAYS_PER_MONTH = 30
@@ -86,7 +86,7 @@ export function daysOverdueForPeriod(period: string, paymentDay: number): number
   const lastDay = new Date(year, month, 0).getDate()
   const day     = Math.min(Math.max(1, paymentDay), lastDay)
   const due     = new Date(year, month - 1, day)
-  const today   = new Date()
+  const today   = getArgentinaToday()
   const todayM  = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   const diff    = Math.floor((todayM.getTime() - due.getTime()) / 86400000)
   return Math.max(0, diff)

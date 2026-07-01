@@ -9,8 +9,25 @@
 // Format: 'YYYY-MM-01' (first-of-month, ISO date string).
 // ============================================================================
 
+// The app serves an Argentine agency but runs on UTC infra (Vercel). A bare
+// `new Date()` is UTC, so late in the day it's already "tomorrow" — and on the
+// last day of the month, "next month". That rolled the planilla to an empty
+// next period while it was still the current month in Argentina. Compute the
+// calendar date in ART so "current period" matches the office's clock.
+const AR_TZ = 'America/Argentina/Buenos_Aires'
+
+/** Current calendar date in Argentina (UTC-3), as a Date whose
+ *  getFullYear/getMonth/getDate return the ART values (midnight-anchored). */
+export function getArgentinaToday(): Date {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: AR_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const get = (t: string) => Number(parts.find(p => p.type === t)!.value)
+  return new Date(get('year'), get('month') - 1, get('day'))
+}
+
 export function getCurrentPeriod(): string {
-  const today = new Date()
+  const today = getArgentinaToday()
   const year  = today.getFullYear()
   const month = String(today.getMonth() + 1).padStart(2, '0')
   return `${year}-${month}-01`
@@ -58,7 +75,7 @@ export function monthsBetween(a: string, b: string): number {
  */
 export function getRecentPeriods(n: number): string[] {
   const out: string[] = []
-  const today = new Date()
+  const today = getArgentinaToday()
   // Walk back from current month
   for (let i = n - 1; i >= 0; i--) {
     const d = new Date(today.getFullYear(), today.getMonth() - i, 1)

@@ -18,6 +18,7 @@ import { validateRow, type ValidationIssue } from './validations'
 import { COMMISSION_IVA_RATE, type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
+import { getArgentinaToday } from '@/lib/period'
 
 export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown, RecurringChargesSummary }
 
@@ -630,7 +631,7 @@ async function probeFirstRowError(
 // ── Rich grid query — returns all 19 columns per row ───────────────────────
 export async function getLiquidacionGridForPeriod(period: string): Promise<LiquidacionGridRow[]> {
   const supabase = await createSupabaseServer()
-  const today = new Date()
+  const today = getArgentinaToday()   // ART, so payment/expiry day-counts use the office's date
 
   const [contractsRes, txnsRes, liqsRes] = await Promise.all([
     supabase
