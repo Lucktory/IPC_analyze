@@ -102,7 +102,14 @@ export function reminderBucket(event: ContractEvent, viewPeriod: string): Remind
  *  charged to the tenant INCREASES it (the tenant reimburses through the
  *  liquidación). */
 export function ownerTransferEffect(event: ContractEvent): number {
-  return event.amountTenant - event.amountLandlord
+  return transferEffectOf(event.amountLandlord, event.amountTenant)
+}
+
+/** Same sign rule as `ownerTransferEffect`, from raw amounts — used by the
+ *  editable modal row where the event object doesn't exist yet. Keeping both
+ *  on this one function means the convention flips in a single place. */
+export function transferEffectOf(amountLandlord: number, amountTenant: number): number {
+  return amountTenant - amountLandlord
 }
 
 /** Signed magnitude an item shows in its row (positive = suma, negative =

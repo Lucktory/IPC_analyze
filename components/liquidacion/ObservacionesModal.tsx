@@ -23,7 +23,7 @@ import { fmtMoney } from '@/lib/format'
 import { periodLabel, shiftPeriod } from '@/lib/period'
 import {
   EVENT_KIND, EVENT_PARTY,
-  ownerTransferEffect, type ContractEvent, type EventParty,
+  transferEffectOf, type ContractEvent, type EventParty,
 } from '@/lib/contract/events-types'
 import type { EventsSummary } from '@/lib/contract/events-bulk'
 import {
@@ -56,6 +56,9 @@ function amountsFor(party: EventParty, amount: number): { amountLandlord: number
 }
 const partyOf = (e: ContractEvent): EventParty =>
   e.amountTenant > 0 && e.amountLandlord === 0 ? EVENT_PARTY.TENANT : EVENT_PARTY.LANDLORD
+/** The single non-zero magnitude stored on an event (0 for note-only items). */
+const magnitudeOf = (e: ContractEvent): number =>
+  e.amountLandlord > 0 ? e.amountLandlord : e.amountTenant
 
 export function ObservacionesModal({ open, onClose, contractId, period, summary, contractLabel }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft())
@@ -134,13 +137,13 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
 
         <div className="px-5 py-4 space-y-5">
           <ReminderSection
-            title="Este mes" tone="rojo" period={period}
+            title="Este mes" tone="rojo"
             items={esteMes} onPatch={patch} onRemove={remove}
             emptyText="Nada este mes."
             footer={netEsteMes !== 0 ? `Efecto en la transferencia: ${netEsteMes > 0 ? '+' : ''}${fmtMoney(netEsteMes)}` : null}
           />
           <ReminderSection
-            title="Pendientes" tone="negro" period={period}
+            title="Pendientes" tone="negro"
             items={pendientes} onPatch={patch} onRemove={remove}
             emptyText="Sin pendientes."
             footer="Se cargan solos al mes que corresponda."
@@ -198,11 +201,10 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
 
 // ── One section (rojo / negro) ──────────────────────────────────────────────
 function ReminderSection({
-  title, tone, period, items, onPatch, onRemove, emptyText, footer,
+  title, tone, items, onPatch, onRemove, emptyText, footer,
 }: {
   title:    string
   tone:     'rojo' | 'negro'
-  period:   string
   items:    ContractEvent[]
   onPatch:  (id: string, changes: Parameters<typeof updateContractEvent>[1]) => void
   onRemove: (id: string) => void
@@ -210,7 +212,6 @@ function ReminderSection({
   footer:   string | null
 }) {
   const dot = tone === 'rojo' ? 'bg-danger' : 'bg-ink'
-  const txt = tone === 'rojo' ? 'text-danger' : 'text-ink'
   return (
     <section>
       <p className="label-cap text-slate mb-1.5 flex items-center gap-1.5">
@@ -220,29 +221,88 @@ function ReminderSection({
         <p className="text-[12px] text-slate italic px-1">{emptyText}</p>
       ) : (
         <ul className="space-y-1">
-          {items.map(e => {
-            const effect = ownerTransferEffect(e)
-            return (
-              <li key={e.id} className="grid grid-cols-[1fr_auto_auto] gap-2 items-center border-b border-gray-100 py-1">
-                <input
-                  type="text" defaultValue={e.description ?? ''}
-                  onBlur={ev => { const v = ev.target.value.trim(); if (v !== (e.description ?? '')) onPatch(e.id, { description: v || null }) }}
-                  className="bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1"
-                />
-                <span className={`text-[12px] tabular-nums font-medium ${txt}`}>
-                  {effect > 0 ? '+' : ''}{fmtMoney(effect)}
-                  <span className="text-[10px] text-gray-500 ml-1">
-                    {e.amountTenant > 0 ? 'inq.' : 'due.'}
-                    {tone === 'negro' && e.appliesToPeriod ? ` · ${periodLabel(e.appliesToPeriod)}` : ''}
-                  </span>
-                </span>
-                <button type="button" onClick={() => onRemove(e.id)} title="Eliminar" className="text-gray-400 hover:text-danger px-1">×</button>
-              </li>
-            )
-          })}
+          {items.map(e => (
+            <ReminderItem key={e.id} event={e} tone={tone} onPatch={onPatch} onRemove={onRemove} />
+          ))}
         </ul>
       )}
       {footer && <p className="text-[10.5px] text-slate mt-1 px-1 italic">{footer}</p>}
     </section>
+  )
+}
+
+// ── One editable item ───────────────────────────────────────────────────────
+// Description, payer (dueño/inquilino) and amount are all editable in place.
+// Local state seeds from the event; each field commits on blur/change through
+// updateContractEvent → router.refresh(). Payer + amount both write the two
+// amount columns via `amountsFor`, so the stored shape stays canonical.
+function ReminderItem({
+  event, tone, onPatch, onRemove,
+}: {
+  event:    ContractEvent
+  tone:     'rojo' | 'negro'
+  onPatch:  (id: string, changes: Parameters<typeof updateContractEvent>[1]) => void
+  onRemove: (id: string) => void
+}) {
+  const [desc, setDesc]     = useState(event.description ?? '')
+  const [party, setParty]   = useState<EventParty>(partyOf(event))
+  const [amount, setAmount] = useState<string>(() => {
+    const m = magnitudeOf(event)
+    return m ? String(m) : ''
+  })
+
+  const txt = tone === 'rojo' ? 'text-danger' : 'text-ink'
+  // Live effect from the current (party, amount), through the single sign rule.
+  const parsed = Number(amount)
+  const safe   = isFinite(parsed) && parsed >= 0 ? parsed : 0
+  const { amountLandlord, amountTenant } = amountsFor(party, safe)
+  const effect = transferEffectOf(amountLandlord, amountTenant)
+
+  function commitDescription() {
+    const v = desc.trim()
+    if (v !== (event.description ?? '')) onPatch(event.id, { description: v || null })
+  }
+  function commitAmounts(nextParty: EventParty, nextAmount: string) {
+    const n = Number(nextAmount)
+    if (nextAmount !== '' && (!isFinite(n) || n < 0)) return   // ignore invalid input
+    const next = amountsFor(nextParty, isFinite(n) ? n : 0)
+    if (next.amountLandlord === event.amountLandlord && next.amountTenant === event.amountTenant) return
+    onPatch(event.id, { amountLandlord: next.amountLandlord, amountTenant: next.amountTenant })
+  }
+
+  return (
+    <li className="grid grid-cols-[1fr_104px_84px_auto] gap-2 items-center border-b border-gray-100 py-1">
+      <input
+        type="text" value={desc}
+        onChange={e => setDesc(e.target.value)}
+        onBlur={commitDescription}
+        placeholder="Descripción"
+        className="bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1"
+      />
+      <select
+        value={party}
+        onChange={e => { const p = e.target.value as EventParty; setParty(p); commitAmounts(p, amount) }}
+        className="h-7 px-1.5 rounded border border-gray-300 bg-white text-[11.5px] outline-none focus:border-info"
+      >
+        <option value={EVENT_PARTY.LANDLORD}>Al dueño</option>
+        <option value={EVENT_PARTY.TENANT}>Al inquilino</option>
+      </select>
+      <input
+        type="number" value={amount} step="0.01" min={0}
+        onChange={e => setAmount(e.target.value)}
+        onBlur={e => commitAmounts(party, e.target.value)}
+        placeholder="Monto"
+        className="h-7 px-1.5 rounded border border-gray-300 bg-white text-[12px] text-right tabular-nums outline-none focus:border-info"
+      />
+      <div className="flex items-center gap-2 justify-end">
+        <span className={`text-[11px] tabular-nums font-medium ${txt} whitespace-nowrap`}>
+          {effect > 0 ? '+' : ''}{fmtMoney(effect)}
+          {tone === 'negro' && event.appliesToPeriod && (
+            <span className="text-[10px] text-gray-500 ml-1">· {periodLabel(event.appliesToPeriod)}</span>
+          )}
+        </span>
+        <button type="button" onClick={() => onRemove(event.id)} title="Eliminar" className="text-gray-400 hover:text-danger px-1">×</button>
+      </div>
+    </li>
   )
 }
