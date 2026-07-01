@@ -17,6 +17,7 @@
 // ============================================================================
 
 import { useEffect, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { fmtMoney } from '@/lib/format'
 import { periodLabel, shiftPeriod } from '@/lib/period'
@@ -112,7 +113,14 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
 
   const netEsteMes = summary?.adjustmentEffect ?? 0
 
-  return (
+  // Portal to <body>: this cell lives in a sticky-left <td>, whose stacking
+  // context + opaque background otherwise clip the modal's left edge. Rendering
+  // at document.body escapes the table entirely (same pattern as the other
+  // inline planilla cells). Guarded by `open` + client-only 'use client', so
+  // document is always defined by the time we get here.
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[1100] flex items-center justify-center px-4 text-left">
       <button type="button" aria-label="Cerrar" onClick={onClose} className="absolute inset-0 bg-ink/40 backdrop-blur-[1px]" />
       <div className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[720px] max-h-[92vh] overflow-y-auto">
@@ -183,7 +191,8 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
           {error && <div className="text-[11.5px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">{error}</div>}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
