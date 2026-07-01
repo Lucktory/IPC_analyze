@@ -33,6 +33,7 @@ export function InlineObservacionCell({ contractId, period, summary, contractLab
   const esteMes    = summary?.esteMes.length ?? 0
   const pendientes = summary?.pendientes.length ?? 0
   const net        = summary?.adjustmentEffect ?? 0
+  const pendTotal  = summary?.pendientesTotal ?? 0
   const hasAny     = esteMes > 0 || pendientes > 0
 
   return (
@@ -58,9 +59,20 @@ export function InlineObservacionCell({ contractId, period, summary, contractLab
                 </span>
               )}
             </span>
-            {net !== 0 && (
-              <span className={`text-[11px] tabular-nums font-medium ${net > 0 ? 'text-success' : 'text-danger'}`}>
-                {net > 0 ? '+' : ''}{fmtMoney(net)}
+            {(net !== 0 || pendTotal !== 0) && (
+              <span className="flex items-center gap-2 text-[11px] tabular-nums font-medium leading-tight">
+                {/* Red: net effect on THIS month's transfer (signed → success/danger). */}
+                {net !== 0 && (
+                  <span className={net > 0 ? 'text-success' : 'text-danger'} title="Efecto en la transferencia de este mes">
+                    {net > 0 ? '+' : ''}{fmtMoney(net)}
+                  </span>
+                )}
+                {/* Black: pendientes total — carries forward, so it's shown muted (ink). */}
+                {pendTotal !== 0 && (
+                  <span className="text-ink/70" title="Pendiente — se carga el mes que corresponda">
+                    {pendTotal > 0 ? '+' : ''}{fmtMoney(pendTotal)}
+                  </span>
+                )}
               </span>
             )}
           </>
