@@ -337,10 +337,9 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                   <Td sticky left={STICKY_LEFTS.obs} width={W.obs} bg={zebra}>
                     <InlineObservacionCell
                       contractId={r.contractId}
-                      landlordId={r.landlordId}
                       period={r.periodo}
-                      initialNotes={r.observacion}
-                      initialAdjustment={r.adjustmentAmount}
+                      summary={r.eventsSummary}
+                      contractLabel={`${r.propietario} · ${r.inquilino}`}
                     />
                   </Td>
 

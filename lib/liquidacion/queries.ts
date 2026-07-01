@@ -18,6 +18,7 @@ import { validateRow, type ValidationIssue } from './validations'
 import { COMMISSION_IVA_RATE, type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
+import { buildEventsSummariesBulk, type EventsSummary } from '@/lib/contract/events-bulk'
 import { getArgentinaToday } from '@/lib/period'
 
 export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown, RecurringChargesSummary }
@@ -358,6 +359,10 @@ export interface LiquidacionGridRow {
   //    dot driven by which recupero transactions were recorded
   //    this period. ──
   recurringCharges:  RecurringChargesSummary | null
+  /** Observaciones reminders (arreglos/ajustes) for this period — drives the
+   *  two-row Observación cell (pendientes negro / este-mes rojo) and feeds the
+   *  transfer adjustment via eventsSummary.adjustmentEffect. */
+  eventsSummary:     EventsSummary | null
 
   // ── Vigencia (for the CONTRATO column in the 19-col layout) ──
   startDate:         string | null
@@ -762,7 +767,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
   //     by the planilla Recargos cell's status dot and the
   //     RECURRING_CHARGE_NOT_RECORDED validation rule.
   // Both attach to each row below so the inline cells don't fetch again.
-  const [deudaBreakdownsByContract, recurringChargesByContract] = await Promise.all([
+  const [deudaBreakdownsByContract, recurringChargesByContract, eventsByContract] = await Promise.all([
     buildDeudaBreakdownsBulk(
       ((contractsRes.data ?? []) as any[]).map((c: any) => ({
         id:                  c.id,
@@ -775,6 +780,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       period,
     ),
     buildRecurringChargesSummariesBulk(allContractIds, period),
+    buildEventsSummariesBulk(allContractIds, period),
   ])
 
   const rows: LiquidacionGridRow[] = []
@@ -895,7 +901,13 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     const liq = primary
       ? liqByKey.get(`${c.id}|${primary.landlords.id}`)
       : Array.from(liqByKey.values()).find((l: any) => l.contract_id === c.id)
-    const adjustment = Number(liq?.adjustment_amount ?? 0)
+    // Owner-transfer adjustment = the legacy manual amount (liquidaciones)
+    // PLUS the active (rojo) arreglo/ajuste events for this period. Both feed
+    // the transferencia and Extras through this one value, so they stay
+    // consistent. The manual amount stays additive so old data isn't lost;
+    // new entries come in as events.
+    const eventsSummary = eventsByContract.get(c.id) ?? null
+    const adjustment    = Number(liq?.adjustment_amount ?? 0) + (eventsSummary?.adjustmentEffect ?? 0)
 
     // Transferencia (computed) = ingresos - admi - otros + adjustment (signed)
     // Use the actual LANDLORD_PAYOUT if it exists, else fall back to computed.
@@ -960,6 +972,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       currentRent,
       deudaBreakdown,
       recurringCharges: recurringChargesByContract.get(c.id) ?? null,
+      eventsSummary,
       startDate:     c.start_date ?? null,
       endDate:       c.end_date   ?? null,
       wasRecentlyEdited: (() => {

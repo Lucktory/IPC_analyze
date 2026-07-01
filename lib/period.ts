@@ -69,6 +69,14 @@ export function monthsBetween(a: string, b: string): number {
   return (by - ay) * 12 + (bm - am)
 }
 
+/** Shift a 'YYYY-MM-01' period by `months` (may be negative). Handles year
+ *  rollover. shiftPeriod('2026-12-01', 1) === '2027-01-01'. */
+export function shiftPeriod(period: string, months: number): string {
+  const [y, m] = period.split('-').map(Number)
+  const d = new Date(y, (m - 1) + months, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+}
+
 /**
  * Last `n` periods including the current one, ordered oldest → newest.
  * Used by the dashboard trend widgets.
