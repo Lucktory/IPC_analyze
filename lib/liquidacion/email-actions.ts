@@ -60,16 +60,22 @@ export async function prepareEmailDraft(
   // Aggregate period transactions to compute the summary.
   const { data: txns, error: txnsErr } = await supabase
     .from('transactions')
-    .select('amount, transaction_types!inner(direction, affects_liquidacion, code)')
+    .select('amount, description, transaction_types!inner(direction, affects_liquidacion, code, label)')
     .eq('contract_id', contractId)
     .eq('period', period)
   if (txnsErr) return dbFailure(txnsErr)
 
   let gross = 0, commission = 0, otros = 0
+  // Income lines with their description — Alejandro: the recibo must say what
+  // each cobro corresponds to (p. ej. "Alquiler Mayo", "A cuenta Junio").
+  const cobradoLines: { label: string; desc: string | null; amount: number }[] = []
   for (const t of (txns ?? []) as any[]) {
     const typ = t.transaction_types
     if (!typ.affects_liquidacion) continue
-    if (typ.direction === 'IN') gross += Number(t.amount)
+    if (typ.direction === 'IN') {
+      gross += Number(t.amount)
+      cobradoLines.push({ label: typ.label, desc: (t.description ?? '').trim() || null, amount: Number(t.amount) })
+    }
     else if (typ.code === 'COMMISSION_OUT') commission += Number(t.amount)
     else otros += Number(t.amount)
   }
@@ -117,6 +123,13 @@ export async function prepareEmailDraft(
   lines.push('')
   lines.push(`Le adjuntamos el detalle de la liquidación correspondiente al período ${monthLabel}, contrato con ${tenantName}:`)
   lines.push('')
+  if (cobradoLines.length > 0) {
+    lines.push('Cobrado al inquilino:')
+    for (const cl of cobradoLines) {
+      lines.push(`  • ${cl.label}${cl.desc ? ' — ' + cl.desc : ''}:  ${fmtMoney(cl.amount)}`)
+    }
+    lines.push('')
+  }
   lines.push(`  • Total cobrado:        ${fmtMoney(gross)}`)
   lines.push(`  • Comisión de admin.:   ${fmtMoney(commission)}`)
   if (otros > 0) lines.push(`  • Otros descuentos:     ${fmtMoney(otros)}`)

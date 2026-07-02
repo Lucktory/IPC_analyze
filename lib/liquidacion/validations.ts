@@ -95,7 +95,11 @@ export interface ValidatableRow {
   ingresos:          number
   admi:              number
   otros:             number
+  /** Computed neto (= recibo). What SHOULD be transferred to the owner. */
   transferencia:     number
+  /** Actual LANDLORD_PAYOUT recorded (the real transfer). 0 = none yet.
+   *  The balance check reconciles this against the computed neto. */
+  payout:            number
   adjustmentAmount:  number
   admGalicia:        number
   admFrances509:     number
@@ -171,20 +175,23 @@ export interface ValidatableRow {
 // VALIDATORS — pure functions. Each returns null when the rule passes.
 // ════════════════════════════════════════════════════════════════════════════
 
-// 1. Transferencia balance — the most important check. The transfer to
-//    the propietario must equal Ingresos − ADMI − Otros + Adjustment.
-//    If it doesn't, the wrong amount was sent.
+// 1. Transferencia balance — the most important check. Per Alejandro: the
+//    amount actually transferred to the propietario must equal the recibo
+//    (collected − comisión − gastos + ajustes). If the recorded transfer
+//    doesn't match, the wrong amount was sent (or the transfer is incomplete).
+//    Only runs once an actual transfer exists; otherwise there's nothing to
+//    reconcile yet.
 function checkTransferenciaBalance(r: ValidatableRow): ValidationIssue | null {
-  if (r.transferencia <= 0) return null  // not yet transferred → not applicable
-  const expected = r.ingresos - r.admi - r.otros + r.adjustmentAmount
-  const diff = Math.abs(r.transferencia - expected)
+  if (r.payout <= 0) return null  // nothing transferred yet → nothing to reconcile
+  const expected = r.ingresos - r.admi - r.otros + r.adjustmentAmount  // = recibo neto
+  const diff = Math.abs(r.payout - expected)
   if (diff <= VALIDATION_TOLERANCES.TRANSFERENCIA_PESOS) return null
   return {
     code:     'TRANSFERENCIA_IMBALANCE',
     severity: 'error',
-    message:  `Transferencia (${fmtMoney(r.transferencia)}) no balancea con Ingresos − ADMI − Otros + Ajuste (${fmtMoney(expected)}). Diferencia: ${fmtMoney(diff)}.`,
+    message:  `El monto transferido (${fmtMoney(r.payout)}) no coincide con el recibo (${fmtMoney(expected)}). Diferencia: ${fmtMoney(diff)}.`,
     expected,
-    actual:   r.transferencia,
+    actual:   r.payout,
     diff,
   }
 }
@@ -210,7 +217,7 @@ function checkTransferenciaNonNegative(r: ValidatableRow): ValidationIssue | nul
 function checkPaidStatusConsistency(r: ValidatableRow): ValidationIssue | null {
   if (r.status !== 'paid') return null
   const problems: string[] = []
-  if (r.transferencia <= 0) problems.push('no hay transferencia registrada')
+  if (r.payout <= 0) problems.push('no hay transferencia registrada')
   if (r.deuda > 0)          problems.push(`hay deuda pendiente (${fmtMoney(r.deuda)})`)
   if (problems.length === 0) return null
   return {

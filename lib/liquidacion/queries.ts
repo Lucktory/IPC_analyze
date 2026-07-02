@@ -917,9 +917,12 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     const eventsSummary = eventsByContract.get(c.id) ?? null
     const adjustment    = Number(liq?.adjustment_amount ?? 0) + (eventsSummary?.adjustmentEffect ?? 0)
 
-    // Transferencia (computed) = ingresos - admi - otros + adjustment (signed)
-    // Use the actual LANDLORD_PAYOUT if it exists, else fall back to computed.
-    const transferencia = a.payout > 0 ? a.payout : Math.max(0, a.ingresos - a.admi - a.otros + adjustment)
+    // Transferencia = collected − comisión − gastos + ajustes = the recibo neto.
+    // Per Alejandro: this number must be identical in the recibo, in this
+    // column, and in the actual transfer. The actual LANDLORD_PAYOUT (a.payout)
+    // is NOT substituted here — the validation reconciles it against this
+    // figure, so a wrong/partial transfer is flagged instead of silently shown.
+    const transferencia = a.ingresos - a.admi - a.otros + adjustment
 
     const pct = a.ingresos > 0 ? (a.admi / a.ingresos) * 100 : 0
 
@@ -1041,6 +1044,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           admi:             a.admi,
           otros:            a.otros,
           transferencia,
+          payout:           a.payout,
           adjustmentAmount: adjustment,
           admGalicia:       a.galicia,
           admFrances509:    a.frances509,

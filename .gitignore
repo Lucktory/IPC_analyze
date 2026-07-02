@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 
+# Local read-only DB verifier / inspection scripts (dev-only, never commit)
+_verify*
+_inspect*
+
 # Build output
 .next/
 out/
