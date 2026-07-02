@@ -258,24 +258,9 @@ function checkAdmiDestinationsClassification(r: ValidatableRow): ValidationIssue
   }
 }
 
-// 6. Commission % deviation. If the effective commission percentage
-//    differs from the contract's commission_pct by more than the
-//    tolerance, money was likely under-charged or over-charged.
-function checkCommissionPctDeviation(r: ValidatableRow): ValidationIssue | null {
-  if (r.ingresos <= 0 || r.admi <= 0) return null  // not enough data
-  // r.pct here is the EFFECTIVE pct (admi/ingresos*100). For the contract
-  // pct we need the original value. We pass it as currentRent's sibling
-  // — but actually it's already what r.pct is in the grid query (effective).
-  // The contract pct lives elsewhere. For this validator we compare the
-  // effective vs the expected from contracts.commission_pct, which the
-  // caller passes via a separate path. Without it we can't run this rule
-  // here — skip. (The grid query has access; it can run a richer version
-  // by passing both effective and contract pct. We treat r.pct as the
-  // effective and the comparison happens at the higher layer.)
-  // For now: skip — this rule is implemented in the grid query's
-  // validation wrapper which knows the contract pct.
-  return null
-}
+// NOTE: the commission-% deviation check (COMMISSION_PCT_DEVIATION) needs the
+// contract's commission_pct, which isn't part of the row shape, so it lives
+// inline in validateRow() below — not as a standalone validator here.
 
 // 7b. Payment overdue — rent not yet collected past the due date.
 //
@@ -410,9 +395,13 @@ function checkTenantJunctionEmpty(r: ValidatableRow): ValidationIssue | null {
 }
 
 // 12. LANDLORD_PCT_SUM_NOT_100 — junction sum diverges from 100%.
-//     Skipped when junction is empty (covered by LANDLORD_JUNCTION_EMPTY).
+//     Skipped when the junction is empty (covered by LANDLORD_JUNCTION_EMPTY)
+//     OR has a single owner: a sole propietario is 100% by definition, and
+//     ownership_pct is frequently left NULL there (defaults to 0 in the row
+//     builder — asymmetric with tenants, which default to 100). Only a real
+//     split of 2+ owners can meaningfully fail this check.
 function checkLandlordPctSum(r: ValidatableRow): ValidationIssue | null {
-  if (r.landlordCount === 0) return null
+  if (r.landlordCount <= 1) return null
   const diff = Math.abs(r.landlordPctSum - 100)
   if (diff <= VALIDATION_TOLERANCES.PCT_SUM_TOLERANCE) return null
   return {
@@ -425,9 +414,10 @@ function checkLandlordPctSum(r: ValidatableRow): ValidationIssue | null {
   }
 }
 
-// 13. TENANT_PCT_SUM_NOT_100 — same shape for inquilinos.
+// 13. TENANT_PCT_SUM_NOT_100 — same shape for inquilinos. A sole inquilino is
+//     100% by definition, so only a real split of 2+ can fail this check.
 function checkTenantPctSum(r: ValidatableRow): ValidationIssue | null {
-  if (r.tenantCount === 0) return null
+  if (r.tenantCount <= 1) return null
   const diff = Math.abs(r.tenantPctSum - 100)
   if (diff <= VALIDATION_TOLERANCES.PCT_SUM_TOLERANCE) return null
   return {
@@ -450,9 +440,10 @@ function checkTenantPctSum(r: ValidatableRow): ValidationIssue | null {
 // ════════════════════════════════════════════════════════════════════════════
 
 // 14. ADMIN_PCT_SUM_INVALID — contract_administrators sum != 100 (when split exists).
-//     Skipped when adminCount === 0 (no split = use the default allocation).
+//     Skipped when adminCount <= 1 (no split, or a single admin = 100% by
+//     definition — a lone row with a NULL share_pct would otherwise sum to 0).
 function checkAdminPctSum(r: ValidatableRow): ValidationIssue | null {
-  if (r.adminCount === 0) return null
+  if (r.adminCount <= 1) return null
   const diff = Math.abs(r.adminPctSum - 100)
   if (diff <= VALIDATION_TOLERANCES.PCT_SUM_TOLERANCE) return null
   return {
@@ -601,7 +592,6 @@ export function validateRow(
   push(checkPaidStatusConsistency(r))
   push(checkBankDatesOrdering(r))
   push(checkAdmiDestinationsClassification(r))
-  push(checkCommissionPctDeviation(r))
   push(checkRentAmountVariance(r))
   push(checkPaymentOverdue(r))
   // ── Thread A2a — data integrity Tier 1 ──
