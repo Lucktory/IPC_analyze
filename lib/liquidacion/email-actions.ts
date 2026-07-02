@@ -25,6 +25,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { transitionLiquidacionStatus } from './actions'
+import { buildReceiptAjustes, type AjusteLine } from '@/lib/contract/events-bulk'
 import { fmtMoney } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
 
@@ -40,6 +41,8 @@ export interface PrepareEmailResult {
     gross:         number
     commission:    number
     otros:         number
+    ajusteLines:   AjusteLine[]
+    ajustes:       number
     netToLandlord: number
   }
 }
@@ -70,7 +73,21 @@ export async function prepareEmailDraft(
     else if (typ.code === 'COMMISSION_OUT') commission += Number(t.amount)
     else otros += Number(t.amount)
   }
-  const netToLandlord = gross - commission - otros
+  const netoTransacciones = gross - commission - otros
+
+  // Ajustes (confirmed Observaciones + legacy manual adjustment) — same source
+  // as the liquidación detail page, so the email and the receipt always match.
+  const { data: liqRow } = await supabase
+    .from('liquidaciones')
+    .select('adjustment_amount')
+    .eq('contract_id', contractId)
+    .eq('landlord_id', landlordId)
+    .eq('period', period)
+    .maybeSingle()
+  const { lines: ajusteLines, total: ajustes } = await buildReceiptAjustes(
+    contractId, period, Number((liqRow as any)?.adjustment_amount ?? 0),
+  )
+  const netToLandlord = netoTransacciones + ajustes
 
   // Landlord (for recipient + name) + primary tenant (for body context).
   const [landlordRes, contractRes] = await Promise.all([
@@ -103,6 +120,9 @@ export async function prepareEmailDraft(
   lines.push(`  • Total cobrado:        ${fmtMoney(gross)}`)
   lines.push(`  • Comisión de admin.:   ${fmtMoney(commission)}`)
   if (otros > 0) lines.push(`  • Otros descuentos:     ${fmtMoney(otros)}`)
+  for (const l of ajusteLines) {
+    lines.push(`  • ${l.label}:  ${l.amount < 0 ? '−' : '+'}${fmtMoney(Math.abs(l.amount))}`)
+  }
   lines.push(`  • Neto a transferir:    ${fmtMoney(netToLandlord)}`)
   lines.push('')
   lines.push('Realizaremos la transferencia en los próximos días hábiles. Cualquier consulta, quedamos a disposición.')
@@ -124,6 +144,8 @@ export async function prepareEmailDraft(
       gross,
       commission,
       otros,
+      ajusteLines,
+      ajustes,
       netToLandlord,
     },
   }

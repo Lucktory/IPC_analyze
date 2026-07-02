@@ -18,7 +18,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import {
   EVENTS_TABLE, EVENT_COLUMNS, EVENT_STATUS, ADJUSTMENT_KINDS,
-  mapEventRow, reminderBucket, ownerTransferEffect,
+  mapEventRow, reminderBucket, ownerTransferEffect, eventPartyLabel,
   type ContractEvent,
 } from './events-types'
 
@@ -98,4 +98,48 @@ export async function buildEventsSummariesBulk(
 export async function buildEventsSummary(contractId: string, period: string): Promise<EventsSummary> {
   const map = await buildEventsSummariesBulk([contractId], period)
   return map.get(contractId) ?? emptySummary(contractId)
+}
+
+// ── Receipt ajustes — for the liquidación detail page + owner email ─────────
+
+export interface AjusteLine {
+  /** e.g. "Arreglo pintura (al dueño)". */
+  label:  string
+  /** Signed effect on the owner's transfer (negative = descuenta). */
+  amount: number
+}
+
+export interface ReceiptAjustes {
+  lines: AjusteLine[]
+  /** Signed total = legacyAdjustment + confirmed events' effect. */
+  total: number
+}
+
+/** Human label for a confirmed adjustment shown on the owner's receipt. */
+function receiptLineLabel(e: ContractEvent): string {
+  const desc = (e.description ?? '').trim() || 'Arreglo/Ajuste'
+  return `${desc} (${eventPartyLabel(e)})`
+}
+
+/**
+ * Ajuste lines for a contract+period receipt: the CONFIRMED (cobrado) este-mes
+ * arreglos/ajustes as described lines, plus the legacy manual adjustment as a
+ * generic line. Single source so the liquidación detail page and the owner
+ * email render identical lines/totals — the neto can't diverge between them,
+ * and it matches the planilla's `adjustment` (legacy + cobrado effect).
+ */
+export async function buildReceiptAjustes(
+  contractId:       string,
+  period:           string,
+  legacyAdjustment: number,
+): Promise<ReceiptAjustes> {
+  const summary = await buildEventsSummary(contractId, period)
+  const lines: AjusteLine[] = []
+  for (const e of summary.esteMes) {
+    if (!isCobrado(e) || !isAdjustmentKind(e.kind)) continue
+    lines.push({ label: receiptLineLabel(e), amount: ownerTransferEffect(e) })
+  }
+  if (legacyAdjustment !== 0) lines.push({ label: 'Ajuste', amount: legacyAdjustment })
+  const total = lines.reduce((sum, l) => sum + l.amount, 0)
+  return { lines, total }
 }

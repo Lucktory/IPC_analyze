@@ -117,3 +117,9 @@ export function transferEffectOf(amountLandlord: number, amountTenant: number): 
 export function displayAmount(event: ContractEvent): number {
   return ownerTransferEffect(event)
 }
+
+/** Who an event is charged to, in words — for receipt/email lines. Derived from
+ *  the amounts (the party isn't a stored column). */
+export function eventPartyLabel(event: ContractEvent): string {
+  return event.amountTenant > 0 && event.amountLandlord === 0 ? 'al inquilino' : 'al dueño'
+}

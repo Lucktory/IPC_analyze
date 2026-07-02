@@ -28,7 +28,7 @@
 // are automated; sending is always done by the encargada in her own mail UI.
 // ============================================================================
 
-import { useEffect, useState, useTransition } from 'react'
+import { Fragment, useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   prepareEmailDraft,
@@ -58,7 +58,9 @@ export function LiquidarYEnviarButton({
   const [subjectDraft, setSubjectDraft]     = useState('')
   const [bodyDraft, setBodyDraft]           = useState('')
   const [summary, setSummary]               = useState<{
-    gross: number; commission: number; otros: number; netToLandlord: number
+    gross: number; commission: number; otros: number
+    ajusteLines: { label: string; amount: number }[]; ajustes: number
+    netToLandlord: number
   } | null>(null)
   const router = useRouter()
 
@@ -193,6 +195,14 @@ export function LiquidarYEnviarButton({
                         <span className="text-right tabular-nums text-ink">{fmtMoney(summary.otros)}</span>
                       </>
                     )}
+                    {summary.ajusteLines.map((l, i) => (
+                      <Fragment key={i}>
+                        <span className="text-gray-600">{l.label}:</span>
+                        <span className={`text-right tabular-nums ${l.amount < 0 ? 'text-danger' : 'text-success'}`}>
+                          {l.amount < 0 ? '− ' : '+ '}{fmtMoney(Math.abs(l.amount))}
+                        </span>
+                      </Fragment>
+                    ))}
                     <span className="text-gray-700 font-medium border-t border-gray-300 pt-1 mt-1">Neto a transferir:</span>
                     <span className="text-right tabular-nums text-success font-display font-medium border-t border-gray-300 pt-1 mt-1">
                       {fmtMoney(summary.netToLandlord)}

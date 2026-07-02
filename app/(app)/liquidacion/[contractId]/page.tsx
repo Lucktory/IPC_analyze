@@ -30,9 +30,12 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
 
   const theme = STATUS_THEME[detail.status]
   const total = detail.totalCobrado
-  const pctComision  = total > 0 ? (detail.comisionAdmin    / total) * 100 : 0
-  const pctOtros     = total > 0 ? (detail.otrosDescuentos  / total) * 100 : 0
-  const pctNeto      = total > 0 ? (detail.netoAlPropietario / total) * 100 : 0
+  const hasAjustes   = detail.ajusteLines.length > 0
+  const pctComision  = total > 0 ? (detail.comisionAdmin     / total) * 100 : 0
+  const pctOtros     = total > 0 ? (detail.otrosDescuentos   / total) * 100 : 0
+  // The bar is the transaction funnel only (total = comisión + otros + neto de
+  // transacciones); ajustes are shown explicitly in their own section below.
+  const pctNeto      = total > 0 ? (detail.netoTransacciones / total) * 100 : 0
 
   // Group breakdown lines: IN above (rent + recuperos), OUT below (comisión + otros)
   const ins  = detail.lines.filter(l => l.direction === 'IN')
@@ -109,9 +112,9 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
                     style={{ width: `${pctOtros}%`, backgroundColor: '#F39C12' }}
                   />
                 )}
-                {detail.netoAlPropietario > 0 && (
+                {detail.netoTransacciones > 0 && (
                   <div
-                    title={`Neto al propietario: ${fmt(detail.netoAlPropietario)} (${pctNeto.toFixed(1)}%)`}
+                    title={`${hasAjustes ? 'Neto de transacciones' : 'Neto al propietario'}: ${fmt(detail.netoTransacciones)} (${pctNeto.toFixed(1)}%)`}
                     style={{ width: `${pctNeto}%`, backgroundColor: '#3B82F6' }}
                   />
                 )}
@@ -134,10 +137,10 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
                 />
                 <EmbudoStat
                   accent="#3B82F6"
-                  label="Neto al propietario"
-                  value={fmt(detail.netoAlPropietario)}
+                  label={hasAjustes ? 'Neto de transacciones' : 'Neto al propietario'}
+                  value={fmt(detail.netoTransacciones)}
                   pct={pctNeto}
-                  highlight
+                  highlight={!hasAjustes}
                 />
               </div>
             </>
@@ -148,6 +151,40 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
           )}
         </div>
       </section>
+
+      {/* Ajustes — confirmed Observaciones (cobrado) + manual adjustment that
+          change the neto. Shown explicitly, line by line, so the owner sees
+          exactly why the final number differs from the funnel. */}
+      {hasAjustes && (
+        <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-line">
+            <h2 className="font-display text-[15px] font-medium text-ink">Ajustes del período</h2>
+            <p className="text-[12px] text-slate mt-0.5">
+              Observaciones confirmadas (cobradas) que ajustan el neto al propietario.
+            </p>
+          </div>
+          <div className="p-5">
+            <ul className="max-w-md">
+              <li className="flex items-center justify-between py-1.5 text-[13px] border-b border-line/40">
+                <span className="text-slate-dark">Neto de transacciones</span>
+                <span className="tabular-nums text-ink">{fmt(detail.netoTransacciones)}</span>
+              </li>
+              {detail.ajusteLines.map((l, i) => (
+                <li key={i} className="flex items-center justify-between py-1.5 text-[13px] border-b border-line/40">
+                  <span className="text-slate-dark">{l.label}</span>
+                  <span className={`tabular-nums font-medium ${l.amount < 0 ? 'text-danger' : 'text-success'}`}>
+                    {l.amount < 0 ? '− ' : '+ '}{fmt(Math.abs(l.amount))}
+                  </span>
+                </li>
+              ))}
+              <li className="flex items-center justify-between pt-2.5 mt-1 text-[14px] font-medium">
+                <span className="text-ink">Neto al propietario</span>
+                <span className="tabular-nums text-ink">{fmt(detail.netoAlPropietario)}</span>
+              </li>
+            </ul>
+          </div>
+        </section>
+      )}
 
       {/* Status actions — hidden in print */}
       <section className="mt-6 bg-paper border border-line rounded shadow-card p-5 print:hidden">

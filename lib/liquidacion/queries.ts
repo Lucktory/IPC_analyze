@@ -18,10 +18,10 @@ import { validateRow, type ValidationIssue } from './validations'
 import { COMMISSION_IVA_RATE, type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
-import { buildEventsSummariesBulk, type EventsSummary } from '@/lib/contract/events-bulk'
+import { buildEventsSummariesBulk, buildReceiptAjustes, type EventsSummary, type AjusteLine } from '@/lib/contract/events-bulk'
 import { getArgentinaToday } from '@/lib/period'
 
-export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown, RecurringChargesSummary }
+export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown, RecurringChargesSummary, AjusteLine }
 
 // ── Phase 9B: planilla footer totals — sums across every visible row,
 //    rendered as a sticky <tfoot> at the bottom of the grid so Alejandro
@@ -177,7 +177,9 @@ export interface LiquidacionRow {
   comisionAdmin:       number
   /** Sum of OUT transactions ≠ COMMISSION_OUT where affects_liquidacion=true. */
   otrosDescuentos:     number
-  /** totalCobrado - comisionAdmin - otrosDescuentos. */
+  /** Confirmed (cobrado) Observaciones + legacy manual adjustment (signed). */
+  ajustes:             number
+  /** totalCobrado − comisionAdmin − otrosDescuentos + ajustes. */
   netoAlPropietario:   number
   /** Effective rate: comisionAdmin / totalCobrado × 100. */
   comisionPct:         number
@@ -209,6 +211,11 @@ export interface LiquidacionDetail extends Omit<LiquidacionRow, never> {
   notes:           string | null
   lines:           LiquidacionDetailLine[]
   administrationId: string
+  /** Neto from transactions only (total − comisión − otros) — the embudo bar.
+   *  The signed `ajustes` total is inherited from LiquidacionRow. */
+  netoTransacciones: number
+  /** Explicit ajuste lines for the receipt, so the owner sees each one. */
+  ajusteLines:     AjusteLine[]
 }
 
 // ============================================================================
@@ -1153,7 +1160,7 @@ export async function getLiquidacionesForPeriod(period: string): Promise<Liquida
       .eq('period', period),
     supabase
       .from('liquidaciones')
-      .select('id, contract_id, landlord_id, status, sent_at, paid_at')
+      .select('id, contract_id, landlord_id, status, sent_at, paid_at, adjustment_amount')
       .eq('period', period),
   ])
 
@@ -1180,6 +1187,12 @@ export async function getLiquidacionesForPeriod(period: string): Promise<Liquida
     liqByKey.set(`${l.contract_id}|${l.landlord_id}`, l)
   }
 
+  // Confirmed (cobrado) Observaciones per contract → folded into the neto so
+  // the list matches the receipt and the planilla.
+  const eventsByContract = await buildEventsSummariesBulk(
+    ((contractsRes.data ?? []) as any[]).map((c: any) => c.id), period,
+  )
+
   const rows: LiquidacionRow[] = []
   for (const c of (contractsRes.data ?? []) as any[]) {
     const landlords = (c.contract_landlords ?? []) as any[]
@@ -1197,16 +1210,20 @@ export async function getLiquidacionesForPeriod(period: string): Promise<Liquida
     const totalCobrado      = a.gross
     const comisionAdmin     = a.commission
     const otrosDescuentos   = a.otros
-    const netoAlPropietario = totalCobrado - comisionAdmin - otrosDescuentos
     const comisionPct       = totalCobrado > 0 ? (comisionAdmin / totalCobrado) * 100 : 0
 
     const liq = liqByKey.get(`${c.id}|${primary.landlords.id}`)
+    // Ajustes = legacy manual adjustment + confirmed (cobrado) Observaciones,
+    // so the list's neto matches the receipt and the planilla.
+    const eventsSummary = eventsByContract.get(c.id) ?? null
+    const ajustes = Number((liq as any)?.adjustment_amount ?? 0) + (eventsSummary?.adjustmentEffect ?? 0)
+    const netoAlPropietario = totalCobrado - comisionAdmin - otrosDescuentos + ajustes
     rows.push({
       contractId:           c.id,
       landlordId:           primary.landlords.id,
       tenantName:           tenant?.tenants?.name ?? '(sin inquilino)',
       landlordName:         primary.landlords.name ?? '(sin propietario)',
-      totalCobrado, comisionAdmin, otrosDescuentos, netoAlPropietario, comisionPct,
+      totalCobrado, comisionAdmin, otrosDescuentos, ajustes, netoAlPropietario, comisionPct,
       hasMultipleLandlords: landlords.length > 1,
       liquidacionId:        liq?.id ?? null,
       status:               (liq?.status ?? 'draft') as LiquidacionStatus,
@@ -1280,17 +1297,25 @@ export async function getLiquidacionDetail(
       affectsLiquidacion: affects,
     })
   }
-  const netoAlPropietario = totalCobrado - comisionAdmin - otrosDescuentos
+  const netoTransacciones = totalCobrado - comisionAdmin - otrosDescuentos
   const comisionPct       = totalCobrado > 0 ? (comisionAdmin / totalCobrado) * 100 : 0
 
   // Persisted state
   const { data: liq } = await supabase
     .from('liquidaciones')
-    .select('id, status, sent_at, paid_at, notes')
+    .select('id, status, sent_at, paid_at, notes, adjustment_amount')
     .eq('contract_id', contractId)
     .eq('landlord_id', primary.landlords.id)
     .eq('period', period)
     .maybeSingle()
+
+  // Ajustes = confirmed (cobrado) arreglos/ajustes + legacy manual adjustment.
+  // Explicit lines so the owner sees each one; neto = transacciones + ajustes,
+  // which matches the planilla's transferencia (same `adjustment`).
+  const { lines: ajusteLines, total: ajustes } = await buildReceiptAjustes(
+    contractId, period, Number((liq as any)?.adjustment_amount ?? 0),
+  )
+  const netoAlPropietario = netoTransacciones + ajustes
 
   return {
     contractId:           c.id,
@@ -1299,7 +1324,7 @@ export async function getLiquidacionDetail(
     period,
     tenantName:           tenant?.tenants?.name ?? '(sin inquilino)',
     landlordName:         primary.landlords.name ?? '(sin propietario)',
-    totalCobrado, comisionAdmin, otrosDescuentos, netoAlPropietario, comisionPct,
+    totalCobrado, comisionAdmin, otrosDescuentos, netoTransacciones, ajustes, ajusteLines, netoAlPropietario, comisionPct,
     hasMultipleLandlords: landlords.length > 1,
     liquidacionId:        (liq as any)?.id ?? null,
     status:               ((liq as any)?.status ?? 'draft') as LiquidacionStatus,
