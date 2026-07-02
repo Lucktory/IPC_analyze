@@ -261,6 +261,26 @@ export async function generateCommissionForPeriod(
   const commissionAmount =
     Math.round((totalCobrado * pct / 100) * ivaFactor * 100) / 100  // 2-decimal precision
 
+  // Consolidate first: a contract's commission for a period is ONE row. If
+  // duplicate COMMISSION_OUT rows exist (bad import / manual fragments), the
+  // upsert below would only touch the most-recent one and leave the others,
+  // inflating ADMI. Collapse to a single row so the recompute is always exact
+  // and the recorded commission reflects the rate change, nothing stale.
+  const { data: commType } = await supabase
+    .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
+  if (commType) {
+    const { data: dupes } = await supabase
+      .from('transactions').select('id')
+      .eq('contract_id', contractId).eq('period', period)
+      .eq('transaction_type_id', (commType as any).id)
+      .order('created_at', { ascending: false })
+    if (dupes && dupes.length > 1) {
+      const extras = dupes.slice(1).map((r: any) => r.id)   // keep most-recent, drop the rest
+      const { error: delErr } = await supabase.from('transactions').delete().in('id', extras)
+      if (delErr) return dbFailure(delErr)
+    }
+  }
+
   // Use the upsert helper — it preserves existing description if any.
   return upsertTransactionByContractPeriod({
     contractId,
