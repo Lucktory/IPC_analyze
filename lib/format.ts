@@ -25,6 +25,21 @@ export function fmtMoney(n: number | null | undefined, decimals = 0): string {
   })
 }
 
+/**
+ * Signed peso amount with the sign ALWAYS before the `$`: "+$7", "-$10", "$0".
+ *
+ * `fmtMoney(-10)` renders "$-10" (the minus lands after the symbol), so any
+ * call site that also wanted a leading "+" for positives ended up mixing
+ * "+$7" with "$-10". This formats the magnitude and prepends the sign so a
+ * column of gains/losses reads consistently. Zero shows no sign.
+ */
+export function fmtSignedMoney(n: number | null | undefined, decimals = 0): string {
+  if (n == null) return ''
+  const rounded = decimals === 0 ? Math.round(n) : n
+  const sign = rounded > 0 ? '+' : rounded < 0 ? '-' : ''
+  return sign + fmtMoney(Math.abs(rounded), decimals)
+}
+
 /** "HH:MM" — used for the "Guardado HH:MM" form footer. */
 export function fmtTime(date: Date): string {
   return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })

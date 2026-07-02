@@ -14,7 +14,7 @@
 // ============================================================================
 
 import { useState } from 'react'
-import { fmtMoney } from '@/lib/format'
+import { fmtSignedMoney } from '@/lib/format'
 import { ObservacionesModal } from './ObservacionesModal'
 import type { EventsSummary } from '@/lib/contract/events-bulk'
 
@@ -64,13 +64,13 @@ export function InlineObservacionCell({ contractId, period, summary, contractLab
                 {/* Red: net effect on THIS month's transfer (signed → success/danger). */}
                 {net !== 0 && (
                   <span className={net > 0 ? 'text-success' : 'text-danger'} title="Efecto en la transferencia de este mes">
-                    {net > 0 ? '+' : ''}{fmtMoney(net)}
+                    {fmtSignedMoney(net)}
                   </span>
                 )}
                 {/* Black: pendientes total — carries forward, so it's shown muted (ink). */}
                 {pendTotal !== 0 && (
                   <span className="text-ink/70" title="Pendiente — se carga el mes que corresponda">
-                    {pendTotal > 0 ? '+' : ''}{fmtMoney(pendTotal)}
+                    {fmtSignedMoney(pendTotal)}
                   </span>
                 )}
               </span>

@@ -19,7 +19,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { fmtMoney } from '@/lib/format'
+import { fmtSignedMoney } from '@/lib/format'
 import { periodLabel, shiftPeriod } from '@/lib/period'
 import {
   EVENT_KIND, EVENT_PARTY,
@@ -140,7 +140,7 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
             title="Este mes" tone="rojo"
             items={esteMes} onPatch={patch} onRemove={remove}
             emptyText="Nada este mes."
-            footer={netEsteMes !== 0 ? `Efecto en la transferencia: ${netEsteMes > 0 ? '+' : ''}${fmtMoney(netEsteMes)}` : null}
+            footer={netEsteMes !== 0 ? `Efecto en la transferencia: ${fmtSignedMoney(netEsteMes)}` : null}
           />
           <ReminderSection
             title="Pendientes" tone="negro"
@@ -296,7 +296,7 @@ function ReminderItem({
       />
       <div className="flex items-center gap-2 justify-end">
         <span className={`text-[11px] tabular-nums font-medium ${txt} whitespace-nowrap`}>
-          {effect > 0 ? '+' : ''}{fmtMoney(effect)}
+          {fmtSignedMoney(effect)}
           {tone === 'negro' && event.appliesToPeriod && (
             <span className="text-[10px] text-gray-500 ml-1">· {periodLabel(event.appliesToPeriod)}</span>
           )}
