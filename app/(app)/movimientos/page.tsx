@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { listTransactions, listTransactionPeriods, type TransactionRow } from '@/lib/entities/queries'
 import { URGENCY_STYLES } from '@/lib/urgency'
 import { fmtMoney as fmt } from '@/lib/format'
+import { buildPeriodTabs } from '@/lib/period'
 
 const PAGE_SIZE = 50
 
@@ -58,10 +59,12 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
   const q        = sp.q?.trim() ?? ''
   const pageNum  = Math.max(1, Number(sp.page) || 1)
 
-  const [periods, all] = await Promise.all([
+  const [dataPeriods, all] = await Promise.all([
     listTransactionPeriods(),
     listTransactions(period),
   ])
+  // Current month + recent + months-with-data, so "now" is always selectable.
+  const periods = buildPeriodTabs(dataPeriods, period)
 
   const match = (t: TransactionRow, d: Dir) => {
     if (d === 'in')  return t.direction === 'IN'

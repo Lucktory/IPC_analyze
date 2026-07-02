@@ -93,3 +93,23 @@ export function getRecentPeriods(n: number): string[] {
   }
   return out
 }
+
+/**
+ * Period tabs for the selector strips (liquidación / movimientos / conciliación).
+ *
+ * The current month + `recent` recent months come from TODAY, so the tabs roll
+ * to Julio / Agosto / … on their own — the current month is ALWAYS present even
+ * before it has any data. Unioned with the months that actually have data
+ * (`dataPeriods`) so historical months stay reachable, plus whatever period is
+ * being viewed (so a deep link never lands on a period with no tab).
+ * Newest-first. No hardcoded month list anywhere.
+ */
+export function buildPeriodTabs(
+  dataPeriods:  string[],
+  viewedPeriod?: string | null,
+  recent = 4,
+): string[] {
+  const set = new Set<string>([...getRecentPeriods(recent), ...dataPeriods])
+  if (viewedPeriod) set.add(viewedPeriod)
+  return Array.from(set).sort().reverse()   // 'YYYY-MM-01' sorts chronologically
+}

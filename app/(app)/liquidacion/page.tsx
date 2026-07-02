@@ -10,7 +10,7 @@ import { listTransactionPeriods, listTransactions } from '@/lib/entities/queries
 // the explicit directive is a defensive guard.
 export const dynamic = 'force-dynamic'
 export const fetchCache = 'force-no-store'
-import { getCurrentPeriod, periodLabel, periodShort } from '@/lib/period'
+import { getCurrentPeriod, buildPeriodTabs, periodLabel, periodShort } from '@/lib/period'
 import { getLiquidacionGridForPeriod, getGridDiagnostic, sumGridTotals, type LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { getReconciliationByDestination } from '@/lib/reconciliation/queries'
 import { listLandlordOptions } from '@/lib/landlord/queries'
@@ -116,6 +116,9 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
   const totalAdmi     = baseRows.reduce((s, r) => s + r.admi, 0)
   const conAumento    = baseRows.filter(r => r.hasUpcomingAdjustment).length
 
+  // Period tabs: current month + recent + months-with-data (see buildPeriodTabs).
+  const periodTabs = buildPeriodTabs(periods, period)
+
   const linkWith = (overrides: Partial<{ period: string; status: StatusFilter; view: View }>) => {
     const merged = { period, status: statusFilter, view, ...overrides }
     const qs = new URLSearchParams()
@@ -202,7 +205,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
         <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px] pb-2">
           <span className="label-cap text-slate shrink-0">Período</span>
           <div className="flex items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-            {periods.map(p => (
+            {periodTabs.map(p => (
               <Link
                 key={p}
                 href={linkWith({ period: p })}

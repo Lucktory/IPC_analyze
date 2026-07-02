@@ -3,7 +3,7 @@ import { KPICard } from '@/components/ui/KPICard'
 import { StickyHeader } from '@/components/ui/StickyHeader'
 import { PrintButton } from '@/components/ui/PrintButton'
 import { listTransactionPeriods } from '@/lib/entities/queries'
-import { getCurrentPeriod } from '@/lib/period'
+import { getCurrentPeriod, buildPeriodTabs } from '@/lib/period'
 import {
   getReconciliationByDestination,
   type ReconciliationBucket,
@@ -41,10 +41,12 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   const { period: paramPeriod } = await searchParams
   const period = paramPeriod ?? getCurrentPeriod()
 
-  const [periods, buckets] = await Promise.all([
+  const [dataPeriods, buckets] = await Promise.all([
     listTransactionPeriods(),
     getReconciliationByDestination(period),
   ])
+  // Current month + recent + months-with-data, so "now" is always selectable.
+  const periods = buildPeriodTabs(dataPeriods, period)
 
   const grandTotal  = buckets.reduce((s, b) => s + b.total, 0)
   const grandCount  = buckets.reduce((s, b) => s + b.count, 0)
