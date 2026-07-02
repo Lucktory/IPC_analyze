@@ -3,10 +3,12 @@
 // ============================================================================
 // InlineObservacionCell — compact planilla cell for the Observaciones
 // reminders. Shows, at a glance:
-//   • rojo dot + count  = ítems activos este mes (feed the transfer)
+//   • rojo dot + count  = ítems de este mes (a cobrar + cobrado)
 //   • negro dot + count = pendientes (se cargan solos al mes que corresponda)
-//   • the net effect on this month's transfer, when non-zero
-// Click → ObservacionesModal (the full two-row list + add/edit/cancel).
+//   • cobrado   = lo confirmado, que entra en el recibo (color por signo)
+//   • a cobrar  = de este mes, sin confirmar (rojo apagado — no suma)
+//   • pendiente = de meses futuros (negro apagado — no suma)
+// Click → ObservacionesModal (la lista completa + agregar/editar/confirmar).
 //
 // Replaces the old single note + single adjustment. The old manual adjustment
 // still counts additively upstream (queries.ts) so no data is lost; new
@@ -32,8 +34,9 @@ export function InlineObservacionCell({ contractId, period, summary, contractLab
 
   const esteMes    = summary?.esteMes.length ?? 0
   const pendientes = summary?.pendientes.length ?? 0
-  const net        = summary?.adjustmentEffect ?? 0
-  const pendTotal  = summary?.pendientesTotal ?? 0
+  const cobrado    = summary?.adjustmentEffect    ?? 0   // confirmed → in the receipt
+  const aCobrar    = summary?.esteMesACobrarTotal ?? 0   // este mes, unconfirmed
+  const pendTotal  = summary?.pendientesTotal     ?? 0   // future months
   const hasAny     = esteMes > 0 || pendientes > 0
 
   return (
@@ -59,17 +62,23 @@ export function InlineObservacionCell({ contractId, period, summary, contractLab
                 </span>
               )}
             </span>
-            {(net !== 0 || pendTotal !== 0) && (
+            {(cobrado !== 0 || aCobrar !== 0 || pendTotal !== 0) && (
               <span className="flex items-center gap-2 text-[11px] tabular-nums font-medium leading-tight">
-                {/* Red: net effect on THIS month's transfer (signed → success/danger). */}
-                {net !== 0 && (
-                  <span className={net > 0 ? 'text-success' : 'text-danger'} title="Efecto en la transferencia de este mes">
-                    {fmtSignedMoney(net)}
+                {/* Cobrado: confirmed → enters the receipt (colored by sign). */}
+                {cobrado !== 0 && (
+                  <span className={cobrado > 0 ? 'text-success' : 'text-danger'} title="Cobrado — entra en el recibo">
+                    {fmtSignedMoney(cobrado)}
                   </span>
                 )}
-                {/* Black: pendientes total — carries forward, so it's shown muted (ink). */}
+                {/* A cobrar: due this month, not confirmed → muted red, no suma. */}
+                {aCobrar !== 0 && (
+                  <span className="text-danger/60 italic" title="A cobrar este mes — todavía no suma">
+                    {fmtSignedMoney(aCobrar)}
+                  </span>
+                )}
+                {/* Pendiente: future months → muted ink, no suma. */}
                 {pendTotal !== 0 && (
-                  <span className="text-ink/70" title="Pendiente — se carga el mes que corresponda">
+                  <span className="text-ink/60 italic" title="Pendiente — se carga el mes que corresponda">
                     {fmtSignedMoney(pendTotal)}
                   </span>
                 )}

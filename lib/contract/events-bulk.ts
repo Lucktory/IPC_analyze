@@ -1,8 +1,14 @@
 // ============================================================================
 // Events bulk helper — per (contract, period) reminder summary for the
 // planilla. One query for all contracts; each summary splits the contract's
-// events into este-mes (ROJO) / pendientes (NEGRO) and computes the owner's
-// transfer adjustment from the active adjustment-kind events.
+// events into este-mes (ROJO) / pendientes (NEGRO).
+//
+// Alejandro's rule: turning rojo means "corresponde cobrarlo/descontarlo este
+// mes", NOT that it already happened. So the este-mes adjustment effect is
+// split by confirmation:
+//   • cobrado  (status 'applied')  → enters the owner's receipt/transfer.
+//   • a cobrar (status 'pending')  → shown as a reminder, NOT summed.
+// Only what he confirms as cobrado moves money.
 //
 // Single source for the Observación cell's compact counts, the modal list,
 // and the transferencia adjustment — so the three never disagree (the class
@@ -12,26 +18,30 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import {
   EVENTS_TABLE, EVENT_COLUMNS, EVENT_STATUS, ADJUSTMENT_KINDS,
-  mapEventRow, reminderBucket, ownerTransferEffect, displayAmount,
+  mapEventRow, reminderBucket, ownerTransferEffect,
   type ContractEvent,
 } from './events-types'
 
 export interface EventsSummary {
   contractId:       string
-  /** Active this period (ROJO) — feed the accounting. */
+  /** Active this period (ROJO) — a cobrar + cobrado. */
   esteMes:          ContractEvent[]
   /** Future reminders (NEGRO) — carry forward automatically. */
   pendientes:       ContractEvent[]
-  /** Signed owner-transfer adjustment from active adjustment-kind events. */
+  /** CONFIRMED (cobrado) este-mes adjustment effect → enters the receipt/transfer. */
   adjustmentEffect: number
-  /** Sum of display amounts per bucket, for the compact cell. */
-  esteMesTotal:     number
+  /** UNCONFIRMED (a cobrar) este-mes adjustment effect → shown, NOT summed. */
+  esteMesACobrarTotal: number
+  /** Future (NEGRO) adjustment effect → shown, NOT summed. */
   pendientesTotal:  number
 }
 
 function emptySummary(contractId: string): EventsSummary {
-  return { contractId, esteMes: [], pendientes: [], adjustmentEffect: 0, esteMesTotal: 0, pendientesTotal: 0 }
+  return { contractId, esteMes: [], pendientes: [], adjustmentEffect: 0, esteMesACobrarTotal: 0, pendientesTotal: 0 }
 }
+
+/** An event is confirmed (cobrado/hecho) when its status is 'applied'. */
+const isCobrado = (e: ContractEvent): boolean => e.status === EVENT_STATUS.APPLIED
 
 const isAdjustmentKind = (kind: string): boolean => (ADJUSTMENT_KINDS as readonly string[]).includes(kind)
 const byRecentFirst = (a: ContractEvent, b: ContractEvent) =>
@@ -61,12 +71,17 @@ export async function buildEventsSummariesBulk(
     switch (reminderBucket(ev, period)) {
       case 'este-mes':
         summary.esteMes.push(ev)
-        summary.esteMesTotal += displayAmount(ev)
-        if (isAdjustmentKind(ev.kind)) summary.adjustmentEffect += ownerTransferEffect(ev)
+        // Only adjustment-kind events move money. Split by confirmation so the
+        // receipt reflects what's actually cobrado, not merely what's due.
+        if (isAdjustmentKind(ev.kind)) {
+          const effect = ownerTransferEffect(ev)
+          if (isCobrado(ev)) summary.adjustmentEffect    += effect
+          else               summary.esteMesACobrarTotal += effect
+        }
         break
       case 'pendiente':
         summary.pendientes.push(ev)
-        summary.pendientesTotal += displayAmount(ev)
+        if (isAdjustmentKind(ev.kind)) summary.pendientesTotal += ownerTransferEffect(ev)
         break
       // 'pasado' → history; not shown for this period
     }

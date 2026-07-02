@@ -3,13 +3,15 @@
 // ============================================================================
 // ObservacionesModal — the two-row reminders surface Alejandro specified.
 //
-//   • ESTE MES (rojo)  — items active this period; they feed the transfer.
+//   • ESTE MES (rojo)  — corresponde este mes. Each item starts "a cobrar";
+//     only what's confirmed COBRADO enters the owner's receipt (Alejandro's
+//     rule: rojo means it's due, not that it already happened).
 //   • PENDIENTES (negro) — items for a later period; carry forward automatically.
 //
-// Each item = one contract_events row (arreglo/ajuste). Add / edit / cancel
-// via the events actions; the red items' owner-effect is summed into the
-// transfer adjustment upstream (queries.ts), so this modal only edits data —
-// router.refresh() re-reads the row and the totals follow.
+// Each item = one contract_events row (arreglo/ajuste). Add / edit / confirmar
+// / cancel via the events actions; a confirmed (cobrado) red item's owner-
+// effect is summed into the transfer adjustment upstream (queries.ts), so this
+// modal only edits data — router.refresh() re-reads the row and totals follow.
 //
 // "Cuándo": ESTE MES → applies_to_period = current period (rojo now);
 //           MES QUE VIENE → applies_to_period = next period (negro now, rojo
@@ -22,7 +24,7 @@ import { useRouter } from 'next/navigation'
 import { fmtSignedMoney } from '@/lib/format'
 import { periodLabel, shiftPeriod } from '@/lib/period'
 import {
-  EVENT_KIND, EVENT_PARTY,
+  EVENT_KIND, EVENT_PARTY, EVENT_STATUS,
   transferEffectOf, type ContractEvent, type EventParty,
 } from '@/lib/contract/events-types'
 import type { EventsSummary } from '@/lib/contract/events-bulk'
@@ -59,6 +61,14 @@ const partyOf = (e: ContractEvent): EventParty =>
 /** The single non-zero magnitude stored on an event (0 for note-only items). */
 const magnitudeOf = (e: ContractEvent): number =>
   e.amountLandlord > 0 ? e.amountLandlord : e.amountTenant
+/** An event is confirmed (cobrado) once its status is 'applied'. */
+const isCobrado = (e: ContractEvent): boolean => e.status === EVENT_STATUS.APPLIED
+
+// Confirmation labels — Alejandro's vocabulary. Centralized so a wording change
+// (e.g. "Hecho") is a one-line edit rather than a scatter of string literals.
+const LABEL_COBRADO   = 'Cobrado'
+const LABEL_A_COBRAR  = 'A cobrar'
+const LABEL_EN_RECIBO = 'En el recibo'
 
 export function ObservacionesModal({ open, onClose, contractId, period, summary, contractLabel }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft())
@@ -114,7 +124,14 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
     })
   }
 
-  const netEsteMes = summary?.adjustmentEffect ?? 0
+  const cobradoEsteMes = summary?.adjustmentEffect    ?? 0   // confirmed → in the receipt
+  const aCobrarEsteMes = summary?.esteMesACobrarTotal ?? 0   // pending   → shown, not summed
+  const esteMesFooter  = (() => {
+    const parts: string[] = []
+    if (cobradoEsteMes !== 0) parts.push(`${LABEL_EN_RECIBO}: ${fmtSignedMoney(cobradoEsteMes)}`)
+    if (aCobrarEsteMes !== 0) parts.push(`${LABEL_A_COBRAR}: ${fmtSignedMoney(aCobrarEsteMes)} (no suma)`)
+    return parts.length ? parts.join('  ·  ') : null
+  })()
 
   // Portal to <body>: this cell lives in a sticky-left <td>, whose stacking
   // context + opaque background otherwise clip the modal's left edge. Rendering
@@ -140,7 +157,7 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
             title="Este mes" tone="rojo"
             items={esteMes} onPatch={patch} onRemove={remove}
             emptyText="Nada este mes."
-            footer={netEsteMes !== 0 ? `Efecto en la transferencia: ${fmtSignedMoney(netEsteMes)}` : null}
+            footer={esteMesFooter}
           />
           <ReminderSection
             title="Pendientes" tone="negro"
@@ -257,6 +274,11 @@ function ReminderItem({
   const safe   = isFinite(parsed) && parsed >= 0 ? parsed : 0
   const { amountLandlord, amountTenant } = amountsFor(party, safe)
   const effect = transferEffectOf(amountLandlord, amountTenant)
+  // Confirmation state (rojo only). "A cobrar" is muted and doesn't enter the
+  // receipt; "cobrado" is solid and counts. Negro items can't be confirmed yet.
+  const confirmed   = isCobrado(event)
+  const aCobrar     = tone === 'rojo' && !confirmed
+  const effectClass = aCobrar ? 'text-slate italic' : txt
 
   function commitDescription() {
     const v = desc.trim()
@@ -271,13 +293,13 @@ function ReminderItem({
   }
 
   return (
-    <li className="grid grid-cols-[1fr_104px_84px_auto] gap-2 items-center border-b border-gray-100 py-1">
+    <li className="grid grid-cols-[1fr_96px_72px_auto] gap-2 items-center border-b border-gray-100 py-1">
       <input
         type="text" value={desc}
         onChange={e => setDesc(e.target.value)}
         onBlur={commitDescription}
         placeholder="Descripción"
-        className="bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1"
+        className="min-w-0 bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1"
       />
       <select
         value={party}
@@ -295,12 +317,26 @@ function ReminderItem({
         className="h-7 px-1.5 rounded border border-gray-300 bg-white text-[12px] text-right tabular-nums outline-none focus:border-info"
       />
       <div className="flex items-center gap-2 justify-end">
-        <span className={`text-[11px] tabular-nums font-medium ${txt} whitespace-nowrap`}>
+        <span className={`text-[11px] tabular-nums font-medium ${effectClass} whitespace-nowrap`}>
           {fmtSignedMoney(effect)}
           {tone === 'negro' && event.appliesToPeriod && (
             <span className="text-[10px] text-gray-500 ml-1">· {periodLabel(event.appliesToPeriod)}</span>
           )}
         </span>
+        {tone === 'rojo' && (
+          <button
+            type="button"
+            onClick={() => onPatch(event.id, { status: confirmed ? EVENT_STATUS.PENDING : EVENT_STATUS.APPLIED })}
+            title={confirmed ? 'Marcar como a cobrar' : 'Marcar como cobrado (entra al recibo)'}
+            className={
+              confirmed
+                ? 'text-[10px] px-1.5 py-0.5 rounded bg-success/10 border border-success/40 text-success whitespace-nowrap'
+                : 'text-[10px] px-1.5 py-0.5 rounded border border-gray-300 text-slate hover:border-success hover:text-success whitespace-nowrap'
+            }
+          >
+            {confirmed ? `✓ ${LABEL_COBRADO}` : LABEL_A_COBRAR}
+          </button>
+        )}
         <button type="button" onClick={() => onRemove(event.id)} title="Eliminar" className="text-gray-400 hover:text-danger px-1">×</button>
       </div>
     </li>

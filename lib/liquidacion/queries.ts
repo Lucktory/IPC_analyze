@@ -361,7 +361,7 @@ export interface LiquidacionGridRow {
   recurringCharges:  RecurringChargesSummary | null
   /** Observaciones reminders (arreglos/ajustes) for this period — drives the
    *  two-row Observación cell (pendientes negro / este-mes rojo) and feeds the
-   *  transfer adjustment via eventsSummary.adjustmentEffect. */
+   *  transfer adjustment via eventsSummary.adjustmentEffect (confirmed/cobrado only). */
   eventsSummary:     EventsSummary | null
 
   // ── Vigencia (for the CONTRATO column in the 19-col layout) ──
@@ -902,10 +902,11 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       ? liqByKey.get(`${c.id}|${primary.landlords.id}`)
       : Array.from(liqByKey.values()).find((l: any) => l.contract_id === c.id)
     // Owner-transfer adjustment = the legacy manual amount (liquidaciones)
-    // PLUS the active (rojo) arreglo/ajuste events for this period. Both feed
+    // PLUS the CONFIRMED (cobrado) arreglo/ajuste events for this period.
+    // Rojo items still "a cobrar" are shown but NOT summed here — Alejandro's
+    // rule: rojo means it's due, cobrado means it actually happened. Both feed
     // the transferencia and Extras through this one value, so they stay
-    // consistent. The manual amount stays additive so old data isn't lost;
-    // new entries come in as events.
+    // consistent. The manual amount stays additive so old data isn't lost.
     const eventsSummary = eventsByContract.get(c.id) ?? null
     const adjustment    = Number(liq?.adjustment_amount ?? 0) + (eventsSummary?.adjustmentEffect ?? 0)
 
