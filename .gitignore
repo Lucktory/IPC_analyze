@@ -4,6 +4,8 @@ node_modules/
 # Local read-only DB verifier / inspection scripts (dev-only, never commit)
 _verify*
 _inspect*
+_*.mts
+_*.mjs
 
 # Build output
 .next/

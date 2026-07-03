@@ -1,0 +1,33 @@
+-- RI contracts (commission includes IVA): fix flag
+update contracts set commission_includes_iva = true where id in ('a8fe0a97-5e0e-4342-a96b-de120c306da8','776cd371-22ef-4716-9219-4a34560a21dc','e612972c-6043-42d1-8cf7-c03d6cd5af28','16f310fc-5049-4230-b000-5c99dae16bd1','db1e62b9-bcd4-4b0c-b7ce-d8bb982edad1','312a256e-303c-4370-be4d-8cac5034557e','ac7d6400-8caa-42ab-9db6-ae35fcf82715');
+
+-- import their June rows with exact sheet values + dates
+insert into transactions (administration_id, contract_id, transaction_type_id, period, amount, bank_date, description) values
+('7257451b-83aa-4767-9472-25926d563bf5','a8fe0a97-5e0e-4342-a96b-de120c306da8','892ca2ee-4b24-4b5b-9ee0-8b26ff02df70','2026-06-01',932265,'2026-06-16','Alquiler Junio - CARCAMO JONATAN'),
+('7257451b-83aa-4767-9472-25926d563bf5','a8fe0a97-5e0e-4342-a96b-de120c306da8','f012c9a4-42a7-4977-9c36-45a18291c88d','2026-06-01',101523.66,'2026-06-16','Comision 9% + IVA sobre total cobrado - ADM_GALICIA'),
+('7257451b-83aa-4767-9472-25926d563bf5','a8fe0a97-5e0e-4342-a96b-de120c306da8','718f095e-e73f-465d-8dcd-5ebc1d0663ac','2026-06-01',17619.81,'2026-06-16','Otros deducciones 06/2026'),
+('7257451b-83aa-4767-9472-25926d563bf5','a8fe0a97-5e0e-4342-a96b-de120c306da8','11126c5d-0799-4da4-830d-f604d128951e','2026-06-01',830741.34,'2026-06-16','Transferencia a propietario Junio'),
+('7257451b-83aa-4767-9472-25926d563bf5','776cd371-22ef-4716-9219-4a34560a21dc','892ca2ee-4b24-4b5b-9ee0-8b26ff02df70','2026-06-01',544469.38,'2026-06-02','Alquiler Junio - FAJARDO MARIA FERNANDA'),
+('7257451b-83aa-4767-9472-25926d563bf5','776cd371-22ef-4716-9219-4a34560a21dc','f012c9a4-42a7-4977-9c36-45a18291c88d','2026-06-01',59292.72,'2026-06-02','Comision 9% + IVA sobre total cobrado - ADM_GALICIA'),
+('7257451b-83aa-4767-9472-25926d563bf5','776cd371-22ef-4716-9219-4a34560a21dc','718f095e-e73f-465d-8dcd-5ebc1d0663ac','2026-06-01',10290.47,'2026-06-02','Otros deducciones 06/2026'),
+('7257451b-83aa-4767-9472-25926d563bf5','776cd371-22ef-4716-9219-4a34560a21dc','11126c5d-0799-4da4-830d-f604d128951e','2026-06-01',485176.66,'2026-06-02','Transferencia a propietario Junio'),
+('7257451b-83aa-4767-9472-25926d563bf5','e612972c-6043-42d1-8cf7-c03d6cd5af28','892ca2ee-4b24-4b5b-9ee0-8b26ff02df70','2026-06-01',500000,'2026-05-31','Alquiler Junio - RUARTE NOELIA COMERCIAL'),
+('7257451b-83aa-4767-9472-25926d563bf5','e612972c-6043-42d1-8cf7-c03d6cd5af28','f012c9a4-42a7-4977-9c36-45a18291c88d','2026-06-01',48400,'2026-05-31','Comision 8% + IVA sobre total cobrado - ADM_GALICIA'),
+('7257451b-83aa-4767-9472-25926d563bf5','e612972c-6043-42d1-8cf7-c03d6cd5af28','718f095e-e73f-465d-8dcd-5ebc1d0663ac','2026-06-01',8400,'2026-05-31','Otros deducciones 06/2026'),
+('7257451b-83aa-4767-9472-25926d563bf5','e612972c-6043-42d1-8cf7-c03d6cd5af28','11126c5d-0799-4da4-830d-f604d128951e','2026-06-01',451600,'2026-06-02','Transferencia a propietario Junio'),
+('7257451b-83aa-4767-9472-25926d563bf5','16f310fc-5049-4230-b000-5c99dae16bd1','892ca2ee-4b24-4b5b-9ee0-8b26ff02df70','2026-06-01',670842,'2026-06-11','Alquiler Junio - VEGA'),
+('7257451b-83aa-4767-9472-25926d563bf5','16f310fc-5049-4230-b000-5c99dae16bd1','f012c9a4-42a7-4977-9c36-45a18291c88d','2026-06-01',73054.69,'2026-06-11','Comision 9% + IVA sobre total cobrado - ADM_GALICIA'),
+('7257451b-83aa-4767-9472-25926d563bf5','16f310fc-5049-4230-b000-5c99dae16bd1','718f095e-e73f-465d-8dcd-5ebc1d0663ac','2026-06-01',12678.91,'2026-06-11','Otros deducciones 06/2026'),
+('7257451b-83aa-4767-9472-25926d563bf5','16f310fc-5049-4230-b000-5c99dae16bd1','11126c5d-0799-4da4-830d-f604d128951e','2026-06-01',597787.31,'2026-06-16','Transferencia a propietario Junio'),
+('7257451b-83aa-4767-9472-25926d563bf5','db1e62b9-bcd4-4b0c-b7ce-d8bb982edad1','892ca2ee-4b24-4b5b-9ee0-8b26ff02df70','2026-06-01',982664.53,'2026-06-05','Alquiler Junio - BERARDI +54 9 2974 05-7491'),
+('7257451b-83aa-4767-9472-25926d563bf5','db1e62b9-bcd4-4b0c-b7ce-d8bb982edad1','f012c9a4-42a7-4977-9c36-45a18291c88d','2026-06-01',107012.17,'2026-06-05','Comision 9% + IVA sobre total cobrado - ADM_GALICIA'),
+('7257451b-83aa-4767-9472-25926d563bf5','db1e62b9-bcd4-4b0c-b7ce-d8bb982edad1','718f095e-e73f-465d-8dcd-5ebc1d0663ac','2026-06-01',18572.36,'2026-06-05','Otros deducciones 06/2026'),
+('7257451b-83aa-4767-9472-25926d563bf5','db1e62b9-bcd4-4b0c-b7ce-d8bb982edad1','11126c5d-0799-4da4-830d-f604d128951e','2026-06-01',875652.36,'2026-06-06','Transferencia a propietario Junio'),
+('7257451b-83aa-4767-9472-25926d563bf5','312a256e-303c-4370-be4d-8cac5034557e','892ca2ee-4b24-4b5b-9ee0-8b26ff02df70','2026-06-01',582113,'2026-06-05','Alquiler Junio - GARCIA JULIETA'),
+('7257451b-83aa-4767-9472-25926d563bf5','312a256e-303c-4370-be4d-8cac5034557e','f012c9a4-42a7-4977-9c36-45a18291c88d','2026-06-01',63392.11,'2026-06-05','Comision 9% + IVA sobre total cobrado - ADM_GALICIA'),
+('7257451b-83aa-4767-9472-25926d563bf5','312a256e-303c-4370-be4d-8cac5034557e','718f095e-e73f-465d-8dcd-5ebc1d0663ac','2026-06-01',11001.94,'2026-06-05','Otros deducciones 06/2026'),
+('7257451b-83aa-4767-9472-25926d563bf5','312a256e-303c-4370-be4d-8cac5034557e','11126c5d-0799-4da4-830d-f604d128951e','2026-06-01',518720.89,'2026-06-06','Transferencia a propietario Junio'),
+('7257451b-83aa-4767-9472-25926d563bf5','ac7d6400-8caa-42ab-9db6-ae35fcf82715','892ca2ee-4b24-4b5b-9ee0-8b26ff02df70','2026-06-01',794803,'2026-06-01','Alquiler Junio - PICHUMAN SAUL'),
+('7257451b-83aa-4767-9472-25926d563bf5','ac7d6400-8caa-42ab-9db6-ae35fcf82715','f012c9a4-42a7-4977-9c36-45a18291c88d','2026-06-01',86554.05,'2026-06-01','Comision 9% + IVA sobre total cobrado - ADM_GALICIA'),
+('7257451b-83aa-4767-9472-25926d563bf5','ac7d6400-8caa-42ab-9db6-ae35fcf82715','718f095e-e73f-465d-8dcd-5ebc1d0663ac','2026-06-01',15021.78,'2026-06-01','Otros deducciones 06/2026'),
+('7257451b-83aa-4767-9472-25926d563bf5','ac7d6400-8caa-42ab-9db6-ae35fcf82715','11126c5d-0799-4da4-830d-f604d128951e','2026-06-01',708248.95,'2026-06-02','Transferencia a propietario Junio');
