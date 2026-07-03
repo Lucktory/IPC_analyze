@@ -33,6 +33,12 @@
   --color-danger:       220 38  38;    /* #DC2626 */
   --color-info:         37  99  235;   /* #2563EB */
 
+  /* Row tints — OPAQUE (sticky cells need a solid bg to block scrolled
+     content); flip with the theme. Light = the pale -100 Tailwind shades. */
+  --row-danger:         254 226 226;   /* #FEE2E2 — validation error row */
+  --row-warn:           255 237 213;   /* #FFEDD5 — validation warning row */
+  --row-edited:         254 249 195;   /* #FEF9C3 — recently edited row */
+
   /* Sidebar — stays dark in both themes for hierarchy, but uses darker
      anchor color in dark mode so it reads as a distinct vertical band. */
   --color-nav-bg:       28  27  31;    /* #1C1B1F — dark sidebar in light */
@@ -63,6 +69,12 @@
   --color-warn:         251 191 36;    /* #FBBF24 */
   --color-danger:       248 113 113;   /* #F87171 */
   --color-info:         96  165 250;   /* #60A5FA */
+
+  /* Row tints — opaque warm-dark surfaces that read as subtle status tints
+     against the near-black page, matching the light -100 shades' intent. */
+  --row-danger:         48  28  30;    /* warm dark red */
+  --row-warn:           46  36  22;    /* warm dark amber */
+  --row-edited:         44  42  26;    /* warm dark yellow */
 
   /* Sidebar in dark: darker than page bg so it reads as an anchored band */
   --color-nav-bg:       9   9   11;    /* #09090B — anchored sidebar in dark */

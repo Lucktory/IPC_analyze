@@ -244,7 +244,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
     W.movim + W.diatransf + W.admi + W.iva + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
 
   return (
-    <section className="bg-white border border-gray-300 overflow-hidden h-full flex flex-col">
+    <section className="bg-paper border border-line overflow-hidden h-full flex flex-col">
       {/* The ONLY scrolling area on /liquidacion. The page itself doesn't
           scroll — only this container does. Both scrollbars (horizontal at
           the bottom, vertical at the right) live here. The header row is
@@ -252,8 +252,8 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
           form a frozen freeze-panes corner. */}
       <div className="overflow-auto flex-1 min-h-0">
         <table className="w-full text-[12px] border-collapse" style={{ minWidth: tableMinWidth }}>
-          <thead className="bg-gray-100 text-[10px] uppercase tracking-wider text-gray-700 font-semibold">
-            <tr className="border-b border-gray-300">
+          <thead className="bg-cream-2 text-[10px] uppercase tracking-wider text-slate-dark font-semibold">
+            <tr className="border-b border-line">
               {/* 1 */}<Th sticky left={STICKY_LEFTS.obs}    width={W.obs}>Observación</Th>
               {/* 2 */}<Th sticky left={STICKY_LEFTS.lfa}    width={W.lfa}    align="center">LFA</Th>
               {/* 3 */}<Th sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} align="center">F. banco</Th>
@@ -315,23 +315,23 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               // el contrato." Moving it cell-side also removes the priority
               // conflict where validation tints used to mask the blues.
               //
-              // Editing focus (`[&:has([data-editing])]:bg-blue-100` further
+              // Editing focus (`[&:has([data-editing])]:bg-info/20` further
               // down) overrides all of these — clicking into a cell wins
               // visually regardless of validation state.
               const severity = highestSeverity(issues)
               const zebra = severity === 'error'
-                ? 'bg-red-100'
+                ? 'bg-row-danger'
                 : severity === 'warning'
-                  ? 'bg-orange-100'
+                  ? 'bg-row-warn'
                   : r.wasRecentlyEdited
-                    ? 'bg-yellow-100'
-                    : (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50')
+                    ? 'bg-row-edited'
+                    : (idx % 2 === 0 ? 'bg-paper' : 'bg-cream-2')
 
               return (
                 <tr
                   key={`${r.contractId}-${r.landlordId}`}
                   data-contract-id={r.contractId}
-                  className={`${zebra} hover:bg-blue-50 transition-colors border-b border-gray-200 [&:has([data-editing])]:bg-blue-100 [&:has([data-editing])]:ring-2 [&:has([data-editing])]:ring-info [&:has([data-editing])]:ring-inset`}
+                  className={`${zebra} hover:bg-info/10 transition-colors border-b border-line [&:has([data-editing])]:bg-info/20 [&:has([data-editing])]:ring-2 [&:has([data-editing])]:ring-info [&:has([data-editing])]:ring-inset`}
                 >
                   {/* 1. OBSERVACIÓN — sticky */}
                   <Td sticky left={STICKY_LEFTS.obs} width={W.obs} bg={zebra}>
@@ -597,7 +597,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                         // sees instantly whether the extras line is a
                         // recupero (+) or a discount (-).
                         extrasSum === 0
-                          ? <span className="text-gray-400">—</span>
+                          ? <span className="text-slate">—</span>
                           : <>{extrasSum > 0 ? '+' : ''}{fmtMoney(extrasSum)}</>
                       }
                       buttonTitle={
@@ -782,8 +782,8 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               "al fin de la columna poner el monto que da de suma total."
               Each <Tf> tracks its column's width so the total lines up
               exactly under the data. Empty cells render blank. */}
-          <tfoot className="bg-gray-100 text-[11px] font-medium text-ink">
-            <tr className="border-t-2 border-gray-300">
+          <tfoot className="bg-cream-2 text-[11px] font-medium text-ink">
+            <tr className="border-t-2 border-line">
               <Tf sticky left={STICKY_LEFTS.obs}    width={W.obs}    align="left">TOTAL</Tf>
               <Tf sticky left={STICKY_LEFTS.lfa}    width={W.lfa}    align="center" />
               <Tf sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} align="center" />
@@ -838,12 +838,12 @@ function Th({ children, width, sticky, left, align = 'left' }: ThProps) {
   // left offset and a higher z-index so they form the "frozen corner" of
   // the freeze-panes layout.
   const stickyStyle: React.CSSProperties = sticky
-    ? { position: 'sticky', top: 0, left, zIndex: 30, backgroundColor: '#f3f4f6' /* gray-100 */ }
-    : { position: 'sticky', top: 0,        zIndex: 20, backgroundColor: '#f3f4f6' }
+    ? { position: 'sticky', top: 0, left, zIndex: 30, backgroundColor: 'rgb(var(--color-cream-2))' /* gray-100 */ }
+    : { position: 'sticky', top: 0,        zIndex: 20, backgroundColor: 'rgb(var(--color-cream-2))' }
   return (
     <th
       style={{ width, minWidth: width, ...stickyStyle }}
-      className={`px-2 py-1.5 border-r border-gray-300 ${alignCls}`}
+      className={`px-2 py-1.5 border-r border-line ${alignCls}`}
     >
       {children}
     </th>
@@ -872,7 +872,7 @@ function Td({ children, width, align = 'left', sticky, left, bg, title, style, c
   return (
     <td
       style={{ width, minWidth: width, ...stickyStyle, ...style }}
-      className={`px-2 py-1 border-r border-gray-200 ${alignCls} ${sticky ? bg ?? '' : ''} ${className}`}
+      className={`px-2 py-1 border-r border-line ${alignCls} ${sticky ? bg ?? '' : ''} ${className}`}
       title={title}
     >
       {children}
@@ -902,12 +902,12 @@ function Tf({ children, width, align = 'left', sticky, left, tabular }: TfProps)
   // (Observación / LFA / F. banco / Propietario) ALSO stick to the left
   // to form the frozen freeze-panes corner that matches the header.
   const stickyStyle: React.CSSProperties = sticky
-    ? { position: 'sticky', bottom: 0, left, zIndex: 25, backgroundColor: '#f3f4f6' }
-    : { position: 'sticky', bottom: 0,        zIndex: 15, backgroundColor: '#f3f4f6' }
+    ? { position: 'sticky', bottom: 0, left, zIndex: 25, backgroundColor: 'rgb(var(--color-cream-2))' }
+    : { position: 'sticky', bottom: 0,        zIndex: 15, backgroundColor: 'rgb(var(--color-cream-2))' }
   return (
     <td
       style={{ width, minWidth: width, ...stickyStyle }}
-      className={`px-2 py-1.5 border-r border-gray-300 border-t-2 border-t-gray-400 ${alignCls} ${tabular ? 'tabular-nums' : ''}`}
+      className={`px-2 py-1.5 border-r border-line border-t-2 border-t-slate ${alignCls} ${tabular ? 'tabular-nums' : ''}`}
     >
       {children}
     </td>
@@ -917,6 +917,6 @@ function Tf({ children, width, align = 'left', sticky, left, tabular }: TfProps)
 /** Display zero as a muted "—" in the footer so the row isn't a wall of
  *  $0 noise. Any non-zero value uses the standard money formatter. */
 function footerMoney(n: number): React.ReactNode {
-  if (n === 0) return <span className="text-gray-400">—</span>
+  if (n === 0) return <span className="text-slate">—</span>
   return fmtMoney(n)
 }

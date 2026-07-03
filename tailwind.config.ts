@@ -37,6 +37,13 @@ export default {
         warn:    'rgb(var(--color-warn)    / <alpha-value>)',
         danger:  'rgb(var(--color-danger)  / <alpha-value>)',
         info:    'rgb(var(--color-info)    / <alpha-value>)',
+        // Opaque row tints (validation error/warning, recently-edited). Solid
+        // so sticky cells match the rest of the row; flip in dark via the vars.
+        row: {
+          danger: 'rgb(var(--row-danger) / <alpha-value>)',
+          warn:   'rgb(var(--row-warn)   / <alpha-value>)',
+          edited: 'rgb(var(--row-edited) / <alpha-value>)',
+        },
         nav: {
           bg:    'rgb(var(--color-nav-bg)    / <alpha-value>)',
           text:  'rgb(var(--color-nav-text)  / <alpha-value>)',
