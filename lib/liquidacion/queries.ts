@@ -1062,6 +1062,11 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           startDate:        c.start_date ?? null,
           endDate:          c.end_date   ?? null,
           todayIso:         `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`,
+          periodEndIso:     (() => {
+            const [py, pm] = period.split('-').map(Number)
+            const lastDay = new Date(py, pm, 0).getDate()   // day 0 of next month = last day of this one
+            return `${py}-${String(pm).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+          })(),
           landlordPctSum:   landlordsList.reduce((s, l) => s + (Number.isFinite(l.ownershipPct) ? l.ownershipPct : 0), 0),
           landlordCount:    landlordsList.length,
           tenantPctSum:     tenantsList.reduce((s, t) => s + (Number.isFinite(t.sharePct) ? t.sharePct : 0), 0),

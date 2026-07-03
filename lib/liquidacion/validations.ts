@@ -129,6 +129,10 @@ export interface ValidatableRow {
   /** Today as YYYY-MM-DD. Passed in by the row builder so the validators
    *  stay pure (no `new Date()` inside the rules). */
   todayIso:          string
+  /** Last day of the viewed period (YYYY-MM-DD). The expiry check judges
+   *  against the EARLIER of today and this, so reviewing a past month rates a
+   *  contract's expiry as of that month's close, not as of today. */
+  periodEndIso:      string
   /** SUM(contract_landlords.ownership_pct) and row count, computed at the
    *  row-builder layer from the same junction data the planilla already
    *  reads. */
@@ -349,8 +353,12 @@ function isoDayDiff(later: string, earlier: string): number {
 // 8. CONTRACT_EXPIRED_BUT_ACTIVE — end_date already past on an active row.
 function checkContractExpiredButActive(r: ValidatableRow): ValidationIssue | null {
   if (!r.endDate) return null  // INVALID_DATE_RANGE handles malformed data
-  if (r.endDate >= r.todayIso) return null
-  const daysPast = isoDayDiff(r.todayIso, r.endDate)
+  // Judge expiry as of the END of the viewed period, but never beyond today:
+  // reviewing June must not flag a contract that runs through 30-Jun, while the
+  // current month still flags only what is actually past its end date.
+  const refIso = r.periodEndIso < r.todayIso ? r.periodEndIso : r.todayIso
+  if (r.endDate >= refIso) return null
+  const daysPast = isoDayDiff(refIso, r.endDate)
   return {
     code:     'CONTRACT_EXPIRED_BUT_ACTIVE',
     severity: 'error',
