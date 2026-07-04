@@ -39,6 +39,10 @@
   --row-warn:           252 240 219;   /* #FCF0DB — warning row (soft amber) */
   --row-edited:         237 233 251;   /* #EDE9FB — recently edited (soft violet, distinct from the amber warning) */
 
+  /* Row separator line between table rows — dark in light mode for a crisp,
+     clearly-divided grid (distinct from the subtle --color-line used elsewhere). */
+  --row-divider:        148 143 134;   /* #948F86 */
+
   /* Sidebar — stays dark in both themes for hierarchy, but uses darker
      anchor color in dark mode so it reads as a distinct vertical band. */
   --color-nav-bg:       28  27  31;    /* #1C1B1F — dark sidebar in light */
@@ -75,6 +79,9 @@
   --row-danger:         58  30  33;    /* dark red tint */
   --row-warn:           56  44  26;    /* dark amber tint */
   --row-edited:         42  35  60;    /* dark violet tint, distinct from the amber warning */
+
+  /* Row separator line — bright in dark mode so rows stay clearly divided. */
+  --row-divider:        87  87  95;    /* #57575F */
 
   /* Sidebar in dark: darker than page bg so it reads as an anchored band */
   --color-nav-bg:       9   9   11;    /* #09090B — anchored sidebar in dark */

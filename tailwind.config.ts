@@ -40,9 +40,10 @@ export default {
         // Opaque row tints (validation error/warning, recently-edited). Solid
         // so sticky cells match the rest of the row; flip in dark via the vars.
         row: {
-          danger: 'rgb(var(--row-danger) / <alpha-value>)',
-          warn:   'rgb(var(--row-warn)   / <alpha-value>)',
-          edited: 'rgb(var(--row-edited) / <alpha-value>)',
+          danger:  'rgb(var(--row-danger)  / <alpha-value>)',
+          warn:    'rgb(var(--row-warn)    / <alpha-value>)',
+          edited:  'rgb(var(--row-edited)  / <alpha-value>)',
+          divider: 'rgb(var(--row-divider) / <alpha-value>)',
         },
         nav: {
           bg:    'rgb(var(--color-nav-bg)    / <alpha-value>)',

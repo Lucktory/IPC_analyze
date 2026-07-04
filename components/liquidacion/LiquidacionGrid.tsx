@@ -332,7 +332,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                 <tr
                   key={`${r.contractId}-${r.landlordId}`}
                   data-contract-id={r.contractId}
-                  className={`${zebra} hover:bg-info/10 transition-colors border-b border-line [&:has([data-editing])]:bg-info/20 [&:has([data-editing])]:ring-2 [&:has([data-editing])]:ring-info [&:has([data-editing])]:ring-inset`}
+                  className={`${zebra} hover:bg-info/10 transition-colors border-b border-row-divider [&:has([data-editing])]:bg-info/20 [&:has([data-editing])]:ring-2 [&:has([data-editing])]:ring-info [&:has([data-editing])]:ring-inset`}
                 >
                   {/* 0. CHECK — sticky, up front so validation state is visible without scrolling right */}
                   <Td sticky left={STICKY_LEFTS.check} width={W.check} bg={zebra} align="center">
@@ -874,7 +874,7 @@ function Td({ children, width, align = 'left', sticky, left, bg, title, style, c
   return (
     <td
       style={{ width, minWidth: width, ...stickyStyle, ...style }}
-      className={`px-2 py-1 border-r border-line ${alignCls} ${sticky ? bg ?? '' : ''} ${className}`}
+      className={`px-2 py-1 border-r border-line border-b border-row-divider ${alignCls} ${sticky ? bg ?? '' : ''} ${className}`}
       title={title}
     >
       {children}
