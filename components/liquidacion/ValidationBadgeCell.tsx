@@ -62,15 +62,15 @@ export function ValidationBadgeCell({ issues }: Props) {
           <div className="fixed inset-0 z-[999]" onClick={() => setOpen(false)} />
           <div
             style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
-            className="bg-white border border-gray-300 rounded shadow-lg"
+            className="bg-paper border border-line rounded shadow-lg"
             onMouseDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}
           >
-            <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div className="px-3 py-2 border-b border-line bg-cream-2 flex items-center justify-between">
               <span className="font-display text-[13px] font-medium text-ink">
                 {count} {count === 1 ? 'discrepancia detectada' : 'discrepancias detectadas'}
               </span>
-              <span className="text-[10px] text-gray-500 italic">click afuera para cerrar</span>
+              <span className="text-[10px] text-slate italic">click afuera para cerrar</span>
             </div>
             <ul className="max-h-[360px] overflow-y-auto">
               {issues.map((issue, idx) => (

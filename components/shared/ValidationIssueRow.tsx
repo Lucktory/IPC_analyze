@@ -66,7 +66,7 @@ export function ValidationIssueRow({ issue, contract, contractHref }: Props) {
   const href = contractHref ?? (contract ? `/contratos/${contract.contractId}` : null)
 
   return (
-    <li className={`px-3 py-2 border-b border-gray-100 last:border-b-0 ${tintClass}`}>
+    <li className={`px-3 py-2 border-b border-line last:border-b-0 ${tintClass}`}>
       <div className="flex items-start gap-2">
         <span
           className={`inline-block w-2 h-2 rounded-full mt-1.5 shrink-0 ${dotClass}`}
@@ -80,7 +80,7 @@ export function ValidationIssueRow({ issue, contract, contractHref }: Props) {
               <span className="text-slate-dark">{contract.landlordName}</span>
             </p>
           )}
-          <p className="text-[11px] uppercase tracking-wider text-gray-500 font-medium mt-0.5">
+          <p className="text-[11px] uppercase tracking-wider text-slate font-medium mt-0.5">
             {isError ? 'Error' : 'Aviso'} · {prettyValidationCode(issue.code)}
           </p>
           <p className="text-[12.5px] text-ink mt-0.5 leading-snug">{issue.message}</p>
@@ -88,19 +88,19 @@ export function ValidationIssueRow({ issue, contract, contractHref }: Props) {
             <div className="mt-1.5 grid grid-cols-3 gap-2 text-[11px]">
               {issue.expected !== null && (
                 <div>
-                  <span className="text-gray-500 block">Esperado</span>
+                  <span className="text-slate block">Esperado</span>
                   <span className="text-ink tabular-nums">{fmtMoney(issue.expected)}</span>
                 </div>
               )}
               {issue.actual !== null && (
                 <div>
-                  <span className="text-gray-500 block">Actual</span>
+                  <span className="text-slate block">Actual</span>
                   <span className="text-ink tabular-nums">{fmtMoney(issue.actual)}</span>
                 </div>
               )}
               {issue.diff > 0 && (
                 <div>
-                  <span className="text-gray-500 block">Diferencia</span>
+                  <span className="text-slate block">Diferencia</span>
                   <span className={`tabular-nums font-medium ${isError ? 'text-danger' : 'text-warn'}`}>
                     {fmtMoney(issue.diff)}
                   </span>
