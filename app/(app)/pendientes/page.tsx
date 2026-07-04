@@ -281,7 +281,7 @@ function PendienteRow({ item }: { item: PendienteItem }) {
         ) : (
           <span
             title={`Sin teléfono cargado para ${target.label}`}
-            className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-100 text-gray-400 cursor-not-allowed"
+            className="inline-flex items-center justify-center w-7 h-7 rounded bg-cream-2 text-slate cursor-not-allowed"
           >
             <WhatsAppIcon size={14} title="" />
           </span>

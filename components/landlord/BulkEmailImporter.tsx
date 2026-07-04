@@ -109,7 +109,7 @@ export function BulkEmailImporter() {
           onChange={e => setText(e.target.value)}
           rows={10}
           placeholder={'ALASSIA JOSE LUIS\tjalassia@hotmail.com\nLODDO ALBERTO\tadmin@example.com | alberto@example.com\n…'}
-          className="w-full px-3 py-2 rounded border border-gray-300 bg-white text-[12.5px] font-mono outline-none focus:border-info"
+          className="w-full px-3 py-2 rounded border border-line bg-paper text-[12.5px] font-mono outline-none focus:border-info"
         />
         <div className="mt-3 flex items-center justify-between">
           <p className="text-[11px] text-slate">
@@ -196,7 +196,7 @@ export function BulkEmailImporter() {
                       <select
                         value={row.selectedId}
                         onChange={e => patchRow(row.lineNumber, { selectedId: e.target.value, accepted: !!e.target.value })}
-                        className="w-full h-7 px-1.5 text-[11.5px] border border-gray-300 rounded bg-white outline-none focus:border-info"
+                        className="w-full h-7 px-1.5 text-[11.5px] border border-line rounded bg-paper outline-none focus:border-info"
                       >
                         <option value="">— omitir esta línea —</option>
                         {row.candidates.map(c => (
@@ -212,7 +212,7 @@ export function BulkEmailImporter() {
                         type="email"
                         value={row.primaryEmail}
                         onChange={e => patchRow(row.lineNumber, { primaryEmail: e.target.value })}
-                        className="w-full h-7 px-1.5 text-[11.5px] border border-gray-300 rounded bg-white outline-none focus:border-info font-mono"
+                        className="w-full h-7 px-1.5 text-[11.5px] border border-line rounded bg-paper outline-none focus:border-info font-mono"
                       />
                     </td>
                     <td className="px-3 py-1.5">
@@ -228,7 +228,7 @@ export function BulkEmailImporter() {
                                 onClick={() => patchRow(row.lineNumber, {
                                   altEmails: row.altEmails.filter((_, j) => j !== i),
                                 })}
-                                className="text-gray-400 hover:text-danger text-[14px] leading-none"
+                                className="text-slate hover:text-danger text-[14px] leading-none"
                                 title="Quitar este alternativo"
                               >×</button>
                             </li>

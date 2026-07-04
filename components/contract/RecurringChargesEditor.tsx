@@ -148,7 +148,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
           {charges.length > 0 && (
             <p className="text-[12px] text-slate-dark">
               Total activo: <strong className="text-ink tabular-nums">{fmtMoney(totalActive)}</strong>
-              <span className="text-gray-400 text-[10.5px] ml-2">sobre alquiler {fmtMoney(currentRent)}</span>
+              <span className="text-slate text-[10.5px] ml-2">sobre alquiler {fmtMoney(currentRent)}</span>
             </p>
           )}
         </div>
@@ -165,10 +165,10 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
         <div className="mb-2 text-[11.5px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">{error}</div>
       )}
 
-      <div className="border border-gray-200 rounded overflow-x-auto">
+      <div className="border border-line rounded overflow-x-auto">
         <table className="w-full text-[12.5px] border-collapse min-w-[700px]">
-          <thead className="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-600">
-            <tr className="border-b border-gray-200">
+          <thead className="bg-cream-2 text-[10px] uppercase tracking-wider text-slate-dark">
+            <tr className="border-b border-line">
               <th className="text-left  px-2 py-1.5 font-medium w-[130px]">Etiqueta</th>
               <th className="text-right px-2 py-1.5 font-medium w-[92px]">Monto</th>
               <th className="text-left  px-2 py-1.5 font-medium">Tipo</th>
@@ -180,13 +180,13 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
           </thead>
           <tbody>
             {!loaded && (
-              <tr><td colSpan={7} className="p-3 text-center text-gray-500 italic">Cargando…</td></tr>
+              <tr><td colSpan={7} className="p-3 text-center text-slate italic">Cargando…</td></tr>
             )}
             {loaded && charges.length === 0 && (
-              <tr><td colSpan={7} className="p-3 text-center text-gray-500 italic">Sin recargos cargados.</td></tr>
+              <tr><td colSpan={7} className="p-3 text-center text-slate italic">Sin recargos cargados.</td></tr>
             )}
             {charges.map(r => (
-              <tr key={r.id} className="border-b border-gray-100 hover:bg-cream/30">
+              <tr key={r.id} className="border-b border-line hover:bg-cream/30">
                 <td className="px-2 py-1">
                   <input
                     type="text"
@@ -259,7 +259,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
                     onClick={() => removeRow(r.id)}
                     title="Eliminar"
                     disabled={pending}
-                    className="text-gray-400 hover:text-danger transition-colors px-1 disabled:opacity-50"
+                    className="text-slate hover:text-danger transition-colors px-1 disabled:opacity-50"
                   >×</button>
                 </td>
               </tr>
@@ -273,8 +273,8 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
       </datalist>
 
       {/* Add new */}
-      <div className="mt-3 bg-cream/40 border border-gray-200 rounded p-2">
-        <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium mb-1.5">
+      <div className="mt-3 bg-cream/40 border border-line rounded p-2">
+        <p className="text-[10px] uppercase tracking-wider text-slate-dark font-medium mb-1.5">
           + Agregar recargo
         </p>
         <div className="grid grid-cols-[130px_92px_minmax(110px,1fr)_130px_100px_auto] gap-2 items-center">
@@ -285,7 +285,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
             onChange={e => setDraft(s => ({ ...s, label: e.target.value }))}
             onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
             placeholder="ABL, THU, Camuzzi..."
-            className="h-8 px-2 rounded border border-gray-300 bg-white text-[12.5px] outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
           />
           <input
             type="number"
@@ -294,12 +294,12 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
             onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
             placeholder="Monto"
             step="0.01"
-            className="h-8 px-2 rounded border border-gray-300 bg-white text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
           />
           <select
             value={draft.recuperoTypeCode}
             onChange={e => setDraft(s => ({ ...s, recuperoTypeCode: e.target.value }))}
-            className="h-8 px-2 rounded border border-gray-300 bg-white text-[12px] outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info"
           >
             {SUGGESTED_TYPE_CODES.map(t => (
               <option key={t.code} value={t.code}>{t.label}</option>
@@ -310,13 +310,13 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
             value={draft.startPeriod}
             onChange={e => setDraft(s => ({ ...s, startPeriod: e.target.value }))}
             title="Desde qué mes se cobra"
-            className="h-8 px-2 rounded border border-gray-300 bg-white text-[12px] outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info"
           />
           <select
             value={draft.intervalMonths}
             onChange={e => setDraft(s => ({ ...s, intervalMonths: Number(e.target.value) }))}
             title="Cada cuánto se cobra"
-            className="h-8 px-2 rounded border border-gray-300 bg-white text-[12px] outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info"
           >
             {INTERVAL_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
           </select>

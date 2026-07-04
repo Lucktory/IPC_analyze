@@ -491,14 +491,14 @@ export function EditPropertyForm({
                   min={0}
                   step="any"
                   placeholder="Ej. 460000"
-                  className="w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors"
+                  className="w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info transition-colors"
                 />
               </Field>
               <Field label="Estado">
                 <select
                   value={depositStatus}
                   onChange={e => setDepositStatus(e.target.value)}
-                  className="w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors"
+                  className="w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info transition-colors"
                 >
                   {Object.entries(DEPOSIT_STATUS_LABEL).map(([v, lbl]) => (
                     <option key={v} value={v}>{lbl}</option>
