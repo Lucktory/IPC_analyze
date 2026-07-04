@@ -39,7 +39,8 @@ export function InlineIvaToggleCell({
   const buttonRef = useRef<HTMLButtonElement>(null)
   const router    = useRouter()
 
-  const rect = useFloatingPopover({ open, anchor: buttonRef.current, minWidth: 160 })
+  const [popoverEl, setPopoverEl] = useState<HTMLElement | null>(null)
+  const rect = useFloatingPopover({ open, anchor: buttonRef.current, popover: popoverEl, minWidth: 160 })
 
   const effective = optimistic ?? includesIva
 
@@ -101,7 +102,7 @@ export function InlineIvaToggleCell({
           <div className="fixed inset-0 z-[999]" onClick={() => setOpen(false)} />
 
           <ul
-            style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
+            ref={setPopoverEl} style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
             className="bg-paper border border-line rounded shadow-lg py-0.5"
           >
             <li

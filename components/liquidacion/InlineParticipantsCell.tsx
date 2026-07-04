@@ -120,7 +120,8 @@ export function InlineParticipantsCell({
 
   const buttonRef = useRef<HTMLButtonElement>(null)
   const router    = useRouter()
-  const rect = useFloatingPopover({ open, anchor: buttonRef.current, minWidth: 360 })
+  const [popoverEl, setPopoverEl] = useState<HTMLElement | null>(null)
+  const rect = useFloatingPopover({ open, anchor: buttonRef.current, popover: popoverEl, minWidth: 360 })
 
   // Re-hydrate every time the popover opens so external refreshes
   // (router.refresh after another row edit) propagate in. Also re-run
@@ -255,7 +256,7 @@ export function InlineParticipantsCell({
           {/* click-outside catcher — closes without saving */}
           <div className="fixed inset-0 z-[999]" onClick={() => setOpen(false)} />
           <div
-            style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
+            ref={setPopoverEl} style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
             className="bg-paper border border-line rounded shadow-lg"
             onMouseDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}

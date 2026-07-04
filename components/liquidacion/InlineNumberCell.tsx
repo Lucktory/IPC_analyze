@@ -73,7 +73,8 @@ export function InlineNumberCell({
   const inputRef  = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  const rect = useFloatingPopover({ open, anchor: buttonRef.current, minWidth: 240 })
+  const [popoverEl, setPopoverEl] = useState<HTMLElement | null>(null)
+  const rect = useFloatingPopover({ open, anchor: buttonRef.current, popover: popoverEl, minWidth: 240 })
 
   const shown = optimistic ?? value
 
@@ -150,7 +151,7 @@ export function InlineNumberCell({
 
       {open && rect && createPortal(
         <div
-          style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
+          ref={setPopoverEl} style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
           className="bg-paper border border-line rounded shadow-lg p-2"
           onMouseDown={e => e.stopPropagation()}
         >

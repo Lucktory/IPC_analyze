@@ -119,7 +119,8 @@ export function InlineIngresosCell({
   const buttonRef = useRef<HTMLButtonElement>(null)
   const router    = useRouter()
 
-  const rect = useFloatingPopover({ open, anchor: buttonRef.current, minWidth: 460 })
+  const [popoverEl, setPopoverEl] = useState<HTMLElement | null>(null)
+  const rect = useFloatingPopover({ open, anchor: buttonRef.current, popover: popoverEl, minWidth: 460 })
 
   // Filter lines to the popover's scope (Phase 9C). The grid passes the
   // FULL ingresosLines array; the cell decides which to show based on
@@ -292,7 +293,7 @@ export function InlineIngresosCell({
         <>
           <div className="fixed inset-0 z-[999]" onClick={save} />
           <div
-            style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
+            ref={setPopoverEl} style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
             className="bg-paper border border-line rounded shadow-lg"
             onMouseDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}

@@ -61,7 +61,8 @@ export function InlineEntityCell({
   const inputRef  = useRef<HTMLInputElement>(null)
   const router    = useRouter()
 
-  const rect = useFloatingPopover({ open, anchor: buttonRef.current, minWidth: 320 })
+  const [popoverEl, setPopoverEl] = useState<HTMLElement | null>(null)
+  const rect = useFloatingPopover({ open, anchor: buttonRef.current, popover: popoverEl, minWidth: 320 })
 
   const shown = optimisticName ?? currentName
 
@@ -173,7 +174,7 @@ export function InlineEntityCell({
         <>
           <div className="fixed inset-0 z-[999]" onClick={commit} />
           <div
-            style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
+            ref={setPopoverEl} style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
             className="bg-paper border border-line rounded shadow-lg"
             onMouseDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}

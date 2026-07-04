@@ -27,7 +27,8 @@ interface Props {
 export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
   const [open, setOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const rect = useFloatingPopover({ open, anchor: buttonRef.current, minWidth: 380 })
+  const [popoverEl, setPopoverEl] = useState<HTMLElement | null>(null)
+  const rect = useFloatingPopover({ open, anchor: buttonRef.current, popover: popoverEl, minWidth: 380 })
 
   useEffect(() => {
     if (!open) return
@@ -70,7 +71,7 @@ export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
         <>
           <div className="fixed inset-0 z-[999]" onClick={() => setOpen(false)} />
           <div
-            style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
+            ref={setPopoverEl} style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
             className="bg-paper border border-line rounded shadow-lg p-4"
             onClick={e => e.stopPropagation()}
           >
