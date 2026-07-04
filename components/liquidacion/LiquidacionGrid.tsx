@@ -92,13 +92,13 @@ function cellTextClass(done: boolean): string {
   return done ? 'text-ink' : 'text-slate'
 }
 
-// Note: validation-error / validation-warning row tints are SOLID (bg-red-50
-// / bg-orange-50). Earlier they used bg-danger/10 / bg-warn/10 (10% alpha)
-// which produced a sticky-vs-non-sticky color mismatch — sticky cells need
-// an opaque background to block horizontally-scrolled content, so they had
-// to be solid, while the rest of the row was translucent → the two columns
-// rendered as visibly different shades of pink/orange. Going solid on the
-// row matches both sides and keeps the bleed-through fix in place.
+// Row status tints use the OPAQUE themed tokens bg-row-danger / bg-row-warn /
+// bg-row-edited (defined in globals.css, flip with data-theme). They must be
+// opaque, not a translucent bg-danger/10, because sticky cells need a solid
+// background to block horizontally-scrolled content — a translucent row would
+// render sticky vs non-sticky columns as visibly different shades. Three
+// distinct hues (red / amber / violet) keep error, warning and just-edited
+// legible at a glance in both light and dark.
 
 // ── Column widths (in px). Sticky-left runs from col 1 → 4 (OBS, LFA,
 //    FECHA BANCO, PROPIETARIO) to mirror Excel "freeze through column E"
@@ -145,10 +145,11 @@ const W = {
   check: 55,
 }
 const STICKY_LEFTS = {
-  obs:    0,
-  lfa:    W.obs,
-  fbanco: W.obs + W.lfa,
-  prop:   W.obs + W.lfa + W.fbanco,
+  check:  0,
+  obs:    W.check,
+  lfa:    W.check + W.obs,
+  fbanco: W.check + W.obs + W.lfa,
+  prop:   W.check + W.obs + W.lfa + W.fbanco,
 }
 
 function fmtVigencia(start: string | null, end: string | null): string {
@@ -254,6 +255,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
         <table className="w-full text-[12px] border-collapse" style={{ minWidth: tableMinWidth }}>
           <thead className="bg-cream-2 text-[10px] uppercase tracking-wider text-slate-dark font-semibold">
             <tr className="border-b border-line">
+              {/* 0 */}<Th sticky left={STICKY_LEFTS.check}  width={W.check}  align="center">Check</Th>
               {/* 1 */}<Th sticky left={STICKY_LEFTS.obs}    width={W.obs}>Observación</Th>
               {/* 2 */}<Th sticky left={STICKY_LEFTS.lfa}    width={W.lfa}    align="center">LFA</Th>
               {/* 3 */}<Th sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} align="center">F. banco</Th>
@@ -280,7 +282,6 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               {/* 18 */}<Th width={W.fr516}     align="right">BBVA 51/6</Th>
               {/* 19 */}<Th width={W.estado}    align="center">Estado</Th>
               {/* 20 */}<Th width={W.mail}      align="center">Mail</Th>
-              {/* 21 */}<Th width={W.check}     align="center">Check</Th>
             </tr>
           </thead>
           <tbody>
@@ -333,6 +334,10 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                   data-contract-id={r.contractId}
                   className={`${zebra} hover:bg-info/10 transition-colors border-b border-line [&:has([data-editing])]:bg-info/20 [&:has([data-editing])]:ring-2 [&:has([data-editing])]:ring-info [&:has([data-editing])]:ring-inset`}
                 >
+                  {/* 0. CHECK — sticky, up front so validation state is visible without scrolling right */}
+                  <Td sticky left={STICKY_LEFTS.check} width={W.check} bg={zebra} align="center">
+                    <ValidationBadgeCell issues={issues} />
+                  </Td>
                   {/* 1. OBSERVACIÓN — sticky */}
                   <Td sticky left={STICKY_LEFTS.obs} width={W.obs} bg={zebra}>
                     <InlineObservacionCell
@@ -770,9 +775,6 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                        count badge if there are warnings/errors. Click →
                        popover with each issue's message, expected, actual,
                        and difference. */}
-                  <Td width={W.check} align="center">
-                    <ValidationBadgeCell issues={issues} />
-                  </Td>
                 </tr>
               )
             })}
@@ -784,6 +786,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               exactly under the data. Empty cells render blank. */}
           <tfoot className="bg-cream-2 text-[11px] font-medium text-ink">
             <tr className="border-t-2 border-line">
+              <Tf sticky left={STICKY_LEFTS.check}  width={W.check}  align="center" />
               <Tf sticky left={STICKY_LEFTS.obs}    width={W.obs}    align="left">TOTAL</Tf>
               <Tf sticky left={STICKY_LEFTS.lfa}    width={W.lfa}    align="center" />
               <Tf sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} align="center" />
@@ -809,7 +812,6 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <Tf width={W.fr516}     align="right" tabular>{footerMoney(totals.admFrances516)}</Tf>
               <Tf width={W.estado}    align="center"    />
               <Tf width={W.mail}      align="center"    />
-              <Tf width={W.check}     align="center"    />
             </tr>
           </tfoot>
         </table>

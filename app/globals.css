@@ -18,7 +18,7 @@
   /* Surfaces — warmer than pure white/gray, Linear-inspired */
   --color-paper:        255 255 255;   /* #FFFFFF — card surface */
   --color-cream:        250 248 244;   /* #FAF8F4 — page background, warm */
-  --color-cream-2:      242 239 233;   /* #F2EFE9 — zebra row / hover */
+  --color-cream-2:      245 244 241;   /* #F5F4F1 — zebra / hover, cleaner neutral */
   --color-line:         232 229 224;   /* #E8E5E0 — border, warm */
 
   /* Text */
@@ -29,15 +29,15 @@
 
   /* Semantic — same hue, work on both surfaces */
   --color-success:      22  163 74;    /* #16A34A */
-  --color-warn:         242 153 74;    /* #F2994A */
+  --color-warn:         217 119 6;     /* #D97706 — clean amber, clearer than the old muddy orange */
   --color-danger:       220 38  38;    /* #DC2626 */
   --color-info:         37  99  235;   /* #2563EB */
 
   /* Row tints — OPAQUE (sticky cells need a solid bg to block scrolled
      content); flip with the theme. Light = the pale -100 Tailwind shades. */
-  --row-danger:         254 226 226;   /* #FEE2E2 — validation error row */
-  --row-warn:           255 237 213;   /* #FFEDD5 — validation warning row */
-  --row-edited:         254 249 195;   /* #FEF9C3 — recently edited row */
+  --row-danger:         253 232 232;   /* #FDE8E8 — error row (soft red) */
+  --row-warn:           252 240 219;   /* #FCF0DB — warning row (soft amber) */
+  --row-edited:         237 233 251;   /* #EDE9FB — recently edited (soft violet, distinct from the amber warning) */
 
   /* Sidebar — stays dark in both themes for hierarchy, but uses darker
      anchor color in dark mode so it reads as a distinct vertical band. */
@@ -72,9 +72,9 @@
 
   /* Row tints — opaque warm-dark surfaces that read as subtle status tints
      against the near-black page, matching the light -100 shades' intent. */
-  --row-danger:         48  28  30;    /* warm dark red */
-  --row-warn:           46  36  22;    /* warm dark amber */
-  --row-edited:         44  42  26;    /* warm dark yellow */
+  --row-danger:         58  30  33;    /* dark red tint */
+  --row-warn:           56  44  26;    /* dark amber tint */
+  --row-edited:         42  35  60;    /* dark violet tint, distinct from the amber warning */
 
   /* Sidebar in dark: darker than page bg so it reads as an anchored band */
   --color-nav-bg:       9   9   11;    /* #09090B — anchored sidebar in dark */
