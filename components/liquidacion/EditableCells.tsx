@@ -238,7 +238,7 @@ export function EditableStatusCell({
   const nextStatus = shown === 'draft' ? 'sent' : shown === 'sent' ? 'paid' : 'draft'
 
   const dotCls =
-    shown === 'draft' ? 'bg-gray-400' :
+    shown === 'draft' ? 'bg-slate' :
     shown === 'sent'  ? 'bg-success'  :
                         'bg-info'
   const labelCls =
@@ -268,7 +268,7 @@ export function EditableStatusCell({
       title={`Estado: ${labelCls} · Click para pasar a ${
         nextStatus === 'draft' ? 'borrador' : nextStatus === 'sent' ? 'enviada' : 'pagada'
       }`}
-      className={`inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors ${pending ? 'opacity-60' : ''}`}
+      className={`inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-info/10 transition-colors ${pending ? 'opacity-60' : ''}`}
     >
       <span className={`inline-block w-2 h-2 rounded-full ${dotCls}`} />
       <span className="text-[10px] text-slate-dark">{labelCls.slice(0, 4)}</span>

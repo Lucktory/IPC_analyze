@@ -60,21 +60,21 @@ export function RecurringChargesModal({
       {/* text-left resets the text-align inherited from the planilla's
           right-aligned Recargos <td> (this modal is rendered inside that cell,
           not portaled), which otherwise right-aligns every label and paragraph. */}
-      <div className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[880px] max-h-[92vh] overflow-y-auto text-left">
-        <div className="px-5 py-3 border-b border-gray-200 sticky top-0 bg-white z-10 flex items-center justify-between">
+      <div className="relative bg-paper border border-line rounded shadow-xl w-full max-w-[880px] max-h-[92vh] overflow-y-auto text-left">
+        <div className="px-5 py-3 border-b border-line sticky top-0 bg-paper z-10 flex items-center justify-between">
           <div>
             <h2 className="font-display text-[15px] font-medium text-ink">
               Recargos · {periodLabel(period)}
             </h2>
             {contractLabel && (
-              <p className="text-[11.5px] text-gray-500 mt-0.5">{contractLabel}</p>
+              <p className="text-[11.5px] text-slate mt-0.5">{contractLabel}</p>
             )}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="text-gray-400 hover:text-ink transition-colors text-[18px] leading-none px-2 py-1"
+            className="text-slate hover:text-ink transition-colors text-[18px] leading-none px-2 py-1"
           >×</button>
         </div>
 

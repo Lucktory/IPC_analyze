@@ -87,7 +87,7 @@ export function InlineDateRangeCell({ startDate, endDate, onSave, displayClassNa
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={title}
-        className={`w-full text-center px-0 hover:bg-blue-50 transition-colors tabular-nums text-[11px] truncate ${displayClassName ?? 'text-slate-dark'} ${pending ? 'opacity-60' : ''}`}
+        className={`w-full text-center px-0 hover:bg-info/10 transition-colors tabular-nums text-[11px] truncate ${displayClassName ?? 'text-slate-dark'} ${pending ? 'opacity-60' : ''}`}
       >
         {fmtCell(shownStart, shownEnd)}
         {error && <span className="block text-[9px] text-danger truncate" title={error}>{error}</span>}
@@ -98,14 +98,14 @@ export function InlineDateRangeCell({ startDate, endDate, onSave, displayClassNa
           <div className="fixed inset-0 z-[999]" onClick={cancel} />
           <div
             style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
-            className="bg-white border border-gray-300 rounded shadow-lg p-2"
+            className="bg-paper border border-line rounded shadow-lg p-2"
             onMouseDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}
           >
-            <p className="label-cap text-gray-500 mb-1">Vigencia</p>
+            <p className="label-cap text-slate mb-1">Vigencia</p>
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="text-[10px] text-gray-500">Desde</span>
+                <span className="text-[10px] text-slate">Desde</span>
                 <input
                   type="date"
                   value={draftStart}
@@ -114,11 +114,11 @@ export function InlineDateRangeCell({ startDate, endDate, onSave, displayClassNa
                     if (e.key === 'Enter')  { e.preventDefault(); commit() }
                     if (e.key === 'Escape') { e.preventDefault(); cancel() }
                   }}
-                  className="w-full h-8 px-2 text-[12px] border border-gray-300 rounded outline-none focus:border-info"
+                  className="w-full h-8 px-2 text-[12px] border border-line rounded outline-none focus:border-info"
                 />
               </label>
               <label className="block">
-                <span className="text-[10px] text-gray-500">Hasta</span>
+                <span className="text-[10px] text-slate">Hasta</span>
                 <input
                   type="date"
                   value={draftEnd}
@@ -127,13 +127,13 @@ export function InlineDateRangeCell({ startDate, endDate, onSave, displayClassNa
                     if (e.key === 'Enter')  { e.preventDefault(); commit() }
                     if (e.key === 'Escape') { e.preventDefault(); cancel() }
                   }}
-                  className="w-full h-8 px-2 text-[12px] border border-gray-300 rounded outline-none focus:border-info"
+                  className="w-full h-8 px-2 text-[12px] border border-line rounded outline-none focus:border-info"
                 />
               </label>
             </div>
             {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
             <div className="flex items-center justify-end gap-1.5 mt-2">
-              <button type="button" onClick={cancel} className="px-2 py-1 text-[11px] text-gray-600 hover:text-ink">Cancelar</button>
+              <button type="button" onClick={cancel} className="px-2 py-1 text-[11px] text-slate-dark hover:text-ink">Cancelar</button>
               <button type="button" onClick={commit} className="px-2 py-1 text-[11px] bg-ink text-paper rounded font-medium">Guardar</button>
             </div>
           </div>

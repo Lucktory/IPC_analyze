@@ -161,7 +161,7 @@ export function InlineEntityCell({
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={`Tocá para editar ${entityLabel}`}
-        className={`w-full text-left px-0 hover:bg-blue-50 transition-colors truncate block ${displayClassName ?? 'text-slate-dark'} ${pendingPick ? 'opacity-60' : ''}`}
+        className={`w-full text-left px-0 hover:bg-info/10 transition-colors truncate block ${displayClassName ?? 'text-slate-dark'} ${pendingPick ? 'opacity-60' : ''}`}
       >
         <span className="truncate block">{shown || <span className="text-slate/60">— sin {entityLabel} —</span>}</span>
         {hint && <span className="text-[9px] text-slate block">{hint}</span>}
@@ -174,11 +174,11 @@ export function InlineEntityCell({
           <div className="fixed inset-0 z-[999]" onClick={commit} />
           <div
             style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
-            className="bg-white border border-gray-300 rounded shadow-lg"
+            className="bg-paper border border-line rounded shadow-lg"
             onMouseDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}
           >
-            <div className="p-2 border-b border-gray-200">
+            <div className="p-2 border-b border-line">
               <input
                 ref={inputRef}
                 type="text"
@@ -205,13 +205,13 @@ export function InlineEntityCell({
                     setOpen(false)
                   }
                 }}
-                className="w-full h-9 px-2 text-[13px] border border-gray-300 rounded outline-none focus:border-info text-ink"
+                className="w-full h-9 px-2 text-[13px] border border-line rounded outline-none focus:border-info text-ink"
               />
             </div>
 
             <ul role="listbox" className="max-h-[260px] overflow-y-auto py-0.5">
               {matches.length === 0 && (
-                <li className="px-3 py-2 text-[12px] text-gray-500 italic">
+                <li className="px-3 py-2 text-[12px] text-slate italic">
                   Sin coincidencias.
                 </li>
               )}
@@ -227,13 +227,13 @@ export function InlineEntityCell({
                     onMouseEnter={() => setHighlight(i)}
                     className={[
                       'relative pl-3 pr-2 py-1.5 text-[12.5px] cursor-pointer transition-colors',
-                      isHL ? 'bg-info/10 text-ink' : 'text-slate-dark hover:bg-gray-50',
+                      isHL ? 'bg-info/10 text-ink' : 'text-slate-dark hover:bg-cream-2',
                     ].join(' ')}
                   >
                     {isHL && <span className="absolute left-0 top-1 bottom-1 w-[2px] bg-info rounded-r" aria-hidden />}
                     <span className="truncate block">
                       {m.name}
-                      {isCurrent && <span className="text-[10px] text-gray-500 ml-2">· actual</span>}
+                      {isCurrent && <span className="text-[10px] text-slate ml-2">· actual</span>}
                     </span>
                   </li>
                 )
@@ -249,7 +249,7 @@ export function InlineEntityCell({
                 setModalName(typed)
                 setOpen(false)
               }}
-              className="w-full text-left px-3 py-2 border-t border-gray-200 bg-warn/10 hover:bg-warn/20 text-[12.5px] text-ink font-medium transition-colors"
+              className="w-full text-left px-3 py-2 border-t border-line bg-warn/10 hover:bg-warn/20 text-[12.5px] text-ink font-medium transition-colors"
             >
               + Crear nuevo {entityLabel}{value.trim() ? `: «${value.trim()}»` : ''}
             </button>

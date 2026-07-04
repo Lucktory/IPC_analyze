@@ -50,7 +50,7 @@ export function RecurringChargesPanel({ summary, period, editHref }: Props) {
                 <span aria-hidden className="text-[18px] text-center font-medium leading-none">
                   {l.recorded === true && <span className="text-success">✓</span>}
                   {l.recorded === false && <span className="text-warn">⚠</span>}
-                  {l.recorded === null && <span className="text-gray-300">·</span>}
+                  {l.recorded === null && <span className="text-slate">·</span>}
                 </span>
                 <span className="text-slate-dark">
                   <strong className="text-ink font-medium">{l.label}</strong>

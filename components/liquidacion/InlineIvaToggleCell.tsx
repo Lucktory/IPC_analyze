@@ -84,14 +84,14 @@ export function InlineIvaToggleCell({
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={tooltip}
-        className={`w-full text-right px-0 hover:bg-blue-50 transition-colors ${pending ? 'opacity-60' : ''}`}
+        className={`w-full text-right px-0 hover:bg-info/10 transition-colors ${pending ? 'opacity-60' : ''}`}
       >
         {effective ? (
           <span className={`tabular-nums ${amountClassName}`}>
             {ivaAmount > 0 ? fmtMoney(ivaAmount) : '—'}
           </span>
         ) : (
-          <span className="tabular-nums text-gray-400">—</span>
+          <span className="tabular-nums text-slate">—</span>
         )}
         {error && <span className="block text-[9px] text-danger truncate" title={error}>{error}</span>}
       </button>
@@ -102,21 +102,21 @@ export function InlineIvaToggleCell({
 
           <ul
             style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
-            className="bg-white border border-gray-300 rounded shadow-lg py-0.5"
+            className="bg-paper border border-line rounded shadow-lg py-0.5"
           >
             <li
               onClick={() => pick(true)}
-              className={`px-3 py-1.5 text-[12.5px] cursor-pointer ${effective ? 'bg-info/10 text-ink font-medium' : 'text-slate-dark hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 text-[12.5px] cursor-pointer ${effective ? 'bg-info/10 text-ink font-medium' : 'text-slate-dark hover:bg-cream-2'}`}
               title="RI: la comisión se factura con IVA 21% incluido"
             >
-              Con IVA 21% <span className="text-gray-400 text-[10.5px] ml-1">(RI)</span>
+              Con IVA 21% <span className="text-slate text-[10.5px] ml-1">(RI)</span>
             </li>
             <li
               onClick={() => pick(false)}
-              className={`px-3 py-1.5 text-[12.5px] cursor-pointer ${!effective ? 'bg-info/10 text-ink font-medium' : 'text-slate-dark hover:bg-gray-50'}`}
+              className={`px-3 py-1.5 text-[12.5px] cursor-pointer ${!effective ? 'bg-info/10 text-ink font-medium' : 'text-slate-dark hover:bg-cream-2'}`}
               title="Monotributo: la comisión se factura sin IVA"
             >
-              Sin IVA <span className="text-gray-400 text-[10.5px] ml-1">(Monotributo)</span>
+              Sin IVA <span className="text-slate text-[10.5px] ml-1">(Monotributo)</span>
             </li>
           </ul>
         </>,

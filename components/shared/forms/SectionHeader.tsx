@@ -11,7 +11,7 @@ interface Props {
 
 export function SectionHeader({ label, rightAdornment }: Props) {
   return (
-    <div className="flex items-center justify-between mb-2 pb-1 border-b border-gray-200">
+    <div className="flex items-center justify-between mb-2 pb-1 border-b border-line">
       <h3 className="font-display text-[13px] font-medium text-ink">{label}</h3>
       {rightAdornment}
     </div>

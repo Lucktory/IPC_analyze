@@ -235,7 +235,7 @@ export function InlineParticipantsCell({
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={isOrphan && orphanReason ? `⚠ ${orphanReason} — click para cargar` : undefined}
-        className={`w-full text-left px-1 py-0.5 rounded hover:bg-blue-50 transition-colors ${
+        className={`w-full text-left px-1 py-0.5 rounded hover:bg-info/10 transition-colors ${
           isOrphan ? 'bg-warn/15 ring-1 ring-warn/40' : ''
         }`}
       >
@@ -256,12 +256,12 @@ export function InlineParticipantsCell({
           <div className="fixed inset-0 z-[999]" onClick={() => setOpen(false)} />
           <div
             style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
-            className="bg-white border border-gray-300 rounded shadow-lg"
+            className="bg-paper border border-line rounded shadow-lg"
             onMouseDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+            <div className="px-3 py-2 border-b border-line flex items-center justify-between bg-cream-2">
               <span className="font-display text-[12.5px] font-medium text-ink capitalize">
                 {entityLabelPlural} del contrato
               </span>
@@ -309,12 +309,12 @@ export function InlineParticipantsCell({
             )}
 
             {/* Footer */}
-            <div className="px-3 py-2 border-t border-gray-200 flex items-center justify-end gap-1.5 bg-gray-50">
+            <div className="px-3 py-2 border-t border-line flex items-center justify-end gap-1.5 bg-cream-2">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 disabled={pending}
-                className="px-2 py-1 text-[11px] text-gray-600 hover:text-ink"
+                className="px-2 py-1 text-[11px] text-slate-dark hover:text-ink"
               >
                 Cancelar
               </button>
@@ -349,7 +349,7 @@ export function InlineParticipantsCell({
 // ────────────────────────────────────────────────────────────────────────────
 
 const INPUT_CLASS =
-  'w-full h-8 px-2 rounded border border-gray-300 bg-white text-[12px] outline-none focus:border-info transition-colors'
+  'w-full h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info transition-colors'
 
 function ChipRowEditor({
   row, options, entityLabel, canRemove,
@@ -406,7 +406,7 @@ function ChipRowEditor({
           type="button"
           disabled
           title="Tiene que quedar al menos uno"
-          className="h-8 px-2.5 text-[11px] rounded text-gray-200 cursor-not-allowed"
+          className="h-8 px-2.5 text-[11px] rounded text-slate cursor-not-allowed"
         >×</button>
       )}
     </div>

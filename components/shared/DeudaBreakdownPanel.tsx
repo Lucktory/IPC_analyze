@@ -121,7 +121,7 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
               </span>
             </span>
             <span className="inline-flex items-baseline gap-2">
-              <span className={`tabular-nums ${applyIntereses ? 'text-ink' : 'text-gray-400 line-through'}`}>
+              <span className={`tabular-nums ${applyIntereses ? 'text-ink' : 'text-slate line-through'}`}>
                 + {fmtMoney(breakdown.interesesEstimado)}
               </span>
               <input

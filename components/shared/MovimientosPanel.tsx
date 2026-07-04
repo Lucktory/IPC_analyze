@@ -131,10 +131,10 @@ export function MovimientosPanel({ contractId, period }: Props) {
         </div>
       )}
 
-      <div className="border border-gray-200 rounded overflow-x-auto">
+      <div className="border border-line rounded overflow-x-auto">
         <table className="w-full text-[12.5px] border-collapse min-w-[560px]">
-          <thead className="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-600">
-            <tr className="border-b border-gray-200">
+          <thead className="bg-cream-2 text-[10px] uppercase tracking-wider text-slate-dark">
+            <tr className="border-b border-line">
               <th className="text-left  px-2 py-1.5 font-medium w-[120px]">Fecha</th>
               <th className="text-left  px-2 py-1.5 font-medium w-[100px]">Mov.</th>
               <th className="text-right px-2 py-1.5 font-medium w-[120px]">Monto</th>
@@ -144,13 +144,13 @@ export function MovimientosPanel({ contractId, period }: Props) {
           </thead>
           <tbody>
             {!loaded && (
-              <tr><td colSpan={5} className="p-4 text-center text-gray-500 italic">Cargando…</td></tr>
+              <tr><td colSpan={5} className="p-4 text-center text-slate italic">Cargando…</td></tr>
             )}
             {loaded && rows.length === 0 && (
-              <tr><td colSpan={5} className="p-4 text-center text-gray-500 italic">No hay movimientos en este período.</td></tr>
+              <tr><td colSpan={5} className="p-4 text-center text-slate italic">No hay movimientos en este período.</td></tr>
             )}
             {rows.map(r => (
-              <tr key={r.id} className="border-b border-gray-100 hover:bg-cream/30">
+              <tr key={r.id} className="border-b border-line hover:bg-cream/30">
                 <td className="px-2 py-1">
                   <input
                     type="date"
@@ -202,23 +202,23 @@ export function MovimientosPanel({ contractId, period }: Props) {
                     onClick={() => removeRow(r.id)}
                     title="Eliminar movimiento"
                     disabled={pending}
-                    className="text-gray-400 hover:text-danger transition-colors px-1 disabled:opacity-50"
+                    className="text-slate hover:text-danger transition-colors px-1 disabled:opacity-50"
                   >×</button>
                 </td>
               </tr>
             ))}
           </tbody>
           {rows.length > 0 && (
-            <tfoot className="bg-gray-50 border-t border-gray-200 text-[11.5px]">
+            <tfoot className="bg-cream-2 border-t border-line text-[11.5px]">
               <tr>
-                <td colSpan={2} className="px-2 py-1.5 text-gray-600">
+                <td colSpan={2} className="px-2 py-1.5 text-slate-dark">
                   {rows.length} movimiento{rows.length === 1 ? '' : 's'}
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
                   <div className="text-success">+ {fmtMoney(totalIn)}</div>
                   <div className="text-danger">- {fmtMoney(totalOut)}</div>
                 </td>
-                <td colSpan={2} className="px-2 py-1.5 text-right text-gray-700 font-medium tabular-nums">
+                <td colSpan={2} className="px-2 py-1.5 text-right text-slate-dark font-medium tabular-nums">
                   Neto: {fmtMoney(totalIn - totalOut)}
                 </td>
               </tr>
@@ -227,8 +227,8 @@ export function MovimientosPanel({ contractId, period }: Props) {
         </table>
       </div>
 
-      <div className="mt-3 bg-cream/40 border border-gray-200 rounded p-2">
-        <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium mb-1.5">
+      <div className="mt-3 bg-cream/40 border border-line rounded p-2">
+        <p className="text-[10px] uppercase tracking-wider text-slate-dark font-medium mb-1.5">
           + Agregar movimiento
         </p>
         <div className="grid grid-cols-[120px_100px_120px_1fr_auto] gap-2 items-center">
@@ -236,12 +236,12 @@ export function MovimientosPanel({ contractId, period }: Props) {
             type="date"
             value={draft.bankDate}
             onChange={e => setDraft(s => ({ ...s, bankDate: e.target.value }))}
-            className="h-8 px-2 rounded border border-gray-300 bg-white text-[12.5px] outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
           />
           <select
             value={draft.direction}
             onChange={e => setDraft(s => ({ ...s, direction: e.target.value as 'IN' | 'OUT' }))}
-            className={`h-8 px-2 rounded border border-gray-300 bg-white text-[12.5px] outline-none focus:border-info ${draft.direction === 'IN' ? 'text-success' : 'text-danger'}`}
+            className={`h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info ${draft.direction === 'IN' ? 'text-success' : 'text-danger'}`}
           >
             <option value="OUT">Salida</option>
             <option value="IN">Entrada</option>
@@ -253,7 +253,7 @@ export function MovimientosPanel({ contractId, period }: Props) {
             onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
             placeholder="Monto"
             step="0.01"
-            className="h-8 px-2 rounded border border-gray-300 bg-white text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
           />
           <input
             type="text"
@@ -261,7 +261,7 @@ export function MovimientosPanel({ contractId, period }: Props) {
             onChange={e => setDraft(s => ({ ...s, description: e.target.value }))}
             onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
             placeholder="Razón (ej. reparación plomería)"
-            className="h-8 px-2 rounded border border-gray-300 bg-white text-[12.5px] outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
           />
           <button
             type="button"

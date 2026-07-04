@@ -143,13 +143,13 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
   return createPortal(
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[1100] flex items-center justify-center px-4 text-left">
       <button type="button" aria-label="Cerrar" onClick={onClose} className="absolute inset-0 bg-ink/40 backdrop-blur-[1px]" />
-      <div className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[720px] max-h-[92vh] overflow-y-auto">
-        <div className="px-5 py-3 border-b border-gray-200 sticky top-0 bg-white z-10 flex items-center justify-between">
+      <div className="relative bg-paper border border-line rounded shadow-xl w-full max-w-[720px] max-h-[92vh] overflow-y-auto">
+        <div className="px-5 py-3 border-b border-line sticky top-0 bg-paper z-10 flex items-center justify-between">
           <div>
             <h2 className="font-display text-[15px] font-medium text-ink">Observaciones · {periodLabel(period)}</h2>
-            {contractLabel && <p className="text-[11.5px] text-gray-500 mt-0.5">{contractLabel}</p>}
+            {contractLabel && <p className="text-[11.5px] text-slate mt-0.5">{contractLabel}</p>}
           </div>
-          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-gray-400 hover:text-ink text-[18px] leading-none px-2 py-1">×</button>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-slate hover:text-ink text-[18px] leading-none px-2 py-1">×</button>
         </div>
 
         <div className="px-5 py-4 space-y-5">
@@ -167,20 +167,20 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
           />
 
           {/* Add */}
-          <div className="bg-cream/40 border border-gray-200 rounded p-2">
-            <p className="text-[10px] uppercase tracking-wider text-gray-600 font-medium mb-1.5">+ Agregar</p>
+          <div className="bg-cream/40 border border-line rounded p-2">
+            <p className="text-[10px] uppercase tracking-wider text-slate-dark font-medium mb-1.5">+ Agregar</p>
             <div className="grid grid-cols-[1fr_110px_110px_110px_auto] gap-2 items-center">
               <input
                 type="text" value={draft.description}
                 onChange={e => setDraft(s => ({ ...s, description: e.target.value }))}
                 onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
                 placeholder="Arreglo, ajuste…"
-                className="h-8 px-2 rounded border border-gray-300 bg-white text-[12.5px] outline-none focus:border-info"
+                className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
               />
               <select
                 value={draft.party}
                 onChange={e => setDraft(s => ({ ...s, party: e.target.value as EventParty }))}
-                className="h-8 px-2 rounded border border-gray-300 bg-white text-[12px] outline-none focus:border-info"
+                className="h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info"
               >
                 <option value={EVENT_PARTY.LANDLORD}>Al dueño</option>
                 <option value={EVENT_PARTY.TENANT}>Al inquilino</option>
@@ -190,13 +190,13 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
                 onChange={e => setDraft(s => ({ ...s, amount: e.target.value }))}
                 onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
                 placeholder="Monto"
-                className="h-8 px-2 rounded border border-gray-300 bg-white text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+                className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
               />
               <select
                 value={draft.cuando}
                 onChange={e => setDraft(s => ({ ...s, cuando: e.target.value as Draft['cuando'] }))}
                 title="Cuándo se descuenta/suma"
-                className="h-8 px-2 rounded border border-gray-300 bg-white text-[12px] outline-none focus:border-info"
+                className="h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info"
               >
                 <option value="este">Este mes</option>
                 <option value="proximo">Mes que viene</option>
@@ -293,7 +293,7 @@ function ReminderItem({
   }
 
   return (
-    <li className="grid grid-cols-[1fr_96px_72px_auto] gap-2 items-center border-b border-gray-100 py-1">
+    <li className="grid grid-cols-[1fr_96px_72px_auto] gap-2 items-center border-b border-line py-1">
       <input
         type="text" value={desc}
         onChange={e => setDesc(e.target.value)}
@@ -304,7 +304,7 @@ function ReminderItem({
       <select
         value={party}
         onChange={e => { const p = e.target.value as EventParty; setParty(p); commitAmounts(p, amount) }}
-        className="h-7 px-1.5 rounded border border-gray-300 bg-white text-[11.5px] outline-none focus:border-info"
+        className="h-7 px-1.5 rounded border border-line bg-paper text-[11.5px] outline-none focus:border-info"
       >
         <option value={EVENT_PARTY.LANDLORD}>Al dueño</option>
         <option value={EVENT_PARTY.TENANT}>Al inquilino</option>
@@ -314,13 +314,13 @@ function ReminderItem({
         onChange={e => setAmount(e.target.value)}
         onBlur={e => commitAmounts(party, e.target.value)}
         placeholder="Monto"
-        className="h-7 px-1.5 rounded border border-gray-300 bg-white text-[12px] text-right tabular-nums outline-none focus:border-info"
+        className="h-7 px-1.5 rounded border border-line bg-paper text-[12px] text-right tabular-nums outline-none focus:border-info"
       />
       <div className="flex items-center gap-2 justify-end">
         <span className={`text-[11px] tabular-nums font-medium ${effectClass} whitespace-nowrap`}>
           {fmtSignedMoney(effect)}
           {tone === 'negro' && event.appliesToPeriod && (
-            <span className="text-[10px] text-gray-500 ml-1">· {periodLabel(event.appliesToPeriod)}</span>
+            <span className="text-[10px] text-slate ml-1">· {periodLabel(event.appliesToPeriod)}</span>
           )}
         </span>
         {tone === 'rojo' && (
@@ -331,13 +331,13 @@ function ReminderItem({
             className={
               confirmed
                 ? 'text-[10px] px-1.5 py-0.5 rounded bg-success/10 border border-success/40 text-success whitespace-nowrap'
-                : 'text-[10px] px-1.5 py-0.5 rounded border border-gray-300 text-slate hover:border-success hover:text-success whitespace-nowrap'
+                : 'text-[10px] px-1.5 py-0.5 rounded border border-line text-slate hover:border-success hover:text-success whitespace-nowrap'
             }
           >
             {confirmed ? `✓ ${LABEL_COBRADO}` : LABEL_A_COBRAR}
           </button>
         )}
-        <button type="button" onClick={() => onRemove(event.id)} title="Eliminar" className="text-gray-400 hover:text-danger px-1">×</button>
+        <button type="button" onClick={() => onRemove(event.id)} title="Eliminar" className="text-slate hover:text-danger px-1">×</button>
       </div>
     </li>
   )

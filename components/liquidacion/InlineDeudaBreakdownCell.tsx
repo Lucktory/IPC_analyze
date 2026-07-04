@@ -38,7 +38,7 @@ export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
 
   const display = deuda > 0
     ? <span className="text-danger font-medium tabular-nums">{fmtMoney(deuda)}</span>
-    : <span className="text-gray-400 tabular-nums">—</span>
+    : <span className="text-slate tabular-nums">—</span>
 
   // Show clickable affordance only when there's something to expand:
   // either a non-zero current debt, a non-zero carryover, or estimable intereses.
@@ -61,7 +61,7 @@ export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title="Tocá para ver el desglose de la deuda"
-        className="w-full text-right hover:bg-blue-50 transition-colors px-0"
+        className="w-full text-right hover:bg-info/10 transition-colors px-0"
       >
         {display}
       </button>
@@ -71,7 +71,7 @@ export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
           <div className="fixed inset-0 z-[999]" onClick={() => setOpen(false)} />
           <div
             style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
-            className="bg-white border border-gray-300 rounded shadow-lg p-4"
+            className="bg-paper border border-line rounded shadow-lg p-4"
             onClick={e => e.stopPropagation()}
           >
             <DeudaBreakdownPanel breakdown={breakdown!} />

@@ -33,7 +33,7 @@ export function InlineMovimientosCell({
 
   const net = totalIn - totalOut
   const hasMovements = count > 0
-  const netClass = net > 0 ? 'text-success' : net < 0 ? 'text-danger' : 'text-gray-500'
+  const netClass = net > 0 ? 'text-success' : net < 0 ? 'text-danger' : 'text-slate'
 
   return (
     <>
@@ -43,17 +43,17 @@ export function InlineMovimientosCell({
         title={hasMovements
           ? `Ver y editar ${count} movimiento${count === 1 ? '' : 's'}. Entradas: ${fmtMoney(totalIn)} · Salidas: ${fmtMoney(totalOut)}.`
           : 'Sin movimientos en el período — tocá para agregar.'}
-        className="w-full text-right hover:bg-blue-50 transition-colors px-0"
+        className="w-full text-right hover:bg-info/10 transition-colors px-0"
       >
         {hasMovements ? (
           <span className="block">
             <span className={`tabular-nums ${netClass}`}>{fmtMoney(net)}</span>
-            <span className="block text-[9.5px] text-gray-500 leading-tight">
+            <span className="block text-[9.5px] text-slate leading-tight">
               {count} mov.
             </span>
           </span>
         ) : (
-          <span className="tabular-nums text-gray-400">—</span>
+          <span className="tabular-nums text-slate">—</span>
         )}
       </button>
 

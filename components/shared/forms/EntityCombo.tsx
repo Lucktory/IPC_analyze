@@ -25,7 +25,7 @@ interface Props {
 }
 
 const DEFAULT_INPUT_CLASS =
-  'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
+  'w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info transition-colors'
 
 export function EntityCombo({
   value,
@@ -93,10 +93,10 @@ export function EntityCombo({
         <ul
           role="listbox"
           style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1080 }}
-          className="bg-white border border-gray-300 rounded shadow-lg max-h-[240px] overflow-y-auto"
+          className="bg-paper border border-line rounded shadow-lg max-h-[240px] overflow-y-auto"
         >
           {filtered.length === 0 && (
-            <li className="px-3 py-1.5 text-[12px] text-gray-500 italic">
+            <li className="px-3 py-1.5 text-[12px] text-slate italic">
               {value.trim() ? 'Sin coincidencias.' : `Escribí para buscar un ${entityLabel}…`}
             </li>
           )}

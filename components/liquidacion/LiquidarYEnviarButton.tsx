@@ -169,42 +169,42 @@ export function LiquidarYEnviarButton({
             onClick={closeModal}
             className="absolute inset-0 bg-ink/40 backdrop-blur-[1px]"
           />
-          <div className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[640px] max-h-[92vh] overflow-y-auto">
-            <div className="px-5 py-3 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <div className="relative bg-paper border border-line rounded shadow-xl w-full max-w-[640px] max-h-[92vh] overflow-y-auto">
+            <div className="px-5 py-3 border-b border-line sticky top-0 bg-paper z-10">
               <h2 className="font-display text-[15px] font-medium text-ink">Liquidar y enviar mail</h2>
-              <p className="text-[11.5px] text-gray-500 mt-0.5">
+              <p className="text-[11.5px] text-slate mt-0.5">
                 Propietario: <strong className="text-ink">{landlordName}</strong>
               </p>
             </div>
 
             <div className="px-5 py-4 space-y-3">
               {pending && !summary && (
-                <p className="text-[12px] text-gray-500 italic">Preparando borrador…</p>
+                <p className="text-[12px] text-slate italic">Preparando borrador…</p>
               )}
 
               {summary && (
-                <div className="bg-gray-50 border border-gray-200 rounded p-3 text-[12px]">
+                <div className="bg-cream-2 border border-line rounded p-3 text-[12px]">
                   <div className="grid grid-cols-2 gap-1">
-                    <span className="text-gray-600">Total cobrado:</span>
+                    <span className="text-slate-dark">Total cobrado:</span>
                     <span className="text-right tabular-nums text-ink font-medium">{fmtMoney(summary.gross)}</span>
-                    <span className="text-gray-600">Comisión administración:</span>
+                    <span className="text-slate-dark">Comisión administración:</span>
                     <span className="text-right tabular-nums text-ink">{fmtMoney(summary.commission)}</span>
                     {summary.otros > 0 && (
                       <>
-                        <span className="text-gray-600">Otros descuentos:</span>
+                        <span className="text-slate-dark">Otros descuentos:</span>
                         <span className="text-right tabular-nums text-ink">{fmtMoney(summary.otros)}</span>
                       </>
                     )}
                     {summary.ajusteLines.map((l, i) => (
                       <Fragment key={i}>
-                        <span className="text-gray-600">{l.label}:</span>
+                        <span className="text-slate-dark">{l.label}:</span>
                         <span className={`text-right tabular-nums ${l.amount < 0 ? 'text-danger' : 'text-success'}`}>
                           {l.amount < 0 ? '− ' : '+ '}{fmtMoney(Math.abs(l.amount))}
                         </span>
                       </Fragment>
                     ))}
-                    <span className="text-gray-700 font-medium border-t border-gray-300 pt-1 mt-1">Neto a transferir:</span>
-                    <span className="text-right tabular-nums text-success font-display font-medium border-t border-gray-300 pt-1 mt-1">
+                    <span className="text-slate-dark font-medium border-t border-line pt-1 mt-1">Neto a transferir:</span>
+                    <span className="text-right tabular-nums text-success font-display font-medium border-t border-line pt-1 mt-1">
                       {fmtMoney(summary.netToLandlord)}
                     </span>
                   </div>
@@ -213,21 +213,21 @@ export function LiquidarYEnviarButton({
 
               {/* ── Sender (remitente) — persists in localStorage ── */}
               <label className="block">
-                <span className="text-[10px] uppercase tracking-wider text-gray-600 block mb-1">
+                <span className="text-[10px] uppercase tracking-wider text-slate-dark block mb-1">
                   Tu email (remitente / firma)
-                  <span className="text-gray-400 ml-1 normal-case font-normal">— se guarda para la próxima vez</span>
+                  <span className="text-slate ml-1 normal-case font-normal">— se guarda para la próxima vez</span>
                 </span>
                 <input
                   type="email"
                   value={senderEmail}
                   onChange={e => setSenderEmail(e.target.value)}
                   placeholder="tu-email@gmail.com"
-                  className="w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info"
+                  className="w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info"
                 />
               </label>
 
               <label className="block">
-                <span className="text-[10px] uppercase tracking-wider text-gray-600 block mb-1">
+                <span className="text-[10px] uppercase tracking-wider text-slate-dark block mb-1">
                   Email del propietario {!landlordEmail && <span className="text-warn">(no estaba cargado — ingresá uno)</span>}
                 </span>
                 <input
@@ -235,27 +235,27 @@ export function LiquidarYEnviarButton({
                   value={recipientDraft}
                   onChange={e => setRecipientDraft(e.target.value)}
                   placeholder="propietario@example.com"
-                  className="w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info"
+                  className="w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info"
                 />
               </label>
 
               <label className="block">
-                <span className="text-[10px] uppercase tracking-wider text-gray-600 block mb-1">Asunto</span>
+                <span className="text-[10px] uppercase tracking-wider text-slate-dark block mb-1">Asunto</span>
                 <input
                   type="text"
                   value={subjectDraft}
                   onChange={e => setSubjectDraft(e.target.value)}
-                  className="w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info"
+                  className="w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info"
                 />
               </label>
 
               <label className="block">
-                <span className="text-[10px] uppercase tracking-wider text-gray-600 block mb-1">Cuerpo del mail (editable)</span>
+                <span className="text-[10px] uppercase tracking-wider text-slate-dark block mb-1">Cuerpo del mail (editable)</span>
                 <textarea
                   value={bodyDraft}
                   onChange={e => setBodyDraft(e.target.value)}
                   rows={11}
-                  className="w-full px-2 py-2 rounded border border-gray-300 bg-white text-[12.5px] outline-none focus:border-info font-mono leading-relaxed resize-y"
+                  className="w-full px-2 py-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info font-mono leading-relaxed resize-y"
                 />
               </label>
 
@@ -265,7 +265,7 @@ export function LiquidarYEnviarButton({
                 </div>
               )}
 
-              <p className="text-[10.5px] text-gray-500 italic leading-snug">
+              <p className="text-[10.5px] text-slate italic leading-snug">
                 <strong>Abrir en Gmail</strong> abre Gmail web en una pestaña nueva con el mensaje listo — funciona sin configurar nada.
                 <br />
                 <strong>Abrir programa de mail</strong> usa el programa de mail del sistema (Outlook, Thunderbird) si está configurado.
@@ -274,12 +274,12 @@ export function LiquidarYEnviarButton({
               </p>
             </div>
 
-            <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-end gap-2 bg-gray-50 sticky bottom-0 flex-wrap">
+            <div className="px-5 py-3 border-t border-line flex items-center justify-end gap-2 bg-cream-2 sticky bottom-0 flex-wrap">
               <button
                 type="button"
                 onClick={closeModal}
                 disabled={pending}
-                className="px-3 py-1.5 rounded border border-gray-300 text-[12px] text-slate-dark hover:bg-gray-100 transition-colors"
+                className="px-3 py-1.5 rounded border border-line text-[12px] text-slate-dark hover:bg-cream-2 transition-colors"
               >
                 Cancelar
               </button>
@@ -288,7 +288,7 @@ export function LiquidarYEnviarButton({
                 onClick={() => send('mailto')}
                 disabled={pending || !summary}
                 title="Abrir Outlook / Thunderbird / programa de mail predeterminado"
-                className="px-3 py-1.5 rounded border border-gray-400 text-[12px] text-slate-dark hover:bg-gray-100 disabled:opacity-60 transition-colors"
+                className="px-3 py-1.5 rounded border border-line text-[12px] text-slate-dark hover:bg-cream-2 disabled:opacity-60 transition-colors"
               >
                 Abrir programa de mail
               </button>

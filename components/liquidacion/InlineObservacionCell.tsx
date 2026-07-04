@@ -46,7 +46,7 @@ export function InlineObservacionCell({ contractId, period, summary, contractLab
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title="Observaciones / arreglos / ajustes — tocá para ver y cargar"
-        className="w-full text-left px-1 -mx-1 rounded hover:bg-blue-50 transition-colors flex flex-col gap-0.5"
+        className="w-full text-left px-1 -mx-1 rounded hover:bg-info/10 transition-colors flex flex-col gap-0.5"
       >
         {hasAny ? (
           <>

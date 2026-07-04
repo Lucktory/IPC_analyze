@@ -63,7 +63,7 @@ export function InlineRecurringChargesCell({
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={tooltipParts.join(' · ')}
-        className="w-full text-right hover:bg-blue-50 transition-colors px-0 inline-flex items-center justify-end gap-1.5"
+        className="w-full text-right hover:bg-info/10 transition-colors px-0 inline-flex items-center justify-end gap-1.5"
       >
         {hasLines && summary ? (
           <>

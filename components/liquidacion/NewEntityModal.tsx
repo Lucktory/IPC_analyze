@@ -80,13 +80,13 @@ export function NewEntityModal({ entityType, defaultName, onCancel, onCreate }: 
 
       <form
         onSubmit={handleSubmit}
-        className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[460px]"
+        className="relative bg-paper border border-line rounded shadow-xl w-full max-w-[460px]"
       >
-        <div className="px-5 py-3 border-b border-gray-200">
+        <div className="px-5 py-3 border-b border-line">
           <h2 className="font-display text-[15px] font-medium text-ink">
             Nuevo {entityLabel}
           </h2>
-          <p className="text-[11.5px] text-gray-500 mt-0.5">
+          <p className="text-[11.5px] text-slate mt-0.5">
             Completá los datos opcionales si los tenés a mano. Podés editarlos después desde la ficha.
           </p>
         </div>
@@ -152,12 +152,12 @@ export function NewEntityModal({ entityType, defaultName, onCancel, onCreate }: 
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-end gap-2 bg-gray-50">
+        <div className="px-5 py-3 border-t border-line flex items-center justify-end gap-2 bg-cream-2">
           <button
             type="button"
             onClick={onCancel}
             disabled={pending}
-            className="px-3 py-1.5 rounded border border-gray-300 text-[12px] text-slate-dark hover:bg-gray-100 transition-colors"
+            className="px-3 py-1.5 rounded border border-line text-[12px] text-slate-dark hover:bg-cream-2 transition-colors"
           >
             Cancelar
           </button>
@@ -175,7 +175,7 @@ export function NewEntityModal({ entityType, defaultName, onCancel, onCreate }: 
   )
 }
 
-const inputCls = 'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
+const inputCls = 'w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info transition-colors'
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (

@@ -10,7 +10,7 @@
 import { EntityCombo } from './EntityCombo'
 
 const INPUT_CLASS =
-  'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
+  'w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info transition-colors'
 
 interface Props {
   input:           string
@@ -58,7 +58,7 @@ export function EntityRow({
         disabled={!onRemove}
         title={onRemove ? 'Quitar' : 'Tiene que quedar al menos uno'}
         className={`h-9 w-7 text-[18px] leading-none rounded ${
-          onRemove ? 'text-gray-400 hover:text-danger transition-colors' : 'text-gray-200 cursor-not-allowed'
+          onRemove ? 'text-slate hover:text-danger transition-colors' : 'text-slate cursor-not-allowed'
         }`}
       >×</button>
     </div>

@@ -142,7 +142,7 @@ export function InlineNumberCell({
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={title}
-        className={`w-full text-right px-0 hover:bg-blue-50 transition-colors tabular-nums truncate ${displayClassName ?? 'text-slate-dark'} ${pending ? 'opacity-60' : ''}`}
+        className={`w-full text-right px-0 hover:bg-info/10 transition-colors tabular-nums truncate ${displayClassName ?? 'text-slate-dark'} ${pending ? 'opacity-60' : ''}`}
       >
         {shown != null ? format(shown, fmt) : placeholder}
         {error && <span className="block text-[9px] text-danger truncate" title={error}>{error}</span>}
@@ -151,7 +151,7 @@ export function InlineNumberCell({
       {open && rect && createPortal(
         <div
           style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
-          className="bg-white border border-gray-300 rounded shadow-lg p-2"
+          className="bg-paper border border-line rounded shadow-lg p-2"
           onMouseDown={e => e.stopPropagation()}
         >
           {warnMessage && pendingValue !== null ? (
@@ -167,7 +167,7 @@ export function InlineNumberCell({
                 <button
                   type="button"
                   onClick={() => { setPendingValue(null); setWarnMessage(null); inputRef.current?.focus() }}
-                  className="px-2 py-1 text-[11.5px] rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                  className="px-2 py-1 text-[11.5px] rounded border border-line text-slate-dark hover:bg-cream-2"
                 >
                   Volver a editar
                 </button>
@@ -183,7 +183,7 @@ export function InlineNumberCell({
           ) : (
             <>
               <div className="flex items-center gap-1">
-                {unit && <span className="text-[12px] text-gray-500">{unit}</span>}
+                {unit && <span className="text-[12px] text-slate">{unit}</span>}
                 <input
                   ref={inputRef}
                   type="number"
@@ -198,11 +198,11 @@ export function InlineNumberCell({
                     // Defer in case the user clicks a popover button.
                     setTimeout(() => commit(), 50)
                   }}
-                  className="flex-1 h-8 px-2 text-[13px] border border-gray-300 rounded outline-none focus:border-info tabular-nums text-ink"
+                  className="flex-1 h-8 px-2 text-[13px] border border-line rounded outline-none focus:border-info tabular-nums text-ink"
                 />
               </div>
               {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
-              <p className="text-[10px] text-gray-500 mt-1 italic">Enter para guardar · Esc para cancelar</p>
+              <p className="text-[10px] text-slate mt-1 italic">Enter para guardar · Esc para cancelar</p>
             </>
           )}
         </div>,

@@ -72,7 +72,7 @@ export function InlineSelectCell({ value, options, onSave, displayClassName, tit
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={title}
-        className={`w-full text-center px-0 hover:bg-blue-50 transition-colors ${displayClassName ?? 'text-slate-dark'} ${pending ? 'opacity-60' : ''}`}
+        className={`w-full text-center px-0 hover:bg-info/10 transition-colors ${displayClassName ?? 'text-slate-dark'} ${pending ? 'opacity-60' : ''}`}
       >
         {shown ?? '—'}
         {error && <span className="block text-[9px] text-danger truncate" title={error}>{error}</span>}
@@ -85,11 +85,11 @@ export function InlineSelectCell({ value, options, onSave, displayClassName, tit
 
           <ul
             style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
-            className="bg-white border border-gray-300 rounded shadow-lg py-0.5"
+            className="bg-paper border border-line rounded shadow-lg py-0.5"
           >
             <li
               onClick={() => pick(null)}
-              className="px-3 py-1.5 text-[12.5px] text-gray-500 italic cursor-pointer hover:bg-gray-50"
+              className="px-3 py-1.5 text-[12.5px] text-slate italic cursor-pointer hover:bg-cream-2"
             >
               — Limpiar
             </li>
@@ -97,7 +97,7 @@ export function InlineSelectCell({ value, options, onSave, displayClassName, tit
               <li
                 key={o.value}
                 onClick={() => pick(o.value)}
-                className={`px-3 py-1.5 text-[12.5px] cursor-pointer ${o.value === shown ? 'bg-info/10 text-ink font-medium' : 'text-slate-dark hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 text-[12.5px] cursor-pointer ${o.value === shown ? 'bg-info/10 text-ink font-medium' : 'text-slate-dark hover:bg-cream-2'}`}
               >
                 {o.label}
               </li>

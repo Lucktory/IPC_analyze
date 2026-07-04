@@ -343,19 +343,19 @@ export function NewContractModal({
 
           <form
             onSubmit={handleSubmit}
-            className="relative bg-white border border-gray-300 rounded shadow-xl w-full max-w-[640px] max-h-[92vh] overflow-y-auto"
+            className="relative bg-paper border border-line rounded shadow-xl w-full max-w-[640px] max-h-[92vh] overflow-y-auto"
           >
-            <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
+            <div className="px-5 py-3 border-b border-line flex items-center justify-between sticky top-0 bg-paper z-10">
               <div>
                 <h2 className="font-display text-[15px] font-medium text-ink">Nuevo contrato</h2>
-                <p className="text-[11.5px] text-gray-500">
+                <p className="text-[11.5px] text-slate">
                   Cargá propiedad, co-propietarios e inquilinos. Los porcentajes deben sumar 100.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={handleClose}
-                className="text-gray-500 hover:text-ink text-[18px] leading-none px-2"
+                className="text-slate hover:text-ink text-[18px] leading-none px-2"
                 aria-label="Cerrar"
               >×</button>
             </div>
@@ -512,12 +512,12 @@ export function NewContractModal({
               )}
             </div>
 
-            <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-end gap-2 bg-gray-50 sticky bottom-0">
+            <div className="px-5 py-3 border-t border-line flex items-center justify-end gap-2 bg-cream-2 sticky bottom-0">
               <button
                 type="button"
                 onClick={handleClose}
                 disabled={pending}
-                className="px-3 py-1.5 rounded border border-gray-300 text-[12px] text-slate-dark hover:bg-gray-100 transition-colors"
+                className="px-3 py-1.5 rounded border border-line text-[12px] text-slate-dark hover:bg-cream-2 transition-colors"
               >
                 Cancelar
               </button>
@@ -557,8 +557,8 @@ export function NewContractModal({
 // ────────────────────────────────────────────────────────────────────────────
 // Local styling constants — kept here for the few inputs that don't go
 // through EntityRow / EntityCombo (dates, money, dropdowns).
-const inputCls  = 'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
-const selectCls = 'w-full h-9 px-2 rounded border border-gray-300 bg-white text-[13px] outline-none focus:border-info transition-colors'
+const inputCls  = 'w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info transition-colors'
+const selectCls = 'w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info transition-colors'
 
 // ── Property picker — simpler combo just for property addresses ────────────
 function PropertyCombo({
@@ -612,10 +612,10 @@ function PropertyCombo({
         <ul
           role="listbox"
           style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1080 }}
-          className="bg-white border border-gray-300 rounded shadow-lg max-h-[240px] overflow-y-auto"
+          className="bg-paper border border-line rounded shadow-lg max-h-[240px] overflow-y-auto"
         >
           {filtered.length === 0 && (
-            <li className="px-3 py-1.5 text-[12px] text-gray-500 italic">
+            <li className="px-3 py-1.5 text-[12px] text-slate italic">
               {value.trim() ? 'Sin coincidencias.' : 'Escribí para buscar una propiedad…'}
             </li>
           )}

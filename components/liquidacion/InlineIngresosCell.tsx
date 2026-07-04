@@ -276,7 +276,7 @@ export function InlineIngresosCell({
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
         title={buttonTitle ?? defaultTitle}
-        className={`w-full text-right px-0 hover:bg-blue-50 transition-colors tabular-nums truncate font-medium ${cobrado ? 'text-ink' : 'text-slate'} ${cellBgClass ?? ''}`}
+        className={`w-full text-right px-0 hover:bg-info/10 transition-colors tabular-nums truncate font-medium ${cobrado ? 'text-ink' : 'text-slate'} ${cellBgClass ?? ''}`}
       >
         {displayOverride !== undefined
           ? displayOverride
@@ -293,27 +293,27 @@ export function InlineIngresosCell({
           <div className="fixed inset-0 z-[999]" onClick={save} />
           <div
             style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
-            className="bg-white border border-gray-300 rounded shadow-lg"
+            className="bg-paper border border-line rounded shadow-lg"
             onMouseDown={e => e.stopPropagation()}
             onClick={e => e.stopPropagation()}
           >
-            <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+            <div className="px-3 py-2 border-b border-line flex items-center justify-between bg-cream-2">
               <span className="font-display text-[13px] font-medium text-ink">{popoverTitle ?? 'Ingresos del período'}</span>
-              <span className="text-[10px] text-gray-500 italic">click afuera = guardar · Esc = cancelar</span>
+              <span className="text-[10px] text-slate italic">click afuera = guardar · Esc = cancelar</span>
             </div>
 
             <div className="max-h-[340px] overflow-y-auto">
               {drafts.length === 0 && (
-                <p className="px-3 py-6 text-[12px] text-gray-500 italic text-center">
+                <p className="px-3 py-6 text-[12px] text-slate italic text-center">
                   Sin líneas. Tocá <strong>+ Agregar concepto</strong> abajo para registrar el primer cobro.
                 </p>
               )}
               {drafts.map((d, i) => (
-                <div key={d.id ?? `new-${i}`} className="px-3 py-2 border-b border-gray-100 flex items-center gap-1.5">
+                <div key={d.id ?? `new-${i}`} className="px-3 py-2 border-b border-line flex items-center gap-1.5">
                   <select
                     value={d.typeCode}
                     onChange={e => patchLine(i, { typeCode: e.target.value })}
-                    className="h-8 px-1.5 text-[12px] border border-gray-300 rounded bg-white outline-none focus:border-info min-w-0 flex-1"
+                    className="h-8 px-1.5 text-[12px] border border-line rounded bg-paper outline-none focus:border-info min-w-0 flex-1"
                   >
                     {availableTypes.map(t => (
                       <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>
@@ -325,19 +325,19 @@ export function InlineIngresosCell({
                     value={d.amount}
                     onChange={e => patchLine(i, { amount: e.target.value })}
                     placeholder="$"
-                    className="h-8 w-28 px-2 text-[12px] border border-gray-300 rounded bg-white outline-none focus:border-info text-right tabular-nums"
+                    className="h-8 w-28 px-2 text-[12px] border border-line rounded bg-paper outline-none focus:border-info text-right tabular-nums"
                   />
                   <input
                     type="date"
                     value={d.bankDate}
                     onChange={e => patchLine(i, { bankDate: e.target.value })}
-                    className="h-8 px-1.5 text-[11px] border border-gray-300 rounded bg-white outline-none focus:border-info"
+                    className="h-8 px-1.5 text-[11px] border border-line rounded bg-paper outline-none focus:border-info"
                   />
                   <button
                     type="button"
                     onClick={() => removeLine(i)}
                     title="Eliminar línea"
-                    className="h-8 w-7 text-gray-400 hover:text-danger transition-colors flex items-center justify-center"
+                    className="h-8 w-7 text-slate hover:text-danger transition-colors flex items-center justify-center"
                   >
                     ×
                   </button>
@@ -347,9 +347,9 @@ export function InlineIngresosCell({
                   it isn't editable here, but it's part of the cell value — show
                   it so the TOTAL below reconciles with the planilla cell. */}
               {!!adjustmentAmount && (
-                <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
+                <div className="px-3 py-2 border-b border-line flex items-center justify-between bg-cream-2/60">
                   <span className="text-[12px] text-slate-dark">
-                    Ajuste <span className="text-[10px] text-gray-500 italic">— se edita en Observación</span>
+                    Ajuste <span className="text-[10px] text-slate italic">— se edita en Observación</span>
                   </span>
                   <span className={`text-[12px] tabular-nums font-medium ${adjustmentAmount > 0 ? 'text-success' : 'text-danger'}`}>
                     {adjustmentAmount > 0 ? '+' : ''}{fmtMoney(adjustmentAmount)}
@@ -358,7 +358,7 @@ export function InlineIngresosCell({
               )}
             </div>
 
-            <div className="px-3 py-2 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+            <div className="px-3 py-2 border-t border-line bg-cream-2 flex items-center justify-between">
               <button
                 type="button"
                 onClick={addLine}
@@ -377,12 +377,12 @@ export function InlineIngresosCell({
               </div>
             )}
 
-            <div className="px-3 py-2 border-t border-gray-200 flex items-center justify-end gap-1.5">
+            <div className="px-3 py-2 border-t border-line flex items-center justify-end gap-1.5">
               <button
                 type="button"
                 onClick={close}
                 disabled={pending}
-                className="px-2 py-1 text-[11px] text-gray-600 hover:text-ink"
+                className="px-2 py-1 text-[11px] text-slate-dark hover:text-ink"
               >
                 Cancelar
               </button>
