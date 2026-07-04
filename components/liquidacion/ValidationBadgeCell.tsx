@@ -24,8 +24,9 @@ interface Props {
 
 export function ValidationBadgeCell({ issues }: Props) {
   const [open, setOpen] = useState(false)
+  const [popoverEl, setPopoverEl] = useState<HTMLElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const rect = useFloatingPopover({ open, anchor: buttonRef.current, minWidth: 380 })
+  const rect = useFloatingPopover({ open, anchor: buttonRef.current, popover: popoverEl, minWidth: 380 })
 
   const severity = highestSeverity(issues)
   const count    = issues.length
@@ -61,6 +62,7 @@ export function ValidationBadgeCell({ issues }: Props) {
         <>
           <div className="fixed inset-0 z-[999]" onClick={() => setOpen(false)} />
           <div
+            ref={setPopoverEl}
             style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
             className="bg-paper border border-line rounded shadow-lg"
             onMouseDown={e => e.stopPropagation()}
