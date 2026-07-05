@@ -1,384 +1,220 @@
 // ============================================================================
-// Panel ejecutivo — five charts, one chart family each, 12-col bento layout.
-//
-// Layout (desktop, xl breakpoint):
-//   ┌──────────────┬──────────────┬──────────────┐
-//   │ Cobranza     │ Pendientes   │ Sparklines   │
-//   │ Radial gauge │ Donut        │ Multi-line   │
-//   │ (4 cols)     │ (4 cols)     │ (4 cols)     │
-//   ├──────────────┴──────────────┼──────────────┤
-//   │ Ingresos & Comisiones       │ Concentración│
-//   │ Stacked-area lines          │ Treemap      │
-//   │ (8 cols)                    │ (4 cols)     │
-//   └─────────────────────────────┴──────────────┘
-//
-// Responsive:
-//   mobile  (default)  → 1 column, all five cards stacked
-//   tablet  (md)       → 2 columns; row 1 splits Cobranza/Pendientes,
-//                        the other three cards take full width below
-//   desktop (xl)       → the 12-col bento above
+// Panel ejecutivo — redesigned to the 2026-07 mockup: a KPI row (4 cards with
+// sparkline + delta) over two rows of 3 chart cards. Every number is wired to
+// the real dashboard queries; colors come from the global tokens / chart theme.
 // ============================================================================
 
-import Link from 'next/link'
+import { Info, ArrowUp, ArrowDown, Calendar } from 'lucide-react'
 import {
-  getCollectionHealth,
+  getDashboardKpis,
+  getCommissionByDestination,
+  getTopLandlords,
+  getPropertyTypeBreakdown,
+  getContractsByCadence,
   getMonthlyIncomeTrend,
   getOperationalTrends,
-  getTopLandlords,
+  getCollectionHealth,
 } from '@/lib/dashboard/queries'
-// Pendientes data is now sourced from the SAME digest the topbar bell and
-// /pendientes page use — Phase 8 unification. The legacy listPendingActions
-// classified things differently (only cobranza/aumento/renovacion) and
-// produced a total that disagreed with the bell badge (e.g. bell showed
-// 114 while the dashboard donut showed 128). Single source of truth now.
-import { getPendientesDigest } from '@/lib/pending/digest'
 import { getCurrentPeriodLabel } from '@/lib/period'
-import { fmtMoney, fmtTime } from '@/lib/format'
-import { DashboardCard }    from '@/components/charts/panel/DashboardCard'
-import { RadialGauge }      from '@/components/charts/panel/RadialGauge'
-import { DonutPanel }       from '@/components/charts/panel/DonutPanel'
-import { SparklineGroup }   from '@/components/charts/panel/SparklineGroup'
-import { StackedAreaChart } from '@/components/charts/panel/StackedAreaChart'
-import { TreemapChart }     from '@/components/charts/panel/TreemapChart'
-import { TintCard }         from '@/components/charts/panel/TintCard'
-import { PREMIUM, fmtCompactARS } from '@/components/charts/theme'
+import { fmtMoney } from '@/lib/format'
+import { DashboardCard }        from '@/components/charts/panel/DashboardCard'
+import { DonutPanel }           from '@/components/charts/panel/DonutPanel'
+import { RadialGauge }          from '@/components/charts/panel/RadialGauge'
+import { SortedHorizontalBars } from '@/components/charts/panel/SortedHorizontalBars'
+import { MultiLineArea }        from '@/components/charts/panel/MultiLineArea'
 
-// Pendientes category colors — vibrant saturated hex so they render through
-// ECharts cleanly and read with equal weight on both light and dark
-// surfaces. Categories carry MEANING (red = urgent action) so the colors
-// stay fixed regardless of theme.
-//
-// Keys mirror the PendienteCategory union emitted by getPendientesDigest —
-// see lib/pending/digest.ts. URL filter param on /pendientes is `categoria`.
-type PendienteBucketKey =
-  | 'pendiente_transferencia'
-  | 'liquidacion_abierta'
-  | 'cobranza_proxima'
-const PENDIENTES_CATEGORIES: Array<{
-  key:      PendienteBucketKey
-  label:    string
-  sublabel: string
-  color:    string
-  href:     string
-}> = [
-  { key: 'pendiente_transferencia', label: 'Transferencia',  sublabel: 'falta cobro o pago al propietario', color: '#E63946', href: '/pendientes?categoria=pendiente_transferencia' },
-  { key: 'liquidacion_abierta',     label: 'Liquidación',    sublabel: 'transferida sin marcar pagada',     color: '#F39C12', href: '/pendientes?categoria=liquidacion_abierta' },
-  { key: 'cobranza_proxima',        label: 'Cobranza próxima', sublabel: 'vence en ≤7 días',                color: '#3B82F6', href: '/pendientes?categoria=cobranza_proxima' },
-]
+// Chart hues — match the theme's blue / emerald / violet / amber rotation.
+const BLUE = '#3B82F6', EMERALD = '#34D399', VIOLET = '#8B5CF6', AMBER = '#F59E0B', RED = '#EF4444'
+const ROTATION = [BLUE, EMERALD, VIOLET, AMBER, '#60A5FA', '#94A3B8']
 
-/** % change from `from` to `to`. Returns null when the base is zero so we
- *  don't render misleading "∞%" trends. */
-function pctChange(from: number, to: number): number | null {
-  if (from === 0) return null
-  return ((to - from) / from) * 100
+function pctChange(curr: number, prev: number): number | null {
+  if (!isFinite(prev) || prev === 0) return null
+  return ((curr - prev) / prev) * 100
 }
 
-/**
- * Pre-format the peak month value for a sparkline. Returns undefined to
- * signal "don't draw a peak label" — happens when (a) peak IS the current
- * month, (b) all values are 0/identical, or (c) there's no spread. The
- * SparklineGroup component (client) then skips rendering the chip.
- *
- * Done server-side because formatter functions can't cross the
- * server→client boundary in Next.js App Router.
- */
-function computePeakLabel(values: number[], fmt: (v: number) => string): string | undefined {
-  if (values.length === 0) return undefined
-  const max     = Math.max(...values)
-  const min     = Math.min(...values)
-  const peakIdx = values.indexOf(max)
-  if (peakIdx === values.length - 1) return undefined  // peak IS current
-  if (max <= 0)        return undefined                // flatline at zero
-  if (max - min <= 0)  return undefined                // flat at any value
-  return fmt(max)
-}
-
-export default async function DashboardPage() {
-  const [collection, digest, incomeTrend, opsTrend, topLandlords] = await Promise.all([
-    getCollectionHealth(),
-    getPendientesDigest(),
-    getMonthlyIncomeTrend(6),
-    getOperationalTrends(6),
-    getTopLandlords(8),
-  ])
-
-  // Pendientes counts — drawn straight from the digest's three-category
-  // model. The dashboard panel and /pendientes page now share the same
-  // taxonomy (cobranza_proxima / pendiente_transferencia / liquidacion_abierta)
-  // so the numbers across the bell, the dashboard donut, and the inbox
-  // never disagree.
-  const pendingCounts: Record<PendienteBucketKey, number> & { total: number } = {
-    pendiente_transferencia: digest.counts.pendiente_transferencia,
-    liquidacion_abierta:     digest.counts.liquidacion_abierta,
-    cobranza_proxima:        digest.counts.cobranza_proxima,
-    total:                   digest.counts.total,
-  }
-
-  const periodLabel = getCurrentPeriodLabel()
-
-  // ── Cobranza delta vs previous month (from amount trend) ──
-  const incomeCurrent  = incomeTrend.at(-1)?.value ?? 0
-  const incomePrevious = incomeTrend.at(-2)?.value ?? 0
-  const incomeDelta    = incomeCurrent - incomePrevious
-  const incomeDeltaPct = pctChange(incomePrevious, incomeCurrent)
-
-  // ── Pendientes donut data (only non-zero shows in the ring) ──
-  const pendientesItems = PENDIENTES_CATEGORIES
-    .map(cat => ({
-      label: cat.label,
-      value: pendingCounts[cat.key],
-      color: cat.color,
-    }))
-    .filter(i => i.value > 0)
-
-  // ── Sparklines: three operational metrics derived from the trend rows ──
-  const opsFirst   = opsTrend.at(0)
-  const opsCurrent = opsTrend.at(-1)
-  const opsLabels  = opsTrend.map(t => t.label)
-
-  const pagosSeries        = opsTrend.map(t => t.pagos)
-  const avgRentSeries      = opsTrend.map(t => t.pagos > 0 ? t.ingresos / t.pagos : 0)
-  const commissionPctSeries = opsTrend.map(t => t.ingresos > 0 ? (t.comisiones / t.ingresos) * 100 : 0)
-
-  const intFmt = (v: number) => v.toLocaleString('es-AR')
-  const pctFmt = (v: number) => `${v.toFixed(1)}%`
-  const sparkSeries = (opsFirst && opsCurrent) ? [
-    {
-      label:     '# Pagos del mes',
-      color:     PREMIUM.amethyst,
-      current:   opsCurrent.pagos.toLocaleString('es-AR'),
-      changePct: pctChange(opsFirst.pagos, opsCurrent.pagos),
-      values:    pagosSeries,
-      peakLabel: computePeakLabel(pagosSeries, intFmt),
-    },
-    {
-      label:     'Promedio por pago',
-      color:     PREMIUM.gold,
-      current:   fmtMoney(avgRentSeries.at(-1) ?? 0),
-      changePct: pctChange(avgRentSeries[0] ?? 0, avgRentSeries.at(-1) ?? 0),
-      values:    avgRentSeries,
-      peakLabel: computePeakLabel(avgRentSeries, fmtCompactARS),
-    },
-    {
-      label:     '% Comisión sobre ingresos',
-      color:     PREMIUM.emerald,
-      current:   `${(commissionPctSeries.at(-1) ?? 0).toFixed(1)}%`,
-      changePct: pctChange(commissionPctSeries[0] ?? 0, commissionPctSeries.at(-1) ?? 0),
-      values:    commissionPctSeries,
-      peakLabel: computePeakLabel(commissionPctSeries, pctFmt),
-    },
-  ] : []
-
-  // ── Ingresos & Comisiones — two-series stacked area + monthly deltas ──
-  const ingComisSeries = [
-    { name: 'Ingresos',   color: PREMIUM.gold,    values: opsTrend.map(t => t.ingresos)   },
-    { name: 'Comisiones', color: PREMIUM.emerald, values: opsTrend.map(t => t.comisiones) },
+// ── Tiny inline sparkline (SVG, no deps) ────────────────────────────────────
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) return null
+  const w = 120, h = 40, pad = 4
+  const min = Math.min(...values), max = Math.max(...values)
+  const range = max - min || 1
+  const xy = (v: number, i: number): [number, number] => [
+    pad + (i / (values.length - 1)) * (w - 2 * pad),
+    h - pad - ((v - min) / range) * (h - 2 * pad),
   ]
-  const opsPrev            = opsTrend.at(-2)
-  const ingresosDeltaPct   = opsPrev ? pctChange(opsPrev.ingresos,   opsCurrent?.ingresos   ?? 0) : null
-  const comisionesDeltaPct = opsPrev ? pctChange(opsPrev.comisiones, opsCurrent?.comisiones ?? 0) : null
-
-  // ── Treemap of top landlords ──
-  const landlordTotal = topLandlords.reduce((s, l) => s + l.revenue, 0)
-  const treemapItems  = topLandlords.map(l => ({
-    name:  l.name,
-    value: l.revenue,
-    pct:   landlordTotal > 0 ? (l.revenue / landlordTotal) * 100 : 0,
-  }))
-
+  const pts = values.map(xy).map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const [lx, ly] = xy(values[values.length - 1], values.length - 1)
   return (
-    <>
-      <header className="mb-6">
-        <div className="flex items-baseline justify-between flex-wrap gap-3">
-          <div>
-            <p className="label-cap text-slate">Panel ejecutivo</p>
-            <h1 className="font-display text-[22px] font-medium text-ink mt-1">{periodLabel}</h1>
-          </div>
-          <p className="text-[11px] text-slate tabular-nums">
-            Actualizado · {fmtTime(new Date())}
-          </p>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-5">
-        {/* ──────────────────────────────────────────────────────────── */}
-        {/*  Cobranza del mes — radial gauge                             */}
-        {/*  desktop: 4/12 cols; tablet: 1/2; mobile: full                */}
-        {/* ──────────────────────────────────────────────────────────── */}
-        <DashboardCard
-          className="xl:col-span-4"
-          title="Cobranza del mes"
-          subtitle={`${collection.paidCount} de ${collection.totalContracts} contratos cobrados`}
-        >
-          {collection.totalContracts > 0 ? (
-            <>
-              <RadialGauge pct={collection.collectionRateByCount} status={collection.status} />
-              {/* Tinted Cobrado / Pendiente cards — match the design language
-                  of the Pendientes cards below. Green for cobrado; red when
-                  there's still money outstanding, muted slate when 0. */}
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                <TintCard
-                  accent="#16A34A"
-                  label="Cobrado"
-                  value={fmtMoney(collection.collectedAmount)}
-                />
-                <TintCard
-                  accent={collection.pendingAmount > 0 ? '#DC2626' : '#7E8696'}
-                  label="Pendiente"
-                  value={fmtMoney(collection.pendingAmount)}
-                  muted={collection.pendingAmount === 0}
-                />
-              </div>
-              {incomeDeltaPct != null && (
-                <div className="mt-3 flex items-center justify-center">
-                  <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium tabular-nums ${incomeDelta >= 0 ? 'text-success' : 'text-danger'}`}
-                    style={{ backgroundColor: incomeDelta >= 0 ? 'rgba(22,163,74,0.10)' : 'rgba(220,38,38,0.10)' }}
-                  >
-                    Ingresos {incomeDelta >= 0 ? '↑' : '↓'} {Math.abs(incomeDeltaPct).toFixed(0)}% vs mes anterior
-                  </span>
-                </div>
-              )}
-              {collection.unpaidCount > 0 && (
-                <Link href="/pendientes?categoria=pendiente_transferencia" className="block mt-3 text-[12px] text-ink hover:underline text-center">
-                  Ver {collection.unpaidCount} pendiente{collection.unpaidCount === 1 ? '' : 's'} →
-                </Link>
-              )}
-            </>
-          ) : (
-            <EmptyState text="Sin contratos activos" />
-          )}
-        </DashboardCard>
-
-        {/* ──────────────────────────────────────────────────────────── */}
-        {/*  Pendientes por categoría — donut + colored category cards   */}
-        {/* ──────────────────────────────────────────────────────────── */}
-        <DashboardCard
-          className="xl:col-span-4"
-          title="Pendientes esta semana"
-          subtitle={
-            pendingCounts.total === 0
-              ? 'Sin pendientes — todo al día'
-              : `${pendingCounts.total} ${pendingCounts.total === 1 ? 'acción' : 'acciones'} a resolver`
-          }
-        >
-          {pendientesItems.length > 0 ? (
-            <>
-              <DonutPanel
-                items={pendientesItems}
-                legendPosition="bottom"
-                totalUnit={pendingCounts.total === 1 ? 'pendiente' : 'pendientes'}
-              />
-              {/* Three vibrant per-category cards — each clicks through
-                  to the filtered Pendientes list. The per-card numbers
-                  sum to the donut total and the widget subtitle. */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-4">
-                {PENDIENTES_CATEGORIES.map(cat => (
-                  <TintCard
-                    key={cat.key}
-                    accent={cat.color}
-                    label={cat.label}
-                    value={pendingCounts[cat.key]}
-                    sublabel={cat.sublabel}
-                    href={cat.href}
-                  />
-                ))}
-              </div>
-              <Link href="/pendientes" className="block mt-3 text-[12px] text-ink hover:underline text-center">
-                Ver detalle →
-              </Link>
-            </>
-          ) : (
-            <div className="py-10 text-center">
-              <p className="text-[13px] text-success font-medium">Todo al día</p>
-              <p className="text-[12px] text-slate mt-1">Sin acciones pendientes esta semana</p>
-            </div>
-          )}
-        </DashboardCard>
-
-        {/* ──────────────────────────────────────────────────────────── */}
-        {/*  Tendencia operativa — sparklines (line family)              */}
-        {/* ──────────────────────────────────────────────────────────── */}
-        <DashboardCard
-          className="md:col-span-2 xl:col-span-4"
-          title="Tendencia operativa"
-          subtitle="6 meses · cada serie con su propia escala"
-        >
-          {sparkSeries.length > 0 ? (
-            <SparklineGroup series={sparkSeries} xLabels={opsLabels} />
-          ) : (
-            <EmptyState text="Sin movimientos registrados" />
-          )}
-        </DashboardCard>
-
-        {/* ──────────────────────────────────────────────────────────── */}
-        {/*  Ingresos & Comisiones — stacked-area lines                  */}
-        {/*  This is the wide chart — gets 8/12 cols on desktop          */}
-        {/* ──────────────────────────────────────────────────────────── */}
-        <DashboardCard
-          className="md:col-span-2 xl:col-span-8"
-          title="Ingresos y Comisiones"
-          subtitle="Últimos 6 meses · ingresos en oro, comisiones en verde"
-        >
-          {opsTrend.some(t => t.ingresos > 0 || t.comisiones > 0) ? (
-            <>
-              {/* KPI cards above the chart — same accent colors as the
-                  area lines, so the eye links card → chart immediately. */}
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                <TintCard
-                  accent={PREMIUM.gold}
-                  label="Ingresos este mes"
-                  value={fmtMoney(opsCurrent?.ingresos ?? 0)}
-                  sublabel={
-                    ingresosDeltaPct == null ? undefined :
-                    `${ingresosDeltaPct >= 0 ? '↑' : '↓'} ${Math.abs(ingresosDeltaPct).toFixed(0)}% vs mes anterior`
-                  }
-                />
-                <TintCard
-                  accent={PREMIUM.emerald}
-                  label="Comisiones este mes"
-                  value={fmtMoney(opsCurrent?.comisiones ?? 0)}
-                  sublabel={
-                    comisionesDeltaPct == null ? undefined :
-                    `${comisionesDeltaPct >= 0 ? '↑' : '↓'} ${Math.abs(comisionesDeltaPct).toFixed(0)}% vs mes anterior`
-                  }
-                />
-              </div>
-              <StackedAreaChart xLabels={opsLabels} series={ingComisSeries} height={260} />
-            </>
-          ) : (
-            <EmptyState text="Sin movimientos registrados" />
-          )}
-        </DashboardCard>
-
-        {/* ──────────────────────────────────────────────────────────── */}
-        {/*  Concentración por propietario — treemap                     */}
-        {/* ──────────────────────────────────────────────────────────── */}
-        <DashboardCard
-          className="md:col-span-2 xl:col-span-4"
-          title="Concentración"
-          subtitle={`Top ${topLandlords.length} propietarios este período`}
-        >
-          {treemapItems.length > 0 ? (
-            <>
-              <TreemapChart items={treemapItems} height={260} />
-              <p className="text-[11px] text-slate mt-2 text-center">
-                Cada rectángulo está dimensionado según el ingreso del propietario
-              </p>
-            </>
-          ) : (
-            <EmptyState text="Sin cobros este período" />
-          )}
-        </DashboardCard>
-      </div>
-    </>
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} preserveAspectRatio="none" aria-hidden>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={2}
+                strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />
+      <circle cx={lx} cy={ly} r={2.6} fill={color} />
+    </svg>
   )
 }
 
-function EmptyState({ text }: { text: string }) {
+// ── KPI card ────────────────────────────────────────────────────────────────
+function KpiCard({ label, value, delta, deltaSuffix = '%', negativeIsBad = true, spark, sparkColor }: {
+  label: string; value: string; delta: number | null; deltaSuffix?: string
+  negativeIsBad?: boolean; spark?: number[]; sparkColor: string
+}) {
+  const up = (delta ?? 0) >= 0
+  // For "morosidad" (negativeIsBad=false) an increase is BAD → red.
+  const good = negativeIsBad ? up : !up
   return (
-    <div className="py-10 text-center">
-      <p className="text-[13px] text-slate">{text}</p>
+    <div className="rounded-xl border border-line bg-paper p-5 flex flex-col gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate">
+        {label}<Info size={13} className="text-slate/70" />
+      </div>
+      <div className="flex items-end justify-between gap-3">
+        <div className="text-[26px] font-semibold text-ink leading-none tabular-nums">{value}</div>
+        {spark && <Sparkline values={spark} color={sparkColor} />}
+      </div>
+      {delta != null ? (
+        <div className="flex items-center gap-1.5 text-[12px]">
+          <span className={`inline-flex items-center gap-0.5 font-medium ${good ? 'text-success' : 'text-danger'}`}>
+            {up ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+            {Math.abs(delta).toFixed(1)}{deltaSuffix}
+          </span>
+          <span className="text-slate">vs. mes anterior</span>
+        </div>
+      ) : <div className="text-[12px] text-slate">&nbsp;</div>}
+    </div>
+  )
+}
+
+// ── Cadence progress rows ───────────────────────────────────────────────────
+function CadenceRows({ items, total }: { items: { label: string; count: number }[]; total: number }) {
+  return (
+    <div className="flex flex-col gap-3.5 pt-1">
+      {items.map((it, i) => {
+        const pct = total > 0 ? (it.count / total) * 100 : 0
+        return (
+          <div key={it.label} className="flex items-center gap-3 text-[13px]">
+            <Calendar size={15} className="text-slate shrink-0" />
+            <span className="w-20 text-ink">{it.label}</span>
+            <div className="flex-1 h-2 rounded-full bg-cream-2 overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: ROTATION[i % ROTATION.length] }} />
+            </div>
+            <span className="w-9 text-right tabular-nums text-ink">{it.count}</span>
+            <span className="w-12 text-right tabular-nums text-slate">{pct.toFixed(1).replace('.', ',')}%</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Legend rows (Salud de cobranza) ─────────────────────────────────────────
+function LegendRows({ rows }: { rows: { label: string; amount: number; pct: number; color: string }[] }) {
+  return (
+    <div className="flex flex-col gap-3 text-[13px] w-full">
+      {rows.map(r => (
+        <div key={r.label} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full shrink-0" style={{ background: r.color }} />
+          <span className="flex-1 text-ink">{r.label}</span>
+          <span className="tabular-nums text-slate-dark">{fmtMoney(r.amount)}</span>
+          <span className="w-12 text-right tabular-nums text-slate">{r.pct.toFixed(1).replace('.', ',')}%</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default async function DashboardPage() {
+  const [kpis, commByBank, topLandlords, propTypes, cadence, incomeTrend, opTrends, health] = await Promise.all([
+    getDashboardKpis(),
+    getCommissionByDestination(),
+    getTopLandlords(5),
+    getPropertyTypeBreakdown(),
+    getContractsByCadence(),
+    getMonthlyIncomeTrend(6),
+    getOperationalTrends(6),
+    getCollectionHealth(),
+  ])
+
+  const period = getCurrentPeriodLabel()
+
+  // KPI deltas + sparkline series from the trend queries
+  const incomeVals = incomeTrend.map(p => p.value)
+  const commVals   = opTrends.map(p => p.comisiones)
+  const n = incomeVals.length
+  const incomeDelta = n >= 2 ? pctChange(incomeVals[n - 1], incomeVals[n - 2]) : null
+  const m = commVals.length
+  const commDelta   = m >= 2 ? pctChange(commVals[m - 1], commVals[m - 2]) : null
+
+  const morosidadPct = health.expectedAmount > 0 ? (health.pendingAmount / health.expectedAmount) * 100 : 0
+  const saludPct     = Math.round(health.collectionRateByAmount)
+  const saludStatus: 'ok' | 'warning' | 'critical' = saludPct >= 80 ? 'ok' : saludPct >= 50 ? 'warning' : 'critical'
+
+  // Donut / bar items
+  const commItems     = commByBank.map((b, i) => ({ label: b.label, value: b.total, color: ROTATION[i % ROTATION.length] }))
+  const propItems     = propTypes.map((p, i) => ({ label: p.type, value: p.count, color: ROTATION[i % ROTATION.length] }))
+  const landlordItems = topLandlords.map(l => ({ label: l.name, value: l.revenue, color: BLUE }))
+  const cadenceTotal  = cadence.reduce((s, c) => s + c.count, 0)
+
+  return (
+    <div className="flex flex-col gap-5">
+      <header>
+        <h1 className="text-[22px] font-semibold text-ink">Panel</h1>
+        <p className="text-[13px] text-slate">{period}</p>
+      </header>
+
+      {/* KPI row */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <KpiCard label="Contratos activos" value={kpis.activeContracts.toLocaleString('es-AR')}
+                 delta={null} sparkColor={BLUE} />
+        <KpiCard label="Ingresos del mes" value={fmtMoney(kpis.monthlyIncome)}
+                 delta={incomeDelta} spark={incomeVals} sparkColor={BLUE} />
+        <KpiCard label="Comisión" value={fmtMoney(kpis.monthlyCommission)}
+                 delta={commDelta} spark={commVals} sparkColor={EMERALD} />
+        <KpiCard label="Morosidad" value={`${morosidadPct.toFixed(1).replace('.', ',')}%`}
+                 delta={null} sparkColor={RED} negativeIsBad={false} />
+      </section>
+
+      {/* Row 2 */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+        <DashboardCard title="Tendencia de ingresos" subtitle="Últimos 6 meses">
+          <MultiLineArea
+            xLabels={incomeTrend.map(p => p.label)}
+            series={[{ name: 'Ingresos (ARS)', color: BLUE, values: incomeVals }]}
+            height={240}
+          />
+        </DashboardCard>
+
+        <DashboardCard title="Comisión por banco">
+          <DonutPanel items={commItems} totalUnit="Total" />
+        </DashboardCard>
+
+        <DashboardCard title="Top propietarios">
+          <SortedHorizontalBars items={landlordItems} totalUnit="" />
+        </DashboardCard>
+      </section>
+
+      {/* Row 3 */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+        <DashboardCard title="Tipo de propiedad">
+          <DonutPanel items={propItems} totalUnit="Total" />
+        </DashboardCard>
+
+        <DashboardCard title="Cadencia">
+          <CadenceRows items={cadence.map(c => ({ label: c.label, count: c.count }))} total={cadenceTotal} />
+          <div className="mt-4 pt-3 border-t border-line flex justify-between text-[12px] text-slate">
+            <span>Total</span>
+            <span className="tabular-nums text-ink">{cadenceTotal} · 100%</span>
+          </div>
+        </DashboardCard>
+
+        <DashboardCard title="Salud de cobranza">
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <div className="shrink-0"><RadialGauge pct={saludPct} status={saludStatus} /></div>
+            <LegendRows rows={[
+              { label: 'Pagada',    amount: health.collectedAmount, pct: health.collectionRateByAmount,       color: EMERALD },
+              { label: 'Pendiente', amount: health.pendingAmount,   pct: 100 - health.collectionRateByAmount, color: RED },
+            ]} />
+          </div>
+        </DashboardCard>
+      </section>
     </div>
   )
 }
