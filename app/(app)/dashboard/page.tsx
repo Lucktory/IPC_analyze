@@ -17,11 +17,12 @@ import {
 } from '@/lib/dashboard/queries'
 import { getCurrentPeriodLabel } from '@/lib/period'
 import { fmtMoney } from '@/lib/format'
+import { fmtCompactARS } from '@/components/charts/theme'
 import { DashboardCard }        from '@/components/charts/panel/DashboardCard'
 import { DonutPanel }           from '@/components/charts/panel/DonutPanel'
 import { RadialGauge }          from '@/components/charts/panel/RadialGauge'
 import { SortedHorizontalBars } from '@/components/charts/panel/SortedHorizontalBars'
-import { MultiLineArea }        from '@/components/charts/panel/MultiLineArea'
+import { StackedAreaChart }     from '@/components/charts/panel/StackedAreaChart'
 
 // Chart hues — match the theme's blue / emerald / violet / amber rotation.
 const BLUE = '#3B82F6', EMERALD = '#34D399', VIOLET = '#8B5CF6', AMBER = '#F59E0B', RED = '#EF4444'
@@ -62,12 +63,12 @@ function KpiCard({ label, value, delta, deltaSuffix = '%', negativeIsBad = true,
   // For "morosidad" (negativeIsBad=false) an increase is BAD → red.
   const good = negativeIsBad ? up : !up
   return (
-    <div className="rounded-xl border border-line bg-paper p-5 flex flex-col gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+    <div className="rounded-xl border border-line bg-paper px-4 py-3.5 flex flex-col gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate">
         {label}<Info size={13} className="text-slate/70" />
       </div>
       <div className="flex items-end justify-between gap-3">
-        <div className="text-[26px] font-semibold text-ink leading-none tabular-nums">{value}</div>
+        <div className="text-[23px] font-semibold text-ink leading-none tabular-nums">{value}</div>
         {spark && <Sparkline values={spark} color={sparkColor} />}
       </div>
       {delta != null ? (
@@ -86,7 +87,7 @@ function KpiCard({ label, value, delta, deltaSuffix = '%', negativeIsBad = true,
 // ── Cadence progress rows ───────────────────────────────────────────────────
 function CadenceRows({ items, total }: { items: { label: string; count: number }[]; total: number }) {
   return (
-    <div className="flex flex-col gap-3.5 pt-1">
+    <div className="flex flex-col gap-2.5 pt-0.5">
       {items.map((it, i) => {
         const pct = total > 0 ? (it.count / total) * 100 : 0
         return (
@@ -108,7 +109,7 @@ function CadenceRows({ items, total }: { items: { label: string; count: number }
 // ── Legend rows (Salud de cobranza) ─────────────────────────────────────────
 function LegendRows({ rows }: { rows: { label: string; amount: number; pct: number; color: string }[] }) {
   return (
-    <div className="flex flex-col gap-3 text-[13px] w-full">
+    <div className="flex flex-col gap-2.5 text-[13px] w-full">
       {rows.map(r => (
         <div key={r.label} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: r.color }} />
@@ -154,14 +155,14 @@ export default async function DashboardPage() {
   const cadenceTotal  = cadence.reduce((s, c) => s + c.count, 0)
 
   return (
-    <div className="flex flex-col gap-5">
-      <header>
-        <h1 className="text-[22px] font-semibold text-ink">Panel</h1>
+    <div className="flex flex-col gap-3">
+      <header className="flex items-baseline gap-3">
+        <h1 className="text-[20px] font-semibold text-ink">Panel</h1>
         <p className="text-[13px] text-slate">{period}</p>
       </header>
 
       {/* KPI row */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <KpiCard label="Contratos activos" value={kpis.activeContracts.toLocaleString('es-AR')}
                  delta={null} sparkColor={BLUE} />
         <KpiCard label="Ingresos del mes" value={fmtMoney(kpis.monthlyIncome)}
@@ -173,17 +174,18 @@ export default async function DashboardPage() {
       </section>
 
       {/* Row 2 */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+      <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
         <DashboardCard title="Tendencia de ingresos" subtitle="Últimos 6 meses">
-          <MultiLineArea
+          <StackedAreaChart
             xLabels={incomeTrend.map(p => p.label)}
             series={[{ name: 'Ingresos (ARS)', color: BLUE, values: incomeVals }]}
-            height={240}
+            height={168}
           />
         </DashboardCard>
 
         <DashboardCard title="Comisión por banco">
-          <DonutPanel items={commItems} totalUnit="Total" />
+          <DonutPanel items={commItems} totalUnit="Total" height={150}
+                      centerText={fmtCompactARS(commItems.reduce((s, i) => s + i.value, 0)).replace('$ ', '')} />
         </DashboardCard>
 
         <DashboardCard title="Top propietarios">
@@ -192,14 +194,14 @@ export default async function DashboardPage() {
       </section>
 
       {/* Row 3 */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+      <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
         <DashboardCard title="Tipo de propiedad">
-          <DonutPanel items={propItems} totalUnit="Total" />
+          <DonutPanel items={propItems} totalUnit="Total" height={150} />
         </DashboardCard>
 
         <DashboardCard title="Cadencia">
           <CadenceRows items={cadence.map(c => ({ label: c.label, count: c.count }))} total={cadenceTotal} />
-          <div className="mt-4 pt-3 border-t border-line flex justify-between text-[12px] text-slate">
+          <div className="mt-3 pt-2.5 border-t border-line flex justify-between text-[12px] text-slate">
             <span>Total</span>
             <span className="tabular-nums text-ink">{cadenceTotal} · 100%</span>
           </div>

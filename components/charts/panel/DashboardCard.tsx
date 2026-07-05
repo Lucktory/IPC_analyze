@@ -28,10 +28,10 @@ export function DashboardCard({
 }: DashboardCardProps) {
   return (
     <section
-      className={`rounded bg-paper border border-line shadow-card px-5 py-4 sm:px-6 sm:py-5 ${className}`}
+      className={`rounded bg-paper border border-line shadow-card px-4 py-3 sm:px-5 sm:py-3.5 ${className}`}
       style={minHeight ? { minHeight } : undefined}
     >
-      <header className="flex items-start justify-between gap-4 mb-4">
+      <header className="flex items-start justify-between gap-4 mb-2.5">
         <div className="min-w-0">
           <h3 className="font-display text-[15px] font-medium text-ink leading-tight">{title}</h3>
           {subtitle && (

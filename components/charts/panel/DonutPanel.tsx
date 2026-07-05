@@ -25,9 +25,13 @@ interface Props {
   legendPosition?: LegendPosition
   /** Word shown under the big number, e.g. "propiedades", "contratos". */
   totalUnit?:      string
+  /** Overrides the big center number (e.g. a compact "6,94 M" for money). Defaults to the raw sum. */
+  centerText?:     string
+  /** Donut square height in px. Smaller values also shrink the center number. */
+  height?:         number
 }
 
-export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total' }: Props) {
+export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total', centerText, height = 220 }: Props) {
   const total = items.reduce((s, i) => s + i.value, 0)
   const c     = useChartColors()
 
@@ -93,8 +97,8 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
         left: 'center',
         top: '47%',
         style: {
-          text: total.toLocaleString('es-AR'),
-          fontSize: 30,
+          text: centerText ?? total.toLocaleString('es-AR'),
+          fontSize: height < 180 ? 20 : 30,
           fontWeight: 600,
           fill: c.centerValue,
           fontFamily: 'Lexend',
@@ -115,7 +119,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
   }
 
   const donut = (
-    <div style={{ width: '100%', height: 220 }}>
+    <div style={{ width: '100%', height }}>
       <ReactECharts option={option} style={{ width: '100%', height: '100%' }} notMerge lazyUpdate />
     </div>
   )
