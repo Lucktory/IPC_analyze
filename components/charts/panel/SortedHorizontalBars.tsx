@@ -5,6 +5,16 @@
 // data array — pass the data sorted however you want.
 // ============================================================================
 
+import { fmtCompactARS } from '../theme'
+import { fmtMoney } from '@/lib/format'
+
+type ValueFormat = 'int' | 'money' | 'compact'
+const VALUE_FORMATTERS: Record<ValueFormat, (v: number) => string> = {
+  int:     v => v.toLocaleString('es-AR'),
+  money:   v => fmtMoney(v),
+  compact: v => fmtCompactARS(v),
+}
+
 export interface SortedBarItem {
   label: string
   value: number
@@ -15,12 +25,14 @@ interface Props {
   items: SortedBarItem[]
   /** Word after the big total (e.g. "contratos"). Empty hides the big total. */
   totalUnit?: string
-  /** Formats the per-row value + the big total. Defaults to a plain integer —
-   *  pass a money formatter when the values are amounts (e.g. revenue). */
-  formatValue?: (v: number) => string
+  /** How the per-row value + big total are formatted. 'int' (default) for
+   *  counts, 'money'/'compact' for amounts. A string so it can cross the
+   *  server -> client boundary. */
+  valueFormat?: ValueFormat
 }
 
-export function SortedHorizontalBars({ items, totalUnit = '', formatValue = (v: number) => v.toLocaleString('es-AR') }: Props) {
+export function SortedHorizontalBars({ items, totalUnit = '', valueFormat = 'int' }: Props) {
+  const formatValue = VALUE_FORMATTERS[valueFormat]
   const total = items.reduce((s, i) => s + i.value, 0)
   const max   = Math.max(1, ...items.map(i => i.value))
 

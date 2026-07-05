@@ -198,14 +198,14 @@ export default async function DashboardPage() {
 
           <DashboardCard title="Comisión por banco" fill>
             <div className="h-[180px] lg:h-full">
-              <DonutPanel items={commItems} totalUnit="Total" fill formatValue={fmtMoney}
+              <DonutPanel items={commItems} totalUnit="Total" fill valueFormat="money"
                           centerText={fmtCompactARS(commItems.reduce((s, i) => s + i.value, 0)).replace('$ ', '')} />
             </div>
           </DashboardCard>
 
           <DashboardCard title="Top propietarios" fill>
             <div className="lg:h-full flex flex-col lg:justify-center">
-              <SortedHorizontalBars items={landlordItems} totalUnit="" formatValue={fmtCompactARS} />
+              <SortedHorizontalBars items={landlordItems} totalUnit="" valueFormat="compact" />
             </div>
           </DashboardCard>
         </section>

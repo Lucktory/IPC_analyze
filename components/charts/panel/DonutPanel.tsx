@@ -8,7 +8,15 @@
 // ============================================================================
 
 import dynamic from 'next/dynamic'
-import { chartBaseStyle, useChartColors } from '../theme'
+import { chartBaseStyle, useChartColors, fmtCompactARS } from '../theme'
+import { fmtMoney } from '@/lib/format'
+
+export type ValueFormat = 'int' | 'money' | 'compact'
+const VALUE_FORMATTERS: Record<ValueFormat, (v: number) => string> = {
+  int:     v => v.toLocaleString('es-AR'),
+  money:   v => fmtMoney(v),
+  compact: v => fmtCompactARS(v),
+}
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
@@ -31,12 +39,14 @@ interface Props {
   height?:         number
   /** Fill the parent's height instead of using a fixed `height` (one-screen grid). */
   fill?:           boolean
-  /** Formats the per-item legend value. Defaults to a plain integer — pass a
-   *  money formatter when the values are amounts (e.g. commission per bank). */
-  formatValue?:    (v: number) => string
+  /** How the per-item legend value is formatted. 'int' (default) for counts,
+   *  'money'/'compact' for amounts. A string (not a fn) so it can cross the
+   *  server -> client component boundary. */
+  valueFormat?:    ValueFormat
 }
 
-export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total', centerText, height = 220, fill = false, formatValue = (v: number) => v.toLocaleString('es-AR') }: Props) {
+export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total', centerText, height = 220, fill = false, valueFormat = 'int' }: Props) {
+  const formatValue = VALUE_FORMATTERS[valueFormat]
   const total = items.reduce((s, i) => s + i.value, 0)
   const c     = useChartColors()
 
