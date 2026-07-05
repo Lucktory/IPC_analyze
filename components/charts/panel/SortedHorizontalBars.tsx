@@ -13,11 +13,14 @@ export interface SortedBarItem {
 
 interface Props {
   items: SortedBarItem[]
-  /** Word after the big total (e.g. "contratos"). */
+  /** Word after the big total (e.g. "contratos"). Empty hides the big total. */
   totalUnit?: string
+  /** Formats the per-row value + the big total. Defaults to a plain integer —
+   *  pass a money formatter when the values are amounts (e.g. revenue). */
+  formatValue?: (v: number) => string
 }
 
-export function SortedHorizontalBars({ items, totalUnit = '' }: Props) {
+export function SortedHorizontalBars({ items, totalUnit = '', formatValue = (v: number) => v.toLocaleString('es-AR') }: Props) {
   const total = items.reduce((s, i) => s + i.value, 0)
   const max   = Math.max(1, ...items.map(i => i.value))
 
@@ -28,18 +31,19 @@ export function SortedHorizontalBars({ items, totalUnit = '' }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <p className="font-display text-[28px] font-medium text-ink tabular-nums leading-none">
-        {total.toLocaleString('es-AR')}
-        {totalUnit && <span className="text-[14px] font-normal text-slate ml-2">{totalUnit}</span>}
-      </p>
+    <div className="flex flex-col gap-4">
+      {totalUnit && (
+        <p className="font-display text-[26px] font-medium text-ink tabular-nums leading-none">
+          {formatValue(total)}
+          <span className="text-[14px] font-normal text-slate ml-2">{totalUnit}</span>
+        </p>
+      )}
 
       <ul className="flex flex-col gap-3">
         {items.map(i => {
-          const pct      = (i.value / total) * 100
-          const barWidth = (i.value / max)   * 100
+          const barWidth = (i.value / max) * 100
           return (
-            <li key={i.label} className="grid grid-cols-[88px_minmax(0,1fr)_44px_36px] gap-3 items-center">
+            <li key={i.label} className="grid grid-cols-[minmax(64px,92px)_minmax(0,1fr)_auto] gap-2.5 items-center">
               <span className="text-[13px] text-slate-dark truncate">{i.label}</span>
               <div className="h-2 rounded-full bg-cream-2 overflow-hidden">
                 <div
@@ -47,8 +51,7 @@ export function SortedHorizontalBars({ items, totalUnit = '' }: Props) {
                   style={{ width: `${barWidth}%`, backgroundColor: i.color }}
                 />
               </div>
-              <span className="text-[13px] font-medium text-ink tabular-nums text-right">{i.value}</span>
-              <span className="text-[11px] text-slate tabular-nums text-right">{pct.toFixed(0)}%</span>
+              <span className="text-[12px] font-medium text-ink tabular-nums text-right whitespace-nowrap">{formatValue(i.value)}</span>
             </li>
           )
         })}

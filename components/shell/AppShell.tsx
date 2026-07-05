@@ -102,18 +102,22 @@ export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProp
         <div className="print:hidden">
           <TopBar pendientes={pendingCount} userEmail={userEmail} onMenuClick={() => setOpen(true)} />
         </div>
-        <main className={`flex-1 bg-watermark print:overflow-visible print:bg-paper ${isWideRoute(pathname) || isFullHeightRoute(pathname) ? 'overflow-hidden' : 'overflow-auto'}`}>
+        <main className={`flex-1 bg-watermark print:overflow-visible print:bg-paper ${
+          isWideRoute(pathname) ? 'overflow-hidden'
+          : isFullHeightRoute(pathname) ? 'overflow-auto lg:overflow-hidden'
+          : 'overflow-auto'}`}>
           {/* /liquidacion is a planilla page — it needs the full viewport
               width AND height to fit the 19-column grid with the table
-              being the only scrolling area. /dashboard is full-height too but
-              full-bleed with light padding so its charts flex to one screen.
+              being the only scrolling area. /dashboard is full-height at lg+
+              (charts flex to one screen); below lg it falls back to a normal
+              scrolling stack so the cards don't collapse on small screens.
               Every other page keeps the centered max-w-shell + comfortable
               padding (and uses page-level scrolling). */}
           <div className={
             isWideRoute(pathname)
               ? 'w-full h-full flex flex-col px-2 pt-2 pb-0 print:px-0 print:py-0'
             : isFullHeightRoute(pathname)
-              ? 'w-full h-full flex flex-col px-3 sm:px-5 lg:px-6 py-3 sm:py-4 print:px-0 print:py-0'
+              ? 'w-full lg:h-full flex flex-col px-3 sm:px-5 lg:px-6 py-3 sm:py-4 print:px-0 print:py-0'
               : 'max-w-shell mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8 print:max-w-none print:px-0 print:py-0'}>
             {children}
           </div>

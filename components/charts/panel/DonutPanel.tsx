@@ -31,9 +31,12 @@ interface Props {
   height?:         number
   /** Fill the parent's height instead of using a fixed `height` (one-screen grid). */
   fill?:           boolean
+  /** Formats the per-item legend value. Defaults to a plain integer — pass a
+   *  money formatter when the values are amounts (e.g. commission per bank). */
+  formatValue?:    (v: number) => string
 }
 
-export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total', centerText, height = 220, fill = false }: Props) {
+export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total', centerText, height = 220, fill = false, formatValue = (v: number) => v.toLocaleString('es-AR') }: Props) {
   const total = items.reduce((s, i) => s + i.value, 0)
   const c     = useChartColors()
 
@@ -154,7 +157,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: i.color }} />
                 <span className="text-[13px] text-ink flex-1 truncate">{i.label}</span>
-                <span className="text-[14px] font-medium text-ink tabular-nums">{i.value}</span>
+                <span className="text-[13px] font-medium text-ink tabular-nums">{formatValue(i.value)}</span>
                 <span className="text-[11px] text-slate tabular-nums w-9 text-right">{pct}%</span>
               </div>
               <div className="h-[2px] rounded-full" style={{ backgroundColor: i.color, opacity: 0.85 }} />

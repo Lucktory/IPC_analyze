@@ -159,10 +159,12 @@ export default async function DashboardPage() {
   const cadenceTotal  = cadence.reduce((s, c) => s + c.count, 0)
 
   return (
-    // Full-height, no page scroll: header + KPIs are fixed; the two chart rows
-    // share the remaining height (grid-rows-2) so every widget fits one screen
-    // from 1024x768 up and grows on taller/wider viewports.
-    <div className="h-full flex flex-col gap-2.5 min-h-0">
+    // At lg+ the Panel fills the viewport with NO page scroll: header + KPIs are
+    // fixed and the two chart rows share the leftover height (grid-rows-2) so
+    // every widget fits one screen from 1024x768 up and grows on bigger screens.
+    // Below lg it falls back to a normal vertical scroll (charts get a fixed
+    // height) so nothing collapses / overlaps on small screens.
+    <div className="flex flex-col gap-2.5 lg:h-full lg:min-h-0">
       <header className="flex items-baseline gap-3 shrink-0">
         <h1 className="text-[20px] font-semibold text-ink">Panel</h1>
         <p className="text-[13px] text-slate">{period}</p>
@@ -180,38 +182,44 @@ export default async function DashboardPage() {
                  delta={null} sparkColor={RED} negativeIsBad={false} />
       </section>
 
-      {/* Two chart rows share the leftover height */}
-      <div className="flex-1 min-h-0 grid grid-rows-2 gap-2.5">
+      {/* Two chart rows: stacked+scroll below lg, share leftover height at lg+ */}
+      <div className="flex flex-col gap-2.5 lg:flex-1 lg:min-h-0 lg:grid lg:grid-rows-2">
         {/* Row 2 */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 min-h-0">
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 lg:min-h-0">
           <DashboardCard title="Tendencia de ingresos" subtitle="Últimos 6 meses" fill>
-            <StackedAreaChart
-              xLabels={incomeTrend.map(p => p.label)}
-              series={[{ name: 'Ingresos (ARS)', color: BLUE, values: incomeVals }]}
-              height="100%"
-            />
+            <div className="h-[180px] lg:h-full">
+              <StackedAreaChart
+                xLabels={incomeTrend.map(p => p.label)}
+                series={[{ name: 'Ingresos (ARS)', color: BLUE, values: incomeVals }]}
+                height="100%"
+              />
+            </div>
           </DashboardCard>
 
           <DashboardCard title="Comisión por banco" fill>
-            <DonutPanel items={commItems} totalUnit="Total" fill
-                        centerText={fmtCompactARS(commItems.reduce((s, i) => s + i.value, 0)).replace('$ ', '')} />
+            <div className="h-[180px] lg:h-full">
+              <DonutPanel items={commItems} totalUnit="Total" fill formatValue={fmtMoney}
+                          centerText={fmtCompactARS(commItems.reduce((s, i) => s + i.value, 0)).replace('$ ', '')} />
+            </div>
           </DashboardCard>
 
           <DashboardCard title="Top propietarios" fill>
-            <div className="h-full flex flex-col justify-center">
-              <SortedHorizontalBars items={landlordItems} totalUnit="" />
+            <div className="lg:h-full flex flex-col lg:justify-center">
+              <SortedHorizontalBars items={landlordItems} totalUnit="" formatValue={fmtCompactARS} />
             </div>
           </DashboardCard>
         </section>
 
         {/* Row 3 */}
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 min-h-0">
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 lg:min-h-0">
           <DashboardCard title="Tipo de propiedad" fill>
-            <DonutPanel items={propItems} totalUnit="Total" fill />
+            <div className="h-[180px] lg:h-full">
+              <DonutPanel items={propItems} totalUnit="Total" fill />
+            </div>
           </DashboardCard>
 
           <DashboardCard title="Cadencia" fill>
-            <div className="h-full flex flex-col justify-between">
+            <div className="lg:h-full flex flex-col lg:justify-between">
               <CadenceRows items={cadence.map(c => ({ label: c.label, count: c.count }))} total={cadenceTotal} />
               <div className="mt-3 pt-2.5 border-t border-line flex justify-between text-[12px] text-slate shrink-0">
                 <span>Total</span>
@@ -221,7 +229,7 @@ export default async function DashboardPage() {
           </DashboardCard>
 
           <DashboardCard title="Salud de cobranza" fill>
-            <div className="h-full flex items-center gap-4">
+            <div className="lg:h-full flex items-center gap-4">
               <div className="shrink-0 w-[130px] sm:w-[150px]"><RadialGauge pct={saludPct} status={saludStatus} /></div>
               <div className="flex-1 min-w-0">
                 <LegendRows rows={[
