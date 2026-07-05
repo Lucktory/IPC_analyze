@@ -31,6 +31,32 @@ const TT_DIRECTION       = 'transaction_types.direction'
 const TT_CODE            = 'transaction_types.code'
 const TT_AFFECTS_LIQ     = 'transaction_types.affects_liquidacion'
 
+// ---------------------------------------------------------------------------
+// Dashboard period — the latest month that ACTUALLY has transaction data,
+// capped at the current calendar month. The planilla rolls to the current
+// month the day it starts (empty until data is loaded), so a dashboard keyed
+// to getCurrentPeriod() renders all-zeros / "0% cobrado" on the 1st-Nth of a
+// fresh month. Keying to the latest month WITH data keeps the Panel showing
+// the real book (e.g. June) until July is actually loaded.
+// ---------------------------------------------------------------------------
+export async function getDashboardPeriod(): Promise<string> {
+  const current = getCurrentPeriod()
+  try {
+    const supabase = await createSupabaseServer()
+    const { data } = await supabase
+      .from('transactions')
+      .select('period')
+      .lte('period', current)
+      .order('period', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    return (data?.period as string | undefined) ?? current
+  } catch (err) {
+    console.error('[getDashboardPeriod] failed:', err)
+    return current
+  }
+}
+
 export interface DashboardKpis {
   activeContracts:   number
   rescindedContracts: number
@@ -61,9 +87,10 @@ export interface TenantWithoutPayment {
 // ---------------------------------------------------------------------------
 // 1. Top-level KPIs
 // ---------------------------------------------------------------------------
-export async function getDashboardKpis(): Promise<DashboardKpis> {
+export async function getDashboardKpis(period?: string): Promise<DashboardKpis> {
   try {
     const supabase = await createSupabaseServer()
+    const p = period ?? await getDashboardPeriod()
 
     // Contract status counts. monthlyIncome is the SAME definition as the
     // planilla's `ingresos` aggregate: all affects_liquidacion IN, not
@@ -76,12 +103,12 @@ export async function getDashboardKpis(): Promise<DashboardKpis> {
         .select('amount, transaction_types!inner(direction, affects_liquidacion)')
         .eq(TT_DIRECTION,   'IN')
         .eq(TT_AFFECTS_LIQ, true)
-        .eq('period', getCurrentPeriod()),
+        .eq('period', p),
       supabase
         .from('transactions')
         .select('amount, transaction_types!inner(code)')
         .eq(TT_CODE, 'COMMISSION_OUT')
-        .eq('period', getCurrentPeriod()),
+        .eq('period', p),
     ])
 
     const sum = (rows: { amount: number | string }[] | null) =>
@@ -105,15 +132,16 @@ export async function getDashboardKpis(): Promise<DashboardKpis> {
 // ---------------------------------------------------------------------------
 // 2. Commission by destination — the section chief's reconciliation view
 // ---------------------------------------------------------------------------
-export async function getCommissionByDestination(): Promise<CommissionByDestination[]> {
+export async function getCommissionByDestination(period?: string): Promise<CommissionByDestination[]> {
   try {
   const supabase = await createSupabaseServer()
+  const p = period ?? await getDashboardPeriod()
 
   const { data } = await supabase
     .from('transactions')
     .select('amount, description, transaction_types!inner(code)')
     .eq(TT_CODE, 'COMMISSION_OUT')
-    .eq('period', getCurrentPeriod())
+    .eq('period', p)
 
   const buckets: Record<string, { total: number; count: number; label: string }> = {
     ADM_GALICIA:      { total: 0, count: 0, label: 'ADM Galicia' },
@@ -155,9 +183,10 @@ export async function getCommissionByDestination(): Promise<CommissionByDestinat
 // Panel reflects the same money the encargada sees in /liquidacion's
 // "Total cobrado" — recuperos included.
 // ---------------------------------------------------------------------------
-export async function getTopLandlords(limit = 10): Promise<TopLandlord[]> {
+export async function getTopLandlords(limit = 10, period?: string): Promise<TopLandlord[]> {
   try {
     const supabase = await createSupabaseServer()
+    const p = period ?? await getDashboardPeriod()
 
     const { data } = await supabase
       .from('transactions')
@@ -173,7 +202,7 @@ export async function getTopLandlords(limit = 10): Promise<TopLandlord[]> {
       `)
       .eq(TT_DIRECTION,   'IN')
       .eq(TT_AFFECTS_LIQ, true)
-      .eq('period', getCurrentPeriod())
+      .eq('period', p)
 
     // Aggregate in JS — easier than complex Supabase aggregates.
     const acc = new Map<string, { revenue: number; contracts: Set<string> }>()
@@ -284,10 +313,10 @@ export interface MonthlyTrendPoint {
   value:  number   // pesos
 }
 
-export async function getMonthlyIncomeTrend(months = 6): Promise<MonthlyTrendPoint[]> {
+export async function getMonthlyIncomeTrend(months = 6, anchor?: string): Promise<MonthlyTrendPoint[]> {
   try {
     const supabase = await createSupabaseServer()
-    const periods  = getRecentPeriods(months)
+    const periods  = getRecentPeriods(months, anchor ?? await getDashboardPeriod())
 
     // "Ingresos" here means the same as the planilla's row.ingresos:
     // every affects_liquidacion = true && direction = 'IN' transaction.
@@ -328,10 +357,10 @@ export interface OperationalTrendPoint {
   pagos:      number   // tx count
 }
 
-export async function getOperationalTrends(months = 6): Promise<OperationalTrendPoint[]> {
+export async function getOperationalTrends(months = 6, anchor?: string): Promise<OperationalTrendPoint[]> {
   try {
     const supabase = await createSupabaseServer()
-    const periods  = getRecentPeriods(months)
+    const periods  = getRecentPeriods(months, anchor ?? await getDashboardPeriod())
 
     // Two parallel fetches:
     //   • ingresosRes — every affects_liquidacion IN (RENT_IN + recuperos
@@ -420,9 +449,10 @@ export interface CollectionHealth {
   status:           'ok' | 'warning' | 'critical'
 }
 
-export async function getCollectionHealth(): Promise<CollectionHealth> {
+export async function getCollectionHealth(period?: string): Promise<CollectionHealth> {
   try {
     const supabase = await createSupabaseServer()
+    const p = period ?? await getDashboardPeriod()
     // Three parallel fetches:
     //   • contractsRes — universe of active contracts (counts + expected rent)
     //   • rentRes      — RENT_IN this period (drives paidCount + the gauge)
@@ -437,13 +467,13 @@ export async function getCollectionHealth(): Promise<CollectionHealth> {
         .from('transactions')
         .select('amount, contract_id, transaction_types!inner(code)')
         .eq(TT_CODE, 'RENT_IN')
-        .eq('period', getCurrentPeriod()),
+        .eq('period', p),
       supabase
         .from('transactions')
         .select('amount, transaction_types!inner(direction, affects_liquidacion)')
         .eq(TT_DIRECTION,   'IN')
         .eq(TT_AFFECTS_LIQ, true)
-        .eq('period', getCurrentPeriod()),
+        .eq('period', p),
     ])
 
     const contracts    = (contractsRes.data ?? []) as { id: string; current_rent: number | string }[]

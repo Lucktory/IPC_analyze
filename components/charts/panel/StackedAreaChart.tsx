@@ -24,7 +24,8 @@ export interface AreaSeries {
 interface Props {
   xLabels: string[]
   series:  AreaSeries[]
-  height?: number
+  /** Pixel height, or '100%' to fill a flex/grid parent (one-screen grid). */
+  height?: number | string
 }
 
 export function StackedAreaChart({ xLabels, series, height = 280 }: Props) {

@@ -14,8 +14,9 @@ import {
   getMonthlyIncomeTrend,
   getOperationalTrends,
   getCollectionHealth,
+  getDashboardPeriod,
 } from '@/lib/dashboard/queries'
-import { getCurrentPeriodLabel } from '@/lib/period'
+import { periodLabel } from '@/lib/period'
 import { fmtMoney } from '@/lib/format'
 import { fmtCompactARS } from '@/components/charts/theme'
 import { DashboardCard }        from '@/components/charts/panel/DashboardCard'
@@ -64,12 +65,12 @@ function KpiCard({ label, value, delta, deltaSuffix = '%', negativeIsBad = true,
   const good = negativeIsBad ? up : !up
   return (
     <div className="rounded-xl border border-line bg-paper px-4 py-3.5 flex flex-col gap-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-      <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate">
-        {label}<Info size={13} className="text-slate/70" />
+      <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate min-w-0">
+        <span className="truncate">{label}</span><Info size={13} className="text-slate/70 shrink-0" />
       </div>
-      <div className="flex items-end justify-between gap-3">
-        <div className="text-[23px] font-semibold text-ink leading-none tabular-nums">{value}</div>
-        {spark && <Sparkline values={spark} color={sparkColor} />}
+      <div className="flex items-end justify-between gap-2">
+        <div className="text-[19px] xl:text-[22px] font-semibold text-ink leading-none tabular-nums truncate">{value}</div>
+        {spark && <div className="hidden xl:block shrink-0"><Sparkline values={spark} color={sparkColor} /></div>}
       </div>
       {delta != null ? (
         <div className="flex items-center gap-1.5 text-[12px]">
@@ -123,18 +124,21 @@ function LegendRows({ rows }: { rows: { label: string; amount: number; pct: numb
 }
 
 export default async function DashboardPage() {
+  // Resolve the period ONCE (latest month with data, e.g. June) so every
+  // widget agrees — otherwise a fresh current month shows an empty Panel.
+  const dashPeriod = await getDashboardPeriod()
   const [kpis, commByBank, topLandlords, propTypes, cadence, incomeTrend, opTrends, health] = await Promise.all([
-    getDashboardKpis(),
-    getCommissionByDestination(),
-    getTopLandlords(5),
+    getDashboardKpis(dashPeriod),
+    getCommissionByDestination(dashPeriod),
+    getTopLandlords(5, dashPeriod),
     getPropertyTypeBreakdown(),
     getContractsByCadence(),
-    getMonthlyIncomeTrend(6),
-    getOperationalTrends(6),
-    getCollectionHealth(),
+    getMonthlyIncomeTrend(6, dashPeriod),
+    getOperationalTrends(6, dashPeriod),
+    getCollectionHealth(dashPeriod),
   ])
 
-  const period = getCurrentPeriodLabel()
+  const period = periodLabel(dashPeriod)
 
   // KPI deltas + sparkline series from the trend queries
   const incomeVals = incomeTrend.map(p => p.value)
@@ -155,14 +159,17 @@ export default async function DashboardPage() {
   const cadenceTotal  = cadence.reduce((s, c) => s + c.count, 0)
 
   return (
-    <div className="flex flex-col gap-3">
-      <header className="flex items-baseline gap-3">
+    // Full-height, no page scroll: header + KPIs are fixed; the two chart rows
+    // share the remaining height (grid-rows-2) so every widget fits one screen
+    // from 1024x768 up and grows on taller/wider viewports.
+    <div className="h-full flex flex-col gap-2.5 min-h-0">
+      <header className="flex items-baseline gap-3 shrink-0">
         <h1 className="text-[20px] font-semibold text-ink">Panel</h1>
         <p className="text-[13px] text-slate">{period}</p>
       </header>
 
-      {/* KPI row */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      {/* KPI row — 2-up on small, 4-up from lg (1024px) */}
+      <section className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <KpiCard label="Contratos activos" value={kpis.activeContracts.toLocaleString('es-AR')}
                  delta={null} sparkColor={BLUE} />
         <KpiCard label="Ingresos del mes" value={fmtMoney(kpis.monthlyIncome)}
@@ -173,50 +180,59 @@ export default async function DashboardPage() {
                  delta={null} sparkColor={RED} negativeIsBad={false} />
       </section>
 
-      {/* Row 2 */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-        <DashboardCard title="Tendencia de ingresos" subtitle="Últimos 6 meses">
-          <StackedAreaChart
-            xLabels={incomeTrend.map(p => p.label)}
-            series={[{ name: 'Ingresos (ARS)', color: BLUE, values: incomeVals }]}
-            height={168}
-          />
-        </DashboardCard>
+      {/* Two chart rows share the leftover height */}
+      <div className="flex-1 min-h-0 grid grid-rows-2 gap-2.5">
+        {/* Row 2 */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 min-h-0">
+          <DashboardCard title="Tendencia de ingresos" subtitle="Últimos 6 meses" fill>
+            <StackedAreaChart
+              xLabels={incomeTrend.map(p => p.label)}
+              series={[{ name: 'Ingresos (ARS)', color: BLUE, values: incomeVals }]}
+              height="100%"
+            />
+          </DashboardCard>
 
-        <DashboardCard title="Comisión por banco">
-          <DonutPanel items={commItems} totalUnit="Total" height={150}
-                      centerText={fmtCompactARS(commItems.reduce((s, i) => s + i.value, 0)).replace('$ ', '')} />
-        </DashboardCard>
+          <DashboardCard title="Comisión por banco" fill>
+            <DonutPanel items={commItems} totalUnit="Total" fill
+                        centerText={fmtCompactARS(commItems.reduce((s, i) => s + i.value, 0)).replace('$ ', '')} />
+          </DashboardCard>
 
-        <DashboardCard title="Top propietarios">
-          <SortedHorizontalBars items={landlordItems} totalUnit="" />
-        </DashboardCard>
-      </section>
+          <DashboardCard title="Top propietarios" fill>
+            <div className="h-full flex flex-col justify-center">
+              <SortedHorizontalBars items={landlordItems} totalUnit="" />
+            </div>
+          </DashboardCard>
+        </section>
 
-      {/* Row 3 */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-        <DashboardCard title="Tipo de propiedad">
-          <DonutPanel items={propItems} totalUnit="Total" height={150} />
-        </DashboardCard>
+        {/* Row 3 */}
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 min-h-0">
+          <DashboardCard title="Tipo de propiedad" fill>
+            <DonutPanel items={propItems} totalUnit="Total" fill />
+          </DashboardCard>
 
-        <DashboardCard title="Cadencia">
-          <CadenceRows items={cadence.map(c => ({ label: c.label, count: c.count }))} total={cadenceTotal} />
-          <div className="mt-3 pt-2.5 border-t border-line flex justify-between text-[12px] text-slate">
-            <span>Total</span>
-            <span className="tabular-nums text-ink">{cadenceTotal} · 100%</span>
-          </div>
-        </DashboardCard>
+          <DashboardCard title="Cadencia" fill>
+            <div className="h-full flex flex-col justify-between">
+              <CadenceRows items={cadence.map(c => ({ label: c.label, count: c.count }))} total={cadenceTotal} />
+              <div className="mt-3 pt-2.5 border-t border-line flex justify-between text-[12px] text-slate shrink-0">
+                <span>Total</span>
+                <span className="tabular-nums text-ink">{cadenceTotal} · 100%</span>
+              </div>
+            </div>
+          </DashboardCard>
 
-        <DashboardCard title="Salud de cobranza">
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="shrink-0"><RadialGauge pct={saludPct} status={saludStatus} /></div>
-            <LegendRows rows={[
-              { label: 'Pagada',    amount: health.collectedAmount, pct: health.collectionRateByAmount,       color: EMERALD },
-              { label: 'Pendiente', amount: health.pendingAmount,   pct: 100 - health.collectionRateByAmount, color: RED },
-            ]} />
-          </div>
-        </DashboardCard>
-      </section>
+          <DashboardCard title="Salud de cobranza" fill>
+            <div className="h-full flex items-center gap-4">
+              <div className="shrink-0 w-[130px] sm:w-[150px]"><RadialGauge pct={saludPct} status={saludStatus} /></div>
+              <div className="flex-1 min-w-0">
+                <LegendRows rows={[
+                  { label: 'Pagada',    amount: health.collectedAmount, pct: health.collectionRateByAmount,       color: EMERALD },
+                  { label: 'Pendiente', amount: health.pendingAmount,   pct: 100 - health.collectionRateByAmount, color: RED },
+                ]} />
+              </div>
+            </div>
+          </DashboardCard>
+        </section>
+      </div>
     </div>
   )
 }

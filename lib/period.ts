@@ -78,15 +78,19 @@ export function shiftPeriod(period: string, months: number): string {
 }
 
 /**
- * Last `n` periods including the current one, ordered oldest → newest.
- * Used by the dashboard trend widgets.
+ * Last `n` periods ending at `anchor` (default: the current month), ordered
+ * oldest → newest. Used by the dashboard trend widgets. Pass an `anchor` so a
+ * trend can end at the latest month WITH data instead of an empty current
+ * month (see getDashboardPeriod()).
  */
-export function getRecentPeriods(n: number): string[] {
+export function getRecentPeriods(n: number, anchor?: string): string[] {
   const out: string[] = []
-  const today = getArgentinaToday()
-  // Walk back from current month
+  const base = anchor
+    ? (() => { const [y, m] = anchor.split('-').map(Number); return new Date(y, m - 1, 1) })()
+    : getArgentinaToday()
+  // Walk back from the anchor month
   for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
+    const d = new Date(base.getFullYear(), base.getMonth() - i, 1)
     const year  = d.getFullYear()
     const month = String(d.getMonth() + 1).padStart(2, '0')
     out.push(`${year}-${month}-01`)

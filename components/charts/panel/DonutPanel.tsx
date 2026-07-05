@@ -29,9 +29,11 @@ interface Props {
   centerText?:     string
   /** Donut square height in px. Smaller values also shrink the center number. */
   height?:         number
+  /** Fill the parent's height instead of using a fixed `height` (one-screen grid). */
+  fill?:           boolean
 }
 
-export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total', centerText, height = 220 }: Props) {
+export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total', centerText, height = 220, fill = false }: Props) {
   const total = items.reduce((s, i) => s + i.value, 0)
   const c     = useChartColors()
 
@@ -98,7 +100,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
         top: '47%',
         style: {
           text: centerText ?? total.toLocaleString('es-AR'),
-          fontSize: height < 180 ? 20 : 30,
+          fontSize: fill ? 22 : (height < 180 ? 20 : 30),
           fontWeight: 600,
           fill: c.centerValue,
           fontFamily: 'Lexend',
@@ -119,7 +121,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
   }
 
   const donut = (
-    <div style={{ width: '100%', height }}>
+    <div style={{ width: '100%', height: fill ? '100%' : height }} className={fill ? 'min-h-0' : ''}>
       <ReactECharts option={option} style={{ width: '100%', height: '100%' }} notMerge lazyUpdate />
     </div>
   )
@@ -142,9 +144,9 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
 
   // side legend
   return (
-    <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4 items-center">
+    <div className={`grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4 ${fill ? 'h-full items-stretch' : 'items-center'}`}>
       {donut}
-      <ul className="flex flex-col gap-3">
+      <ul className={`flex flex-col gap-3 ${fill ? 'self-center' : ''}`}>
         {items.map(i => {
           const pct = total > 0 ? Math.round((i.value / total) * 100) : 0
           return (

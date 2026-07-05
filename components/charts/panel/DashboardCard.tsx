@@ -13,6 +13,10 @@ interface DashboardCardProps {
   topRight?: ReactNode
   /** Optional minimum height — useful when sibling cards must align. */
   minHeight?: number
+  /** Fill the parent's height: the card becomes a flex column and the body
+   *  gets `flex-1 min-h-0` so a chart inside can grow/shrink with the
+   *  viewport (used by the one-screen /dashboard grid). */
+  fill?:     boolean
   /** Extra classes appended to the wrapping <section>. Used for grid spans. */
   className?: string
   children:  ReactNode
@@ -23,15 +27,16 @@ export function DashboardCard({
   subtitle,
   topRight,
   minHeight,
+  fill = false,
   className = '',
   children,
 }: DashboardCardProps) {
   return (
     <section
-      className={`rounded bg-paper border border-line shadow-card px-4 py-3 sm:px-5 sm:py-3.5 ${className}`}
+      className={`rounded bg-paper border border-line shadow-card px-4 py-3 sm:px-5 sm:py-3.5 ${fill ? 'h-full flex flex-col min-h-0 overflow-hidden' : ''} ${className}`}
       style={minHeight ? { minHeight } : undefined}
     >
-      <header className="flex items-start justify-between gap-4 mb-2.5">
+      <header className={`flex items-start justify-between gap-4 mb-2.5 ${fill ? 'shrink-0' : ''}`}>
         <div className="min-w-0">
           <h3 className="font-display text-[15px] font-medium text-ink leading-tight">{title}</h3>
           {subtitle && (
@@ -40,7 +45,7 @@ export function DashboardCard({
         </div>
         {topRight && <div className="shrink-0">{topRight}</div>}
       </header>
-      {children}
+      {fill ? <div className="flex-1 min-h-0">{children}</div> : children}
     </section>
   )
 }
