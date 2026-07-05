@@ -15,10 +15,12 @@ import {
   getOperationalTrends,
   getCollectionHealth,
   getDashboardPeriod,
+  getPeriodsWithData,
 } from '@/lib/dashboard/queries'
-import { periodLabel } from '@/lib/period'
+import { buildPeriodTabs } from '@/lib/period'
 import { fmtMoney } from '@/lib/format'
 import { fmtCompactARS } from '@/components/charts/theme'
+import { PeriodSelect }         from '@/components/charts/panel/PeriodSelect'
 import { DashboardCard }        from '@/components/charts/panel/DashboardCard'
 import { DonutPanel }           from '@/components/charts/panel/DonutPanel'
 import { RadialGauge }          from '@/components/charts/panel/RadialGauge'
@@ -123,10 +125,15 @@ function LegendRows({ rows }: { rows: { label: string; amount: number; pct: numb
   )
 }
 
-export default async function DashboardPage() {
-  // Resolve the period ONCE (latest month with data, e.g. June) so every
-  // widget agrees — otherwise a fresh current month shows an empty Panel.
-  const dashPeriod = await getDashboardPeriod()
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
+  const sp = await searchParams
+  // Default to the latest month WITH data (e.g. June); ?period=YYYY-MM-01 from
+  // the month selector overrides it. Every widget keys off this one period.
+  const [latestPeriod, dataPeriods] = await Promise.all([getDashboardPeriod(), getPeriodsWithData()])
+  const validReq = sp.period && /^\d{4}-\d{2}-01$/.test(sp.period) ? sp.period : null
+  const dashPeriod = validReq ?? latestPeriod
+  const selectorPeriods = buildPeriodTabs(dataPeriods, dashPeriod, 3)
+
   const [kpis, commByBank, topLandlords, propTypes, cadence, incomeTrend, opTrends, health] = await Promise.all([
     getDashboardKpis(dashPeriod),
     getCommissionByDestination(dashPeriod),
@@ -137,8 +144,6 @@ export default async function DashboardPage() {
     getOperationalTrends(6, dashPeriod),
     getCollectionHealth(dashPeriod),
   ])
-
-  const period = periodLabel(dashPeriod)
 
   // KPI deltas + sparkline series from the trend queries
   const incomeVals = incomeTrend.map(p => p.value)
@@ -165,9 +170,9 @@ export default async function DashboardPage() {
     // Below lg it falls back to a normal vertical scroll (charts get a fixed
     // height) so nothing collapses / overlaps on small screens.
     <div className="flex flex-col gap-2.5 lg:h-full lg:min-h-0">
-      <header className="flex items-baseline gap-3 shrink-0">
+      <header className="flex items-center justify-between gap-3 shrink-0">
         <h1 className="text-[20px] font-semibold text-ink">Panel</h1>
-        <p className="text-[13px] text-slate">{period}</p>
+        <PeriodSelect current={dashPeriod} periods={selectorPeriods} />
       </header>
 
       {/* KPI row — 2-up on small, 4-up from lg (1024px) */}

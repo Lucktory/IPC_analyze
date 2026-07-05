@@ -57,6 +57,21 @@ export async function getDashboardPeriod(): Promise<string> {
   }
 }
 
+// Distinct periods that have ANY transaction — feeds the Panel month selector
+// (unioned with the current month via buildPeriodTabs so the selector always
+// offers the live month even before it has data). Newest-first.
+export async function getPeriodsWithData(): Promise<string[]> {
+  try {
+    const supabase = await createSupabaseServer()
+    const { data } = await supabase.from('transactions').select('period')
+    const set = new Set<string>((data ?? []).map((r: any) => r.period).filter(Boolean))
+    return [...set].sort().reverse()
+  } catch (err) {
+    console.error('[getPeriodsWithData] failed:', err)
+    return []
+  }
+}
+
 export interface DashboardKpis {
   activeContracts:   number
   rescindedContracts: number
