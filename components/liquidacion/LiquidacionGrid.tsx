@@ -494,6 +494,11 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                             : undefined
                     }
                   >
+                    {r.contrato && (
+                      <div className="text-[10px] font-medium text-slate-dark tabular-nums leading-none mb-1">
+                        {r.contrato}
+                      </div>
+                    )}
                     <EditableVigenciaCell
                       contractId={r.contractId}
                       startDate={r.startDate}
