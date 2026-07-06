@@ -399,8 +399,12 @@ export type { UrgencyTier }
 
 export interface ContractRow {
   id:              string
+  contractNumber:  string | null   // human contract id, e.g. "C-2024-0157"
   primaryTenant:   string
   primaryLandlord: string
+  propertyAddress: string | null   // street + number
+  propertyUnit:    string | null   // dept / piso
+  propertyCity:    string | null
   currentRent:     number
   cadence:         string
   status:          string
@@ -458,6 +462,7 @@ export interface ContractListResult {
   counts: {
     todos:       number
     activo:      number
+    vence_mes:   number
     por_vencer:  number
     rescindido:  number
   }
@@ -470,7 +475,8 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
     supabase
       .from('contracts')
       .select(`
-        id, current_rent, cadence, status, start_date, end_date,
+        id, contract_number, current_rent, cadence, status, start_date, end_date,
+        properties(address, unit, city),
         contract_tenants(is_primary, tenants(name)),
         contract_landlords(ownership_pct, landlords(id, name))
       `)
@@ -541,8 +547,12 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
 
     return {
       id:                cId,
+      contractNumber:    c.contract_number ?? null,
       primaryTenant:     primary?.tenants?.name ?? '(sin inquilino)',
       primaryLandlord:   topOwner?.landlords?.name ?? '(sin propietario)',
+      propertyAddress:   c.properties?.address ?? null,
+      propertyUnit:      c.properties?.unit ?? null,
+      propertyCity:      c.properties?.city ?? null,
       landlordId:        topOwner?.landlords?.id ?? '',
       currentRent:       Number(c.current_rent),
       cadence:           c.cadence,
@@ -562,6 +572,10 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
   const counts = {
     todos:      all.length,
     activo:     all.filter(c => c.status === 'active').length,
+    vence_mes:  all.filter(c => {
+      const end = new Date(c.endDate)
+      return c.status === 'active' && end >= today && end <= in30days
+    }).length,
     por_vencer: all.filter(c => {
       const end = new Date(c.endDate)
       return c.status === 'active' && end >= today && end <= in60days
