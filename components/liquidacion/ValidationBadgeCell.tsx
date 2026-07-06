@@ -31,11 +31,12 @@ export function ValidationBadgeCell({ issues }: Props) {
   const severity = highestSeverity(issues)
   const count    = issues.length
 
-  // Visual: tiered styles based on severity.
-  const styles =
-    severity === 'error'   ? { dot: 'bg-danger',  text: 'text-danger',  bg: 'hover:bg-danger/10' } :
-    severity === 'warning' ? { dot: 'bg-warn',    text: 'text-ink',     bg: 'hover:bg-warn/10'   } :
-                             { dot: 'bg-success/70', text: 'text-success', bg: 'hover:bg-success/10' }
+  // Circular status badge (matches the mockup): green ✓ when clean, amber ⚠
+  // for warnings, a filled red circle with the issue count for errors.
+  const badge =
+    count === 0            ? 'bg-success/15 text-success' :
+    severity === 'error'   ? 'bg-danger text-white' :
+                             'bg-warn/20 text-warn'
 
   return (
     <>
@@ -45,17 +46,14 @@ export function ValidationBadgeCell({ issues }: Props) {
         data-editing={open ? '' : undefined}
         onClick={() => count > 0 && setOpen(true)}
         title={count === 0 ? 'Todos los chequeos pasaron' : `${count} ${count === 1 ? 'problema' : 'problemas'} — tocá para ver`}
-        className={`inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded transition-colors ${styles.bg} ${count === 0 ? 'cursor-default' : 'cursor-pointer'}`}
+        className={`inline-grid place-items-center w-5 h-5 rounded-full transition-transform ${badge} ${count === 0 ? 'cursor-default' : 'cursor-pointer hover:scale-110'}`}
         disabled={count === 0}
       >
-        {count === 0 ? (
-          <span className={`text-[12px] ${styles.text}`}>✓</span>
-        ) : (
-          <>
-            <span className={`inline-block w-1.5 h-1.5 rounded-full ${styles.dot}`} />
-            <span className={`text-[10px] font-medium ${styles.text}`}>{count}</span>
-          </>
-        )}
+        {count === 0
+          ? <span className="text-[11px] leading-none">✓</span>
+          : severity === 'error'
+            ? <span className="text-[10px] font-semibold tabular-nums leading-none">{count}</span>
+            : <span className="text-[11px] leading-none">⚠</span>}
       </button>
 
       {open && rect && createPortal(

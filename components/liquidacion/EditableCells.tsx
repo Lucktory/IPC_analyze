@@ -187,7 +187,7 @@ export function EditableVigenciaCell({
 // committed when it falls outside reasonable bounds.
 export function EditableTransactionCell({
   contractId, period, typeCode, destination = null, value, cobrado, label,
-  expectedRent, maxPlausibleComm,
+  expectedRent, maxPlausibleComm, accent = '',
 }: {
   contractId:        string
   period:            string
@@ -198,6 +198,8 @@ export function EditableTransactionCell({
   label?:            string
   expectedRent?:     number
   maxPlausibleComm?: number
+  /** Text color class applied when value > 0 (e.g. the green neto column). */
+  accent?:           string
 }) {
   const validate =
     typeCode === 'RENT_IN' && expectedRent != null && expectedRent > 0
@@ -213,7 +215,7 @@ export function EditableTransactionCell({
       min={0}
       unit="$"
       onSave={(n) => upsertCellTransaction(contractId, period, typeCode, n, null, label ?? null, destination)}
-      displayClassName={cobrado ? 'text-ink' : 'text-slate'}
+      displayClassName={value > 0 && accent ? accent : cobrado ? 'text-ink' : 'text-slate'}
       title={label}
       validate={validate}
     />
@@ -237,10 +239,10 @@ export function EditableStatusCell({
   const shown = optimistic ?? status
   const nextStatus = shown === 'draft' ? 'sent' : shown === 'sent' ? 'paid' : 'draft'
 
-  const dotCls =
-    shown === 'draft' ? 'bg-slate' :
-    shown === 'sent'  ? 'bg-success'  :
-                        'bg-info'
+  const pillCls =
+    shown === 'draft' ? 'bg-warn/15 text-warn' :
+    shown === 'sent'  ? 'bg-success/15 text-success' :
+                        'bg-info/15 text-info'
   const labelCls =
     shown === 'draft' ? 'Borrador'   :
     shown === 'sent'  ? 'Enviada'    :
@@ -268,10 +270,9 @@ export function EditableStatusCell({
       title={`Estado: ${labelCls} · Click para pasar a ${
         nextStatus === 'draft' ? 'borrador' : nextStatus === 'sent' ? 'enviada' : 'pagada'
       }`}
-      className={`inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded hover:bg-info/10 transition-colors ${pending ? 'opacity-60' : ''}`}
+      className={`inline-flex items-center gap-1 transition-transform hover:scale-105 ${pending ? 'opacity-60' : ''}`}
     >
-      <span className={`inline-block w-2 h-2 rounded-full ${dotCls}`} />
-      <span className="text-[10px] text-slate-dark">{labelCls.slice(0, 4)}</span>
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${pillCls}`}>{labelCls}</span>
       {error && <span className="text-[9px] text-danger" title={error}>!</span>}
     </button>
   )

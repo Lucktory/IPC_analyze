@@ -261,14 +261,14 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
             {/* Group header row (2-level headers). Not sticky-top, so it
                 scrolls away and the column-header row below stays pinned; the
                 two frozen groups (Control / Propietario) are sticky-left. */}
-            <tr className="text-[9px] tracking-[0.08em] text-slate border-b border-line/60">
-              <th colSpan={4} className="text-left px-2 py-1 border-r border-line/40" style={{ position: 'sticky', left: 0, zIndex: 24, width: G_CTRL_W, minWidth: G_CTRL_W, backgroundColor: CREAM2 }}>Control</th>
-              <th colSpan={1} className="text-left px-2 py-1 border-r border-line/40" style={{ position: 'sticky', left: G_CTRL_W, zIndex: 24, width: W.prop, minWidth: W.prop, backgroundColor: CREAM2 }}>Propietario</th>
-              <th colSpan={7} className="text-left px-2 py-1 border-r border-line/40">Inquilino y contrato</th>
-              <th colSpan={7} className="text-left px-2 py-1 border-r border-line/40">Cobros del período</th>
-              <th colSpan={2} className="text-center px-2 py-1 border-r border-line/40">Comisión</th>
-              <th colSpan={3} className="text-center px-2 py-1 border-r border-line/40">Distribución bancaria</th>
-              <th colSpan={2} className="text-center px-2 py-1">Cierre</th>
+            <tr className="text-[10px] font-semibold tracking-wider text-slate-dark border-b-2 border-line">
+              <th colSpan={4} className="text-center px-2 py-1.5 border-r border-line" style={{ position: 'sticky', left: 0, zIndex: 24, width: G_CTRL_W, minWidth: G_CTRL_W, backgroundColor: CREAM2 }}>Control</th>
+              <th colSpan={1} className="text-center px-2 py-1.5 border-r border-line" style={{ position: 'sticky', left: G_CTRL_W, zIndex: 24, width: W.prop, minWidth: W.prop, backgroundColor: CREAM2 }}>Propietario</th>
+              <th colSpan={7} className="text-center px-2 py-1.5 border-r border-line">Contrato</th>
+              <th colSpan={7} className="text-center px-2 py-1.5 border-r border-line">Cobros del período</th>
+              <th colSpan={2} className="text-center px-2 py-1.5 border-r border-line">Comisión</th>
+              <th colSpan={3} className="text-center px-2 py-1.5 border-r border-line">Distribución bancaria</th>
+              <th colSpan={2} className="text-center px-2 py-1.5">Cierre</th>
             </tr>
             <tr className="border-b border-line">
               {/* 0 */}<Th sticky left={STICKY_LEFTS.check}  width={W.check}  align="center">Check</Th>
@@ -636,7 +636,8 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     />
                   </Td>
 
-                  {/* 12. TRANSFERENCIA — editable; persists LANDLORD_PAYOUT */}
+                  {/* 12. TRANSFERENCIA — editable; persists LANDLORD_PAYOUT.
+                       Neto al propietario: highlighted green like the mockup. */}
                   <Td width={W.transf} align="right">
                     <EditableTransactionCell
                       contractId={r.contractId}
@@ -644,6 +645,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       typeCode="LANDLORD_PAYOUT"
                       value={r.transferencia}
                       cobrado={transferido}
+                      accent="text-success font-semibold"
                       label={`Transferencia ${fmtPeriodo(r.periodo)}`}
                     />
                   </Td>
@@ -822,7 +824,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <Tf width={W.alquiler}  align="right" tabular>{footerMoney(totals.alquiler)}</Tf>
               <Tf width={W.recargos}  align="right" />{/* per-row totals only */}
               <Tf width={W.extras}    align="right" tabular>{footerMoney(totals.extras)}</Tf>
-              <Tf width={W.transf}    align="right" tabular>{footerMoney(totals.transferencia)}</Tf>
+              <Tf width={W.transf}    align="right" tabular><span className="text-success font-semibold">{footerMoney(totals.transferencia)}</span></Tf>
               <Tf width={W.otros}     align="right" tabular>{footerMoney(totals.otros)}</Tf>
               <Tf width={W.movim}     align="right"    />
               <Tf width={W.diatransf} align="center"    />
