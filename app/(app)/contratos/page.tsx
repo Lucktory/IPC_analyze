@@ -98,7 +98,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0" style={{ backgroundColor: s.color + '1f', color: s.color }}>
+              <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 text-white" style={{ backgroundColor: s.color }}>
                 <s.Icon size={18} />
               </span>
               <span className="text-[12px] font-medium text-slate leading-tight">{s.label}</span>
