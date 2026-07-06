@@ -459,6 +459,8 @@ export interface ContractRow {
   propertyCity:    string | null
   currentRent:     number
   cadence:         string
+  indexer:         string          // IPC_GENERAL | ICL | CASA_PROPIA | FIXED
+  paymentDay:      number
   status:          string
   startDate:       string
   endDate:         string
@@ -467,6 +469,7 @@ export interface ContractRow {
   // Urgency audit signals (used for row tinting + sort)
   hasRentThisMonth:  boolean
   hasNoteThisMonth:  boolean
+  noteUpdatedAt:     string | null  // last note edit for the period (ISO), or null
   recentlyTouched:   boolean       // tx bank_date or note updated_at within last 48h
   urgency:           UrgencyTier
   urgencyReasons:    string[]      // human-readable reasons, for the hover tooltip
@@ -507,6 +510,7 @@ export interface ContractListFilters {
   q?:          string   // free-text search across tenant + landlord names
   orden?:      'urgencia' | 'fecha'  // sort
   pendientes?: boolean  // when true, hide urgency='ok' rows
+  period?:     string   // period for the rent/note audit; defaults to current
 }
 
 export interface ContractListResult {
@@ -522,28 +526,29 @@ export interface ContractListResult {
 
 export async function listContracts(filters: ContractListFilters = {}): Promise<ContractListResult> {
   const supabase = await createSupabaseServer()
+  const auditPeriod = filters.period ?? getCurrentPeriod()
 
   const [contractsRes, rentTxnsRes, notesRes] = await Promise.all([
     supabase
       .from('contracts')
       .select(`
-        id, contract_number, current_rent, cadence, status, start_date, end_date,
+        id, contract_number, current_rent, cadence, indexer, payment_day, status, start_date, end_date,
         properties(address, unit, city),
         contract_tenants(is_primary, tenants(name)),
         contract_landlords(ownership_pct, landlords(id, name))
       `)
       .order('start_date', { ascending: false }),
-    // Per-contract rent status for the current period — drives the audit
+    // Per-contract rent status for the audit period — drives the audit
     supabase
       .from('transactions')
       .select(`contract_id, bank_date, transaction_types!inner(code)`)
-      .eq('period', getCurrentPeriod())
+      .eq('period', auditPeriod)
       .eq('transaction_types.code', 'RENT_IN'),
-    // Per-contract notes for the current period
+    // Per-contract notes for the audit period
     supabase
       .from('contract_period_notes')
       .select('contract_id, body, updated_at')
-      .eq('period', getCurrentPeriod()),
+      .eq('period', auditPeriod),
   ])
 
   // 48-hour cutoff for "recently touched"
@@ -564,9 +569,11 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
   }
   const hasNote     = new Map<string, boolean>()
   const recentNote  = new Map<string, boolean>()
+  const noteUpdatedAtMap = new Map<string, string>()
   for (const n of (notesRes.data ?? []) as any[]) {
     const body = (n.body ?? '').trim()
     if (body) hasNote.set(n.contract_id, true)
+    if (n.updated_at) noteUpdatedAtMap.set(n.contract_id, n.updated_at)
     if (n.updated_at && new Date(n.updated_at).getTime() > last48hAgoMs) {
       recentNote.set(n.contract_id, true)
     }
@@ -608,12 +615,15 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
       landlordId:        topOwner?.landlords?.id ?? '',
       currentRent:       Number(c.current_rent),
       cadence:           c.cadence,
+      indexer:           c.indexer ?? 'IPC_GENERAL',
+      paymentDay:        c.payment_day ?? 5,
       status,
       startDate:         c.start_date,
       endDate,
       nextAdjustment:    nextAdj,
       hasRentThisMonth:  hasRentNow,
       hasNoteThisMonth:  hasNoteNow,
+      noteUpdatedAt:     noteUpdatedAtMap.get(cId) ?? null,
       recentlyTouched:   recentlyTouchedNow,
       urgency,
       urgencyReasons,

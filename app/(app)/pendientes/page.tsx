@@ -1,427 +1,231 @@
 // ============================================================================
-// /pendientes — focused cashflow inbox (2026-06-18 redesign).
-//
-// Three categories, in priority order:
-//   1. Pendiente transferencia — overdue cobro OR cobrado-but-not-transferido
-//   2. Liquidación sin cerrar  — transferido but status != 'paid'
-//   3. Cobranza próxima         — vence en ≤7 días, no cobro aún
-//
-// Each row links directly to /contratos/[id] (the action surface for
-// everything: edit, register cobro, register transfer, mark paid). WhatsApp
-// + Email icons sit on the right, pre-filling messages targeted at whoever
-// the encargada needs to contact for that specific item (tenant vs landlord).
+// /pendientes — action queue (2026-07 redesign). Four sections derived from the
+// contract audit signals (listContracts): contracts por vencer, alquileres sin
+// cobrar, ajustes de alquiler pendientes, and contratos sin nota. Every row
+// links to /contratos/[id], where the actual action (renovar / rescindir /
+// registrar pago / aplicar aumento / agregar nota) is performed.
 // ============================================================================
 
 import Link from 'next/link'
-import {
-  getPendientesDigest,
-  type PendienteItem,
-  type PendienteCategory,
-  type TransferenciaSubcase,
-} from '@/lib/pending/digest'
-import { fmtMoney } from '@/lib/format'
-import { getCurrentPeriodLabel } from '@/lib/period'
-import { StickyHeader } from '@/components/ui/StickyHeader'
-import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
-import { KPICard } from '@/components/ui/KPICard'
-import { WhatsAppIcon } from '@/components/icons/WhatsAppIcon'
+import { CalendarClock, Wallet, FileText, TrendingUp, ChevronRight } from 'lucide-react'
+import { listContracts, type ContractRow } from '@/lib/entities/queries'
+import { getDashboardPeriod } from '@/lib/dashboard/queries'
+import { fmtMoney as fmt, fmtDate } from '@/lib/format'
+import { periodLabel } from '@/lib/period'
 
 export const dynamic    = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 
-interface PageProps {
-  searchParams: Promise<{ categoria?: string }>
-}
+const DAY = 86400000
+const CAP = 5
+const INDEXER: Record<string, string> = { IPC_GENERAL: 'IPC', ICL: 'ICL', CASA_PROPIA: 'Casa Propia', FIXED: 'Fijo' }
+const propLine = (c: ContractRow) => c.propertyAddress
+  ? `${c.propertyAddress.replace(/\s*\(vacante\)\s*$/i, '')}${c.propertyCity ? `, ${c.propertyCity}` : ''}`
+  : '—'
 
-const CATEGORY_ORDER: PendienteCategory[] = [
-  'pendiente_transferencia',
-  'liquidacion_abierta',
-  'cobranza_proxima',
-]
+export default async function PendientesPage() {
+  const period = await getDashboardPeriod()
+  const { rows } = await listContracts({ period })
 
-const CATEGORY_META: Record<PendienteCategory, {
-  label:    string
-  sublabel: string
-  dot:      string
-  banner:   string
-}> = {
-  pendiente_transferencia: {
-    label:    'Transferencia pendiente',
-    sublabel: 'Falta cobro del inquilino o transferencia al propietario',
-    dot:      'bg-danger',
-    banner:   'bg-danger/10 border-danger/30 text-ink',
-  },
-  liquidacion_abierta: {
-    label:    'Liquidación sin cerrar',
-    sublabel: 'Transferencia hecha pero no marcada como pagada',
-    dot:      'bg-warn',
-    banner:   'bg-warn/10 border-warn/30 text-ink',
-  },
-  cobranza_proxima: {
-    label:    'Cobranza próxima',
-    sublabel: 'Alquiler vence en ≤7 días',
-    dot:      'bg-info/60',
-    banner:   'bg-info/10 border-info/30 text-ink',
-  },
-}
+  const now       = Date.now()
+  const [py, pm]  = period.split('-').map(Number)
+  const active    = rows.filter(c => c.status === 'active')
+  const inForce   = active.filter(c => new Date(c.endDate).getTime() >= now)
+  const daysUntil = (iso: string) => Math.ceil((new Date(iso).getTime() - now) / DAY)
 
-function isCategory(s: string | undefined): s is PendienteCategory {
-  return s === 'pendiente_transferencia' || s === 'liquidacion_abierta' || s === 'cobranza_proxima'
-}
+  // 1) Contratos por vencer — endDate within 60 days
+  const porVencer = inForce
+    .filter(c => daysUntil(c.endDate) <= 60)
+    .sort((a, b) => a.endDate.localeCompare(b.endDate))
 
-export default async function PendientesPage({ searchParams }: PageProps) {
-  const sp = await searchParams
-  const filter: PendienteCategory | null = isCategory(sp.categoria) ? sp.categoria : null
+  // 2) Alquileres sin cobrar — no RENT_IN this period, with monto + atraso
+  const dueDate = new Date(py, pm - 1, 1).getTime()
+  const sinCobrar = inForce
+    .filter(c => !c.hasRentThisMonth)
+    .map(c => {
+      const due = new Date(py, pm - 1, c.paymentDay).getTime()
+      return { c, monto: c.currentRent, atraso: Math.max(0, Math.floor((now - due) / DAY)) }
+    })
+    .sort((a, b) => b.atraso - a.atraso)
 
-  let items: PendienteItem[] = []
-  let counts = {
-    pendiente_transferencia: 0,
-    liquidacion_abierta:     0,
-    cobranza_proxima:        0,
-    total:                   0,
-  }
-  let runtimeError: string | null = null
-  try {
-    const digest = await getPendientesDigest()
-    items  = digest.items
-    counts = digest.counts
-  } catch (err) {
-    console.error('[/pendientes] getPendientesDigest threw:', err)
-    runtimeError = err instanceof Error ? err.message : String(err)
-  }
+  // 3) Ajustes de alquiler pendientes — next adjustment within 60 days
+  const ajustes = inForce
+    .filter(c => c.nextAdjustment && daysUntil(c.nextAdjustment) <= 60)
+    .sort((a, b) => (a.nextAdjustment ?? '').localeCompare(b.nextAdjustment ?? ''))
 
-  const periodLabel = getCurrentPeriodLabel()
-  const filtered    = filter ? items.filter(i => i.category === filter) : items
+  // 4) Pendientes sin nota — no note recorded this period
+  const sinNota = inForce
+    .filter(c => !c.hasNoteThisMonth)
+    .sort((a, b) => (a.noteUpdatedAt ?? '').localeCompare(b.noteUpdatedAt ?? ''))
 
-  // Group filtered items by category for the sections.
-  const grouped: Record<PendienteCategory, PendienteItem[]> = {
-    pendiente_transferencia: [],
-    liquidacion_abierta:     [],
-    cobranza_proxima:        [],
-  }
-  for (const item of filtered) grouped[item.category].push(item)
+  const venceEn7      = porVencer.filter(c => daysUntil(c.endDate) <= 7).length
+  const saldoSinCobro = sinCobrar.reduce((s, x) => s + x.monto, 0)
 
-  function hrefForCategory(cat: PendienteCategory | null): string {
-    if (!cat) return '/pendientes'
-    return `/pendientes?categoria=${cat}`
-  }
-
-  const summaryBits: string[] = []
-  if (filter) summaryBits.push(CATEGORY_META[filter].label)
+  const kpis = [
+    { Icon: CalendarClock, color: '#F59E0B', label: 'Renovaciones',        value: porVencer.length, sub: `${venceEn7} vencen en los próximos 7 días` },
+    { Icon: Wallet,        color: '#EF4444', label: 'Sin pago',            value: sinCobrar.length, sub: `Saldo comprometido: ${fmt(saldoSinCobro)}` },
+    { Icon: FileText,      color: '#8A93A5', label: 'Sin nota',            value: sinNota.length,   sub: 'Casos sin seguimiento registrado' },
+    { Icon: TrendingUp,    color: '#8B5CF6', label: 'Aumentos por aplicar', value: ajustes.length,  sub: `índice pendiente en ${ajustes.length} contratos` },
+  ]
 
   return (
-    <>
-      <StickyHeader>
-        <div className="flex items-baseline justify-between gap-3 flex-wrap sm:flex-nowrap mb-2">
-          <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
-            <strong className="text-ink font-medium">Pendientes</strong>
-            {' · '}
-            {filtered.length === counts.total
-              ? `${counts.total} ${counts.total === 1 ? 'acción' : 'acciones'} · ${periodLabel}`
-              : `${filtered.length} de ${counts.total} · ${periodLabel}`}
-            {summaryBits.length > 0 && (
-              <span className="text-slate"> · {summaryBits.join(' · ')}</span>
-            )}
-          </p>
-        </div>
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
+      <header className="shrink-0">
+        <h1 className="text-[24px] font-semibold text-ink tracking-tight">Pendientes</h1>
+        <nav className="text-[12px] text-slate mt-1 flex items-center gap-1.5">
+          <Link href="/dashboard" className="hover:text-ink transition-colors">Inicio</Link>
+          <span className="text-slate/50">/</span>
+          <span className="text-slate-dark">Pendientes</span>
+          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-info/10 text-info text-[11px] font-medium">Período: {periodLabel(period)}</span>
+        </nav>
+      </header>
 
-        <StickyKPIStrip cols={3}>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Transferencia pendiente"
-              value={counts.pendiente_transferencia.toString()}
-              delta="falta cobro o pago al propietario"
-              deltaTone={counts.pendiente_transferencia > 0 ? 'negative' : 'neutral'}
-              href={hrefForCategory('pendiente_transferencia')}
-              clearHref={hrefForCategory(null)}
-              active={filter === 'pendiente_transferencia'}
-            />
-          </StickyKPIStripItem>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Liquidación sin cerrar"
-              value={counts.liquidacion_abierta.toString()}
-              delta="transferida sin marcar pagada"
-              deltaTone={counts.liquidacion_abierta > 0 ? 'negative' : 'neutral'}
-              href={hrefForCategory('liquidacion_abierta')}
-              clearHref={hrefForCategory(null)}
-              active={filter === 'liquidacion_abierta'}
-            />
-          </StickyKPIStripItem>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Cobranza próxima"
-              value={counts.cobranza_proxima.toString()}
-              delta="vence en ≤7 días"
-              deltaTone="neutral"
-              href={hrefForCategory('cobranza_proxima')}
-              clearHref={hrefForCategory(null)}
-              active={filter === 'cobranza_proxima'}
-            />
-          </StickyKPIStripItem>
-        </StickyKPIStrip>
-      </StickyHeader>
-
-      <div className="mt-4 space-y-4 pb-8">
-        {runtimeError && (
-          <div className="bg-danger/10 border border-danger/40 rounded p-3 text-[12px] text-ink">
-            <p className="font-medium text-danger">⚠ No se pudo calcular el listado de pendientes.</p>
-            <p className="text-slate-dark mt-1">{runtimeError}</p>
-          </div>
-        )}
-
-        {CATEGORY_ORDER.map(cat => {
-          const list = grouped[cat]
-          if (list.length === 0) return null
-          const meta = CATEGORY_META[cat]
-          return (
-            <section key={cat} className="bg-paper border border-line rounded shadow-card overflow-hidden">
-              <div className={`px-4 py-2.5 border-b border-line flex items-center justify-between ${meta.banner}`}>
-                <div>
-                  <h2 className="font-display text-[14px] font-medium flex items-center gap-2">
-                    <span className={`inline-block w-2 h-2 rounded-full ${meta.dot}`} aria-hidden />
-                    {meta.label}
-                  </h2>
-                  <p className="text-[11px] text-slate mt-0.5">{meta.sublabel}</p>
-                </div>
-                <span className="text-[11px] text-slate-dark tabular-nums">
-                  {list.length} {list.length === 1 ? 'ítem' : 'ítems'}
-                </span>
-              </div>
-              <ul>
-                {list.map(item => <PendienteRow key={item.id} item={item} />)}
-              </ul>
-            </section>
-          )
-        })}
-
-        {filtered.length === 0 && !runtimeError && (
-          <div className="bg-paper border border-line rounded shadow-card p-10 text-center">
-            <p className="text-[14px] text-slate">
-              {counts.total === 0
-                ? 'Todo al día — sin pendientes.'
-                : `Sin pendientes en "${filter ? CATEGORY_META[filter].label : ''}".`}
-            </p>
-          </div>
-        )}
-      </div>
-    </>
-  )
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-
-function PendienteRow({ item }: { item: PendienteItem }) {
-  // Pick contact target by category + sub-case:
-  //   · cobranza_proxima           → tenant (gentle reminder)
-  //   · pendiente_transferencia/A  → tenant (chase the cobro)
-  //   · pendiente_transferencia/B  → landlord (announce upcoming transfer)
-  //   · liquidacion_abierta        → landlord (confirm receipt)
-  const target = pickContactTarget(item)
-  const tmpl   = buildTemplate(item)
-
-  const whatsappHref = target.phone
-    ? `https://wa.me/${cleanPhone(target.phone)}?text=${encodeURIComponent(tmpl.body)}`
-    : null
-  // Gmail compose URL — always rendered, even when no email is on file.
-  // When the contact has no email, the `to` param is empty and Gmail
-  // compose opens with subject + body pre-filled; the encargada types the
-  // address inside Gmail. Better than disabling the button entirely (which
-  // forced her to abandon the action and go cargar the email first).
-  // mailto: would silently no-op on Windows without a default mail client.
-  const mailHref =
-    `https://mail.google.com/mail/?view=cm&fs=1` +
-    `&to=${encodeURIComponent(target.email ?? '')}` +
-    `&su=${encodeURIComponent(tmpl.subject)}` +
-    `&body=${encodeURIComponent(tmpl.body)}`
-
-  const verContratoHref = `/contratos/${item.contractId}`
-
-  // Sub-case badge for category 2 ("Falta cobro" vs "Falta transferencia")
-  // so a quick scan tells the encargada which lane the row is in.
-  const subcaseBadge = item.subcase === 'falta_cobro'
-    ? { label: 'Falta cobro',         class: 'bg-danger/10 text-danger border-danger/30' }
-    : item.subcase === 'falta_transferencia'
-      ? { label: 'Falta transferencia', class: 'bg-warn/15 text-ink border-warn/40' }
-      : null
-
-  return (
-    <li className="px-4 py-2.5 border-b border-line/40 last:border-b-0 flex items-center gap-3 hover:bg-cream-2/50 transition-colors">
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] text-ink leading-snug flex items-center gap-2 flex-wrap">
-          <strong className="font-medium">{item.tenantName}</strong>
-          <span className="text-slate">· prop.</span>
-          <span className="text-slate-dark">{item.landlordName}</span>
-          {subcaseBadge && (
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full border text-[10px] font-medium ${subcaseBadge.class}`}>
-              {subcaseBadge.label}
+      {/* KPI row */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+        {kpis.map(k => (
+          <div key={k.label} className="rounded-xl border border-line bg-paper p-4 flex items-center gap-3">
+            <span className="w-11 h-11 rounded-lg grid place-items-center shrink-0" style={{ backgroundColor: k.color + '1f', color: k.color }}>
+              <k.Icon size={20} />
             </span>
-          )}
-        </p>
-        <p className="text-[11.5px] text-slate-dark mt-0.5 leading-snug">{item.detail}</p>
+            <div className="min-w-0">
+              <p className="text-[12px] text-slate">{k.label}</p>
+              <p className="text-[22px] font-semibold text-ink leading-none tabular-nums">{k.value}</p>
+              <p className="text-[11px] text-slate mt-1 truncate">{k.sub}</p>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* Sections */}
+      <div className="lg:flex-1 lg:min-h-0 lg:overflow-auto space-y-4 pr-0.5">
+        <Section title="Contratos por vencer" count={porVencer.length} accent="#F59E0B"
+          head={['Contrato', 'Inquilino', 'Propiedad', 'Vence', 'Acciones']}>
+          {porVencer.slice(0, CAP).map(c => {
+            const d = daysUntil(c.endDate)
+            return (
+              <Row key={c.id} id={c.id}
+                cells={[
+                  <IdCell key="a" c={c} />,
+                  c.primaryTenant,
+                  propLine(c),
+                  <span key="v" className="text-warn">{d <= 0 ? 'Vencido' : `Vence en ${d} día${d === 1 ? '' : 's'}`}</span>,
+                ]}
+                actions={<>
+                  <ActBtn href={`/contratos/${c.id}`} primary>Renovar</ActBtn>
+                  <ActBtn href={`/contratos/${c.id}`}>Rescindir</ActBtn>
+                </>}
+              />
+            )
+          })}
+        </Section>
+
+        <Section title="Alquileres sin cobrar" count={sinCobrar.length} accent="#EF4444"
+          head={['Contrato', 'Inquilino', 'Propiedad', 'Monto adeudado', 'Atraso', 'Acción']}>
+          {sinCobrar.slice(0, CAP).map(({ c, monto, atraso }) => (
+            <Row key={c.id} id={c.id}
+              cells={[
+                <IdCell key="a" c={c} />,
+                c.primaryTenant,
+                propLine(c),
+                <span key="m" className="text-danger tabular-nums">{fmt(monto)}</span>,
+                <span key="t" className="text-danger tabular-nums">{atraso > 0 ? `Atraso: ${atraso} días` : 'Al vencimiento'}</span>,
+              ]}
+              actions={<ActBtn href={`/contratos/${c.id}`} primary>Registrar pago</ActBtn>}
+            />
+          ))}
+        </Section>
+
+        <Section title="Ajustes de alquiler pendientes" count={ajustes.length} accent="#8B5CF6"
+          head={['Contrato', 'Parte', 'Propiedad', 'Índice / Regla', 'Aplicar desde', 'Acción']}>
+          {ajustes.slice(0, CAP).map(c => (
+            <Row key={c.id} id={c.id}
+              cells={[
+                <IdCell key="a" c={c} />,
+                c.primaryTenant,
+                propLine(c),
+                <span key="i" className="text-slate-dark">{INDEXER[c.indexer] ?? c.indexer} · {periodLabel(period)}</span>,
+                <span key="d" className="tabular-nums text-slate-dark">{c.nextAdjustment ? fmtDate(c.nextAdjustment) : '—'}</span>,
+              ]}
+              actions={<ActBtn href={`/contratos/${c.id}`} primary>Aplicar aumento</ActBtn>}
+            />
+          ))}
+        </Section>
+
+        <Section title="Pendientes sin nota" count={sinNota.length} accent="#8A93A5"
+          head={['Contrato', 'Persona', 'Propiedad', 'Última actualización', 'Acción']}>
+          {sinNota.slice(0, CAP).map(c => (
+            <Row key={c.id} id={c.id}
+              cells={[
+                <IdCell key="a" c={c} />,
+                c.primaryTenant,
+                propLine(c),
+                <span key="u" className="tabular-nums text-slate-dark">{c.noteUpdatedAt ? fmtDate(c.noteUpdatedAt) : '—'}</span>,
+              ]}
+              actions={<ActBtn href={`/contratos/${c.id}`} primary>Agregar nota</ActBtn>}
+            />
+          ))}
+        </Section>
       </div>
-
-      <div className="flex items-center gap-2 shrink-0">
-        {item.amount != null && item.amount > 0 && (
-          <span className="text-[12px] tabular-nums text-slate-dark mr-1">{fmtMoney(item.amount)}</span>
-        )}
-
-        {/* WhatsApp icon — muted when the relevant contact has no phone. */}
-        {whatsappHref ? (
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`Mandar WhatsApp a ${target.label}`}
-            style={{ backgroundColor: '#25D366' }}
-            className="inline-flex items-center justify-center w-7 h-7 rounded text-white hover:opacity-90 transition-opacity"
-          >
-            <WhatsAppIcon size={14} title="" />
-          </a>
-        ) : (
-          <span
-            title={`Sin teléfono cargado para ${target.label}`}
-            className="inline-flex items-center justify-center w-7 h-7 rounded bg-cream-2 text-slate cursor-not-allowed"
-          >
-            <WhatsAppIcon size={14} title="" />
-          </span>
-        )}
-
-        {/* Email icon — always opens Gmail compose with the draft pre-filled.
-            When `target.email` is null the `to` field comes through empty;
-            the encargada types the address inside Gmail. A small "sin
-            email" hint sits above the icon so she knows she has to. */}
-        <a
-          href={mailHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          title={target.email
-            ? `Mandar email a ${target.label} (${target.email}) — abre Gmail en una pestaña nueva`
-            : `Sin email cargado para ${target.label} — abrirá Gmail con el cuerpo armado y vos completás el destinatario`}
-          className={`inline-flex items-center justify-center w-7 h-7 rounded text-[13px] transition-opacity ${
-            target.email
-              ? 'bg-ink text-paper hover:opacity-90'
-              : 'bg-ink/60 text-paper hover:opacity-90 ring-1 ring-warn/60'
-          }`}
-        >
-          ✉
-        </a>
-
-        <Link
-          href={verContratoHref}
-          title="Abrir la página del contrato"
-          className="px-2 py-1 rounded border border-line text-slate-dark text-[11px] font-medium hover:bg-cream-2 transition-colors"
-        >
-          Ver contrato →
-        </Link>
-      </div>
-    </li>
+    </div>
   )
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Contact targeting + message templates.
-//
-// Each category points at the right person to contact and produces a Spanish
-// draft. WhatsApp and email reuse the same body; subject is email-only.
-// Per the saved communication-model rule: drafting + recommendation are
-// automated, the encargada decides the send inside her own mail/WhatsApp UI.
-// ────────────────────────────────────────────────────────────────────────────
-
-interface ContactTarget {
-  /** Who we're addressing — used in the icon tooltips. */
-  label: string
-  /** Who the message is FROM the perspective of — drives the greeting. */
-  name:  string
-  phone: string | null
-  email: string | null
+function Section({ title, count, accent, head, children }: {
+  title: string; count: number; accent: string; head: string[]; children: React.ReactNode
+}) {
+  return (
+    <section className="bg-paper border border-line rounded-xl shadow-card overflow-hidden">
+      <div className="border-l-[3px] pl-4 pr-4 py-2.5 flex items-center justify-between border-b border-line" style={{ borderLeftColor: accent }}>
+        <h2 className="font-display text-[15px] font-medium text-ink flex items-center gap-2">
+          {title}
+          <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-cream-2 text-slate-dark text-[11px] tabular-nums">{count}</span>
+        </h2>
+        {count > CAP && <span className="text-[11px] text-slate">Mostrando {CAP} de {count}</span>}
+      </div>
+      {count === 0 ? (
+        <p className="px-4 py-4 text-[13px] text-slate">Nada pendiente en esta categoría ✓</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px] min-w-[820px]">
+            <thead>
+              <tr className="border-b border-line">
+                {head.map((h, i) => (
+                  <th key={i} className={`label-cap font-medium text-slate px-4 py-2 ${i === head.length - 1 ? 'text-right' : 'text-left'}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>{children}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
 }
 
-function pickContactTarget(item: PendienteItem): ContactTarget {
-  // Category 2b + Category 3 → contact the landlord.
-  if (
-    (item.category === 'pendiente_transferencia' && item.subcase === 'falta_transferencia') ||
-    item.category === 'liquidacion_abierta'
-  ) {
-    return {
-      label: 'el propietario',
-      name:  item.landlordName,
-      phone: null,                 // landlord phones aren't surfaced today
-      email: item.landlordEmail,
-    }
-  }
-  // Default (cat 1 and cat 2a) → contact the tenant.
-  return {
-    label: 'el inquilino',
-    name:  item.tenantName,
-    phone: item.tenantPhone,
-    email: item.tenantEmail,
-  }
+function Row({ id, cells, actions }: { id: string; cells: React.ReactNode[]; actions: React.ReactNode }) {
+  return (
+    <tr className="border-b border-line/50 last:border-0 hover:bg-cream-2 transition-colors">
+      {cells.map((c, i) => (
+        <td key={i} className="px-4 py-2.5 text-ink align-middle">{c}</td>
+      ))}
+      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+        <div className="inline-flex items-center gap-1.5">
+          {actions}
+          <Link href={`/contratos/${id}`} className="text-slate/50 hover:text-ink transition-colors"><ChevronRight size={16} /></Link>
+        </div>
+      </td>
+    </tr>
+  )
 }
 
-interface MessageTemplate { subject: string; body: string }
-
-function buildTemplate(item: PendienteItem): MessageTemplate {
-  switch (item.category) {
-    case 'cobranza_proxima': {
-      const subject = 'Recordatorio de alquiler — Patagonia Propiedades'
-      const body = [
-        `Hola ${item.tenantName},`,
-        '',
-        `Te escribimos de Patagonia Propiedades. ${item.detail}`,
-        '',
-        `Si ya hiciste la transferencia, ignorá este mensaje. Cualquier consulta, quedamos a disposición.`,
-        '',
-        `Saludos.`,
-      ].join('\n')
-      return { subject, body }
-    }
-    case 'pendiente_transferencia':
-      if (item.subcase === 'falta_cobro') {
-        const subject = 'Alquiler vencido — Patagonia Propiedades'
-        const body = [
-          `Hola ${item.tenantName},`,
-          '',
-          `Te escribimos de Patagonia Propiedades. ${item.detail}`,
-          '',
-          `Te pedimos por favor regularizar el pago en cuanto puedas. Si ya hiciste la transferencia, pasanos el comprobante.`,
-          '',
-          `Saludos.`,
-        ].join('\n')
-        return { subject, body }
-      }
-      // falta_transferencia → addressing landlord
-      {
-        const subject = 'Cobro recibido — transferencia próxima'
-        const body = [
-          `Estimado/a ${item.landlordName},`,
-          '',
-          `Le informamos que ya recibimos el alquiler del período. ${item.detail}`,
-          '',
-          `En las próximas horas le acreditamos el saldo en su cuenta.`,
-          '',
-          `Saludos cordiales,`,
-          `Patagonia Propiedades`,
-        ].join('\n')
-        return { subject, body }
-      }
-    case 'liquidacion_abierta': {
-      const subject = 'Confirmación de liquidación'
-      const body = [
-        `Estimado/a ${item.landlordName},`,
-        '',
-        `Confirmamos que la transferencia por la liquidación del período fue realizada. ${item.detail}`,
-        '',
-        `Cualquier consulta, quedamos a disposición.`,
-        '',
-        `Saludos cordiales,`,
-        `Patagonia Propiedades`,
-      ].join('\n')
-      return { subject, body }
-    }
-  }
+function IdCell({ c }: { c: ContractRow }) {
+  return <Link href={`/contratos/${c.id}`} className="tabular-nums text-ink hover:underline underline-offset-2">{c.contractNumber ?? `#${c.id.slice(0, 8)}`}</Link>
 }
 
-function cleanPhone(phone: string): string {
-  return phone.replace(/[^\d+]/g, '').replace(/^\+/, '')
+function ActBtn({ href, children, primary }: { href: string; children: React.ReactNode; primary?: boolean }) {
+  return (
+    <Link href={href} className={`inline-flex items-center px-2.5 py-1 rounded-md text-[12px] font-medium transition-colors ${
+      primary ? 'border border-info/40 text-info hover:bg-info/10' : 'border border-line text-slate-dark hover:bg-cream-2'
+    }`}>{children}</Link>
+  )
 }

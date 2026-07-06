@@ -29,8 +29,9 @@ function isWideRoute(pathname: string): boolean {
 // plus the redesigned entity list + detail pages. Their /nuevo, /cargar-emails
 // form sub-routes keep normal page scroll.
 function isFullHeightRoute(pathname: string): boolean {
-  // Dashboard + the contracts LIST (its detail is a dense working page that scrolls).
-  if (pathname === '/dashboard' || pathname === '/contratos') return true
+  // Dashboard, the contracts LIST (its detail is a dense working page that
+  // scrolls), and the pendientes action queue.
+  if (pathname === '/dashboard' || pathname === '/contratos' || pathname === '/pendientes') return true
   // Entity list + detail pages (but not their /nuevo, /cargar-emails forms).
   const m = pathname.match(/^\/(propietarios|inquilinos|propiedades)(?:\/([^/]+))?$/)
   if (!m) return false
