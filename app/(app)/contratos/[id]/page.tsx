@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { ArrowLeft, DollarSign, RefreshCw, TrendingUp, CalendarDays, CalendarClock, CreditCard } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import {
   getContractDetail,
@@ -17,9 +18,8 @@ import { getContractDiagnostico } from '@/lib/liquidacion/diagnostico'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { computeUrgency, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 import { getCurrentPeriod } from '@/lib/period'
-import { fmtMoney as fmt, fmtDateLong as fmtDate } from '@/lib/format'
+import { fmtMoney as fmt, fmtDate } from '@/lib/format'
 
-// Próximo aumento: same logic as in the contracts list — keeps both views consistent.
 const CADENCE_MONTHS: Record<string, number> = {
   mensual: 1, bimestral: 2, trimestral: 3, cuatrimestral: 4, semestral: 6, anual: 12,
 }
@@ -34,22 +34,17 @@ function computeNextAdjustment(startDate: string, cadence: string, status: strin
   return safety > 0 ? next.toISOString().slice(0, 10) : null
 }
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-const fmtMonthYear = (s: string) => {
-  const d = new Date(s)
-  return `${MONTHS_ES[d.getMonth()]} ${d.getFullYear()}`
-}
+const fmtMonthYear = (s: string) => { const d = new Date(s); return `${MONTHS_ES[d.getMonth()]} ${d.getFullYear()}` }
 const daysUntil = (s: string) => Math.round((new Date(s).getTime() - Date.now()) / 86400000)
+const monthsRound = (days: number) => Math.max(0, Math.round(Math.abs(days) / 30.44))
+const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
 
-const PERIOD_LABEL = (s: string) => {
-  const [y, m] = s.split('-')
-  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-  return `${months[+m - 1]} ${y}`
-}
+const PERIOD_LABEL = (s: string) => { const [y, m] = s.split('-'); return `${MONTHS_ES[+m - 1]} ${y}` }
 const PERIOD_SHORT = (s: string) => {
-  const [y, m] = s.split('-')
-  const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-  return `${months[+m - 1]} ${y}`
+  const short = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+  const [y, m] = s.split('-'); return `${short[+m - 1]} ${y}`
 }
+const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
 interface PageProps {
   params:       Promise<{ id: string }>
@@ -72,316 +67,275 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
     getContractDiagnostico(id, period),
   ])
 
-  const primaryTenant   = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
-  const topLandlord     = contract.landlords.slice().sort((a, b) => b.ownershipPct - a.ownershipPct)[0]
-  const nextAdjustment  = computeNextAdjustment(contract.startDate, contract.cadence, contract.status)
+  const primaryTenant  = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
+  const topLandlord    = contract.landlords.slice().sort((a, b) => b.ownershipPct - a.ownershipPct)[0]
+  const nextAdjustment = computeNextAdjustment(contract.startDate, contract.cadence, contract.status)
+  const commissionPct  = embudo.totalIn > 0 ? (embudo.commissionTotal / embudo.totalIn) * 100 : 0
 
-  // Commission percentage applied (for display)
-  const commissionPct = embudo.totalIn > 0 ? (embudo.commissionTotal / embudo.totalIn) * 100 : 0
-
-  // Same audit the list page runs, with the data we already have on this page.
-  // Note: "recently touched" only checks the note's updated_at — we don't have
-  // bank_date per transaction in the embudo result. Good enough for the badge.
-  const noteUpdatedRecently = !!note.updatedAt &&
-    (Date.now() - new Date(note.updatedAt).getTime()) < 48 * 3600000
+  const noteUpdatedRecently = !!note.updatedAt && (Date.now() - new Date(note.updatedAt).getTime()) < 48 * 3600000
   const audit = computeUrgency({
-    status:           contract.status,
-    endDate:          contract.endDate,
-    hasRentThisMonth: embudo.rent > 0,
-    hasNoteThisMonth: !!note.body.trim(),
-    recentlyTouched:  noteUpdatedRecently,
-    nextAdjustment,
+    status: contract.status, endDate: contract.endDate,
+    hasRentThisMonth: embudo.rent > 0, hasNoteThisMonth: !!note.body.trim(),
+    recentlyTouched: noteUpdatedRecently, nextAdjustment,
   })
 
+  // Contract progress (months elapsed of the term)
+  const startMs = new Date(contract.startDate).getTime()
+  const endMs   = new Date(contract.endDate).getTime()
+  const nowMs   = Date.now()
+  const totalMs = Math.max(1, endMs - startMs)
+  const progressPct   = Math.max(0, Math.min(100, ((nowMs - startMs) / totalMs) * 100))
+  const monthsTotal   = Math.max(1, Math.round(totalMs / (30.44 * 86400000)))
+  const monthsElapsed = Math.max(0, Math.min(monthsTotal, Math.round((nowMs - startMs) / (30.44 * 86400000))))
+
+  const startDays = daysUntil(contract.startDate)   // negative = past
+  const endDays   = daysUntil(contract.endDate)
+
+  const kpis = [
+    { Icon: DollarSign,   color: '#3B82F6', label: 'Alquiler vigente', value: fmt(contract.currentRent), sub: `Desde ${fmtDate(contract.startDate)}` },
+    { Icon: RefreshCw,    color: '#8B5CF6', label: 'Cadencia',         value: cap(contract.cadence),      sub: `Día de pago: ${contract.paymentDay}` },
+    { Icon: TrendingUp,   color: '#F59E0B', label: 'Índice',           value: indexerLabel(contract.indexer), sub: nextAdjustment ? `Próx. ${fmtMonthYear(nextAdjustment)}` : 'Sin ajuste' },
+    { Icon: CalendarDays, color: '#16A34A', label: 'Inicio',           value: fmtDate(contract.startDate), sub: startDays < 0 ? `Hace ${monthsRound(startDays)} meses` : `En ${monthsRound(startDays)} meses` },
+    { Icon: CalendarClock, color: endDays < 0 ? '#EF4444' : '#F59E0B', label: 'Vence', value: fmtDate(contract.endDate), sub: endDays < 0 ? `Vencido hace ${monthsRound(endDays)} m` : `En ${monthsRound(endDays)} meses` },
+    { Icon: CreditCard,   color: '#8A93A5', label: 'Día de pago',      value: String(contract.paymentDay), sub: 'de cada mes' },
+  ]
+
   return (
-    <>
+    <div className="space-y-5">
       <BreadcrumbTitle name={primaryTenant?.name ?? 'Detalle'} />
 
-      <div className="mb-6">
-        <Link href="/contratos" className="text-[12px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">
-          ← Volver a contratos
-        </Link>
-      </div>
-
-      <div className="flex items-baseline justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <p className="label-cap text-slate">Contrato</p>
-          <h1 className="font-display text-[22px] font-medium text-ink mt-1">
-            {primaryTenant?.name ?? '(sin inquilino)'}
-          </h1>
-          <p className="text-[13px] text-slate-dark mt-1">
-            {contract.property?.address ?? '(sin dirección)'} · Propietario: {topLandlord?.name ?? '—'}
-          </p>
+      {/* Header */}
+      <header>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <nav className="text-[12px] text-slate flex items-center gap-1.5">
+            <Link href="/dashboard" className="hover:text-ink transition-colors">Inicio</Link>
+            <span className="text-slate/50">/</span>
+            <Link href="/contratos" className="hover:text-ink transition-colors">Contratos</Link>
+            <span className="text-slate/50">/</span>
+            <span className="text-slate-dark tabular-nums">{contract.contractNumber ?? `#${contract.id.slice(0, 8)}`}</span>
+          </nav>
+          <Link href="/contratos" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line text-[12px] text-ink hover:border-info/40 transition-colors">
+            <ArrowLeft size={14} /> Volver
+          </Link>
         </div>
-        <RowStatusBadge status={contract.status} urgency={audit.urgency} hasRent={embudo.rent > 0} hasNote={!!note.body.trim()} />
-      </div>
+        <div className="flex items-center justify-between gap-3 flex-wrap mt-2">
+          <h1 className="text-[22px] font-semibold text-ink tracking-tight">
+            Contrato · {primaryTenant?.name ?? '(sin inquilino)'}
+          </h1>
+          <RowStatusBadge status={contract.status} urgency={audit.urgency} hasRent={embudo.rent > 0} hasNote={!!note.body.trim()} />
+        </div>
+        <p className="text-[13px] text-slate-dark mt-1">
+          {contract.property?.address ?? '(sin dirección)'}{contract.property?.city ? ` · ${contract.property.city}` : ''} · Propietario: {topLandlord?.name ?? '—'}
+        </p>
+      </header>
 
-      {/* Audit banner — matches what made the row red on the list. Only shown
-         when there's actually something pending. */}
       {(audit.urgency === 'critical' || audit.urgency === 'warning') && (
         <AuditBanner urgency={audit.urgency} reasons={audit.reasons} />
       )}
 
-      {/* Contract metadata strip */}
-      <section className="bg-paper border border-line rounded shadow-card p-5">
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-5">
-          <Meta label="Alquiler vigente" value={fmt(contract.currentRent)} mono />
-          <Meta label="Cadencia" value={cap(contract.cadence)} />
-          <Meta label="Índice" value={contract.indexer} />
-          <Meta label="Inicio"  value={fmtDate(contract.startDate)} />
-          <Meta label="Vence"   value={fmtDate(contract.endDate)} />
-          <Meta label="Día pago" value={contract.paymentDay.toString()} />
-        </div>
+      {/* KPI cards */}
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {kpis.map(k => (
+          <div key={k.label} className="rounded-xl border border-line bg-paper p-3.5 flex flex-col gap-2.5">
+            <span className="w-8 h-8 rounded-lg grid place-items-center" style={{ backgroundColor: k.color + '1f', color: k.color }}>
+              <k.Icon size={16} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] text-slate">{k.label}</p>
+              <p className="text-[16px] font-semibold text-ink leading-tight tabular-nums truncate">{k.value}</p>
+              <p className="text-[11px] text-slate mt-0.5 truncate">{k.sub}</p>
+            </div>
+          </div>
+        ))}
       </section>
 
-      {/* Próximo aumento callout — matches the "PROX. AUMENTO MAYO 2026"
-         reminders Alejandro stuffs into the INQUILINOS cell of his ledger. */}
-      {nextAdjustment && <NextAdjustmentCallout date={nextAdjustment} cadence={contract.cadence} />}
+      {/* People + resumen band */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Propietarios */}
+        <Card title="Propietarios" sub={`${contract.landlords.length} en este contrato`}>
+          <ul className="divide-y divide-line">
+            {contract.landlords.map(l => (
+              <li key={l.id} className="py-2.5 flex items-center gap-3">
+                <Avatar name={l.name} color="#3B82F6" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] text-ink truncate">{l.name}</p>
+                  {l.cuit && <p className="text-[11px] text-slate tabular-nums">CUIT {l.cuit}</p>}
+                </div>
+                <span className="text-[12px] font-medium text-info tabular-nums shrink-0">{l.ownershipPct.toFixed(0)}%</span>
+              </li>
+            ))}
+          </ul>
+          <div className="pt-2.5 mt-1 border-t border-line flex items-center justify-between text-[12px]">
+            <span className="text-slate">Total</span>
+            <span className="tabular-nums text-ink font-medium">{contract.landlords.reduce((s, l) => s + l.ownershipPct, 0).toFixed(0)}%</span>
+          </div>
+        </Card>
 
-      {/* Recargos mensuales (ABL / THU / Camuzzi / etc.) — set per contract.
-         Replaces the single-row AblSurchargeEditor (2026-06-19) with the
-         N-rows editor per Alejandro's 2026-06-20 voice: each contract may
-         have many recurring charges. */}
-      <section className="mt-6">
-        <RecurringChargesEditor
-          contractId={id}
-          currentRent={contract.currentRent}
-          currentPeriod={period}
-        />
+        {/* Inquilinos */}
+        <Card title="Inquilinos" sub={`${contract.tenants.length} en este contrato`}>
+          <ul className="divide-y divide-line">
+            {contract.tenants.map(t => (
+              <li key={t.id} className="py-2.5 flex items-center gap-3">
+                <Avatar name={t.name} color="#34D399" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] text-ink truncate">
+                    {t.name}
+                    {t.isPrimary && <span className="ml-2 text-[9px] text-slate uppercase tracking-wider">titular</span>}
+                  </p>
+                  {t.dni ? <p className="text-[11px] text-slate tabular-nums">DNI {t.dni}</p>
+                         : t.phone && <p className="text-[11px] text-slate tabular-nums">{t.phone}</p>}
+                </div>
+                <span className="text-[12px] font-medium text-success tabular-nums shrink-0">{t.sharePct.toFixed(0)}%</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        {/* Resumen + progreso */}
+        <Card title="Resumen del contrato">
+          <dl className="space-y-2 text-[12px]">
+            <ResumenRow k="ID Contrato" v={contract.contractNumber ?? `#${contract.id.slice(0, 8)}`} mono />
+            <ResumenRow k="Propiedad" v={`${contract.property?.address ?? '—'}${contract.property?.unit ? ` ${contract.property.unit}` : ''}`} />
+            <ResumenRow k="Destino" v={contract.property ? cap(contract.property.propertyType) : '—'} />
+            <ResumenRow k="Expensas" v={contract.expensas > 0 ? fmt(contract.expensas) : 'A cargo del inquilino'} />
+            <ResumenRow k="Depósito" v={contract.depositAmount != null ? fmt(contract.depositAmount) : '—'} />
+          </dl>
+          <div className="mt-4 pt-3 border-t border-line">
+            <div className="flex items-center justify-between text-[12px] mb-1.5">
+              <span className="text-slate">Progreso del contrato</span>
+              <span className="tabular-nums text-ink font-medium">{Math.round(progressPct)}%</span>
+            </div>
+            <div className="h-2 rounded-full bg-cream-2 overflow-hidden">
+              <div className="h-full rounded-full bg-info" style={{ width: `${progressPct}%` }} />
+            </div>
+            <p className="text-[11px] text-slate mt-1.5 tabular-nums">{monthsElapsed} / {monthsTotal} meses transcurridos</p>
+          </div>
+        </Card>
       </section>
 
-      {/* Period filter */}
+      {/* Recurring charges */}
+      <RecurringChargesEditor contractId={id} currentRent={contract.currentRent} currentPeriod={period} />
+
+      {/* Period switcher */}
       {periods.length > 1 && (
-        <section className="mt-6 bg-paper border border-line rounded shadow-card p-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="label-cap">Período</span>
+        <Card title="Período">
+          <div className="flex items-center gap-2 flex-wrap">
             {periods.map(p => (
               <Link
                 key={p}
                 href={`/contratos/${id}?period=${p}`}
-                className={[
-                  'inline-flex items-center px-2.5 py-1 rounded-full border text-[12px] font-medium transition-colors',
-                  p === period
-                    ? 'bg-ink text-paper border-ink'
-                    : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
-                ].join(' ')}
+                className={`inline-flex items-center px-2.5 py-1 rounded-full border text-[12px] font-medium transition-colors ${
+                  p === period ? 'bg-info text-white border-info' : 'bg-cream-2 text-slate-dark border-line hover:border-info/40'
+                }`}
               >
                 {PERIOD_SHORT(p)}
               </Link>
             ))}
           </div>
-        </section>
+        </Card>
       )}
 
-      {/* The embudo — Alejandro's design */}
-      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-6 py-5 border-b border-line">
-          <h2 className="font-display text-[15px] font-medium text-ink">
-            Liquidación · {PERIOD_LABEL(period)}
-          </h2>
-          <p className="text-[12px] text-slate mt-0.5">
-            Alquiler + recuperos → % administración → neto al propietario
-          </p>
-        </div>
-
+      {/* Liquidación embudo */}
+      <Card title={`Liquidación · ${PERIOD_LABEL(period)}`} sub="Alquiler + recuperos → % administración → neto al propietario">
         {embudo.totalIn === 0 ? (
-          <div className="p-10 text-center">
-            <p className="text-[14px] text-slate">Sin movimientos registrados en {PERIOD_LABEL(period)}</p>
-          </div>
+          <p className="py-8 text-center text-[14px] text-slate">Sin movimientos registrados en {PERIOD_LABEL(period)}</p>
         ) : (
-          <div className="px-6 py-6">
-            <div className="max-w-2xl mx-auto">
-              {/* Line items: rent + recoveries */}
-              <Row label="Alquiler" value={embudo.rent} />
-              {embudo.recoveries.map(r => (
-                <Row key={r.typeCode} label={r.label} value={r.amount} indent />
-              ))}
-
-              <Divider />
-
-              <Row label="Total cobrado al inquilino" value={embudo.totalIn} bold />
-
-              <div className="my-3" />
-
-              {/* Commission breakdown */}
-              <Row
-                label={`Comisión administrador (${commissionPct.toFixed(1)}%)`}
-                value={-embudo.commissionTotal}
-                tone="commission"
-              />
-              {embudo.commission.length > 0 && (
-                <div className="pl-6 mt-1 mb-2 space-y-1">
-                  {embudo.commission.map(c => (
-                    <div key={c.destination} className="flex items-center justify-between text-[11px] text-slate">
-                      <span>→ {c.destination}</span>
-                      <span className="tabular-nums">{fmt(c.amount)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {embudo.otherOut > 0 && (
-                <Row label="Otros descuentos" value={-embudo.otherOut} tone="commission" />
-              )}
-
-              <Divider />
-
-              <Row label="Transferencia al propietario" value={embudo.landlordPayout} bold tone="payout" />
-
-              {/* Math validation hint */}
-              <div className="mt-6 pt-4 border-t border-dashed border-line/60">
-                <p className="text-[11px] text-slate">
-                  Validación: total cobrado = transferencia + comisión + otros descuentos
-                  <br />
-                  {fmt(embudo.totalIn)} = {fmt(embudo.landlordPayout)} + {fmt(embudo.commissionTotal)} + {fmt(embudo.otherOut)} = {fmt(embudo.landlordPayout + embudo.commissionTotal + embudo.otherOut)}
-                </p>
+          <div className="max-w-2xl">
+            <Row label="Alquiler" value={embudo.rent} />
+            {embudo.recoveries.map(r => <Row key={r.typeCode} label={r.label} value={r.amount} indent />)}
+            <Divider />
+            <Row label="Total cobrado al inquilino" value={embudo.totalIn} bold />
+            <div className="my-3" />
+            <Row label={`Comisión administrador (${commissionPct.toFixed(1)}%)`} value={-embudo.commissionTotal} tone="commission" />
+            {embudo.commission.length > 0 && (
+              <div className="pl-6 mt-1 mb-2 space-y-1">
+                {embudo.commission.map(c => (
+                  <div key={c.destination} className="flex items-center justify-between text-[11px] text-slate">
+                    <span>→ {c.destination}</span><span className="tabular-nums">{fmt(c.amount)}</span>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
+            {embudo.otherOut > 0 && <Row label="Otros descuentos" value={-embudo.otherOut} tone="commission" />}
+            <Divider />
+            <Row label="Transferencia al propietario" value={embudo.landlordPayout} bold tone="payout" />
           </div>
         )}
-      </section>
+      </Card>
 
-      {/* Diagnóstico — same validation rules that drive the planilla's
-         Check column, filtered to this contract for the current period.
-         Shared ValidationIssueRow so per-rule labels stay consistent. */}
+      {/* Diagnóstico */}
       {contractIssues.length > 0 && (
-        <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-line">
-            <h2 className="font-display text-[15px] font-medium text-ink">
-              Diagnóstico · {PERIOD_LABEL(period)}
-            </h2>
-            <p className="text-[12px] text-slate mt-0.5">
-              {contractIssues.length} {contractIssues.length === 1 ? 'issue detectado' : 'issues detectados'} por las reglas de validación.
-            </p>
-          </div>
-          <ul>
-            {contractIssues.map((item, idx) => (
-              <ValidationIssueRow
-                key={`${item.issue.code}-${idx}`}
-                issue={item.issue}
-              />
-            ))}
+        <Card title={`Diagnóstico · ${PERIOD_LABEL(period)}`} sub={`${contractIssues.length} ${contractIssues.length === 1 ? 'issue detectado' : 'issues detectados'} por las reglas de validación.`} flush>
+          <ul className="-mx-4 sm:-mx-5">
+            {contractIssues.map((item, idx) => <ValidationIssueRow key={`${item.issue.code}-${idx}`} issue={item.issue} />)}
           </ul>
-        </section>
+        </Card>
       )}
 
-      {/* Deuda — current period + last 3 carryover periods + intereses
-         estimate. Same shared panel used inside the planilla's per-row
-         popover (clicked on the Deuda cell). */}
+      {/* Deuda */}
       {deudaBreakdown && (
-        <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-          <div className="px-6 py-4 border-b border-line">
-            <h2 className="font-display text-[15px] font-medium text-ink">
-              Deuda · {PERIOD_LABEL(period)}
-            </h2>
-            <p className="text-[12px] text-slate mt-0.5">
-              Desglose con arrastrado anterior y estimación de intereses por mora.
-            </p>
-          </div>
-          <div className="px-6 py-5 max-w-2xl">
-            <DeudaBreakdownPanel breakdown={deudaBreakdown} />
-          </div>
-        </section>
+        <Card title={`Deuda · ${PERIOD_LABEL(period)}`} sub="Desglose con arrastrado anterior y estimación de intereses por mora.">
+          <div className="max-w-2xl"><DeudaBreakdownPanel breakdown={deudaBreakdown} /></div>
+        </Card>
       )}
 
-      {/* Movimientos del período — every cashflow row for this contract.
-         Same editable component used inside the planilla's Movs. modal. */}
-      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-6 py-4 border-b border-line">
-          <h2 className="font-display text-[15px] font-medium text-ink">
-            Movimientos · {PERIOD_LABEL(period)}
-          </h2>
-          <p className="text-[12px] text-slate mt-0.5">
-            Cash flow del contrato — entradas y salidas con fecha, monto y razón.
-          </p>
-        </div>
-        <div className="px-6 py-5">
-          <MovimientosPanel contractId={id} period={period} />
-        </div>
-      </section>
+      {/* Movimientos */}
+      <Card title={`Movimientos · ${PERIOD_LABEL(period)}`} sub="Cash flow del contrato — entradas y salidas con fecha, monto y razón.">
+        <MovimientosPanel contractId={id} period={period} />
+      </Card>
 
-      {/* Observaciones del período — Alejandro's DEUDA scratchpad */}
-      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-6 py-4 border-b border-line">
-          <h2 className="font-display text-[15px] font-medium text-ink">
-            Observaciones · {PERIOD_LABEL(period)}
-          </h2>
-          <p className="text-[12px] text-slate mt-0.5">
-            Notas libres por mes — recuperos pendientes, deudas, observaciones para el inquilino o el propietario.
-          </p>
-        </div>
-        <div className="px-6 py-5">
-          <PeriodNotesEditor
-            contractId={id}
-            period={period}
-            periodLabel={PERIOD_LABEL(period)}
-            initialBody={note.body}
-            initialUpdatedAt={note.updatedAt}
-            initialUpdatedBy={note.updatedBy}
-          />
-        </div>
-      </section>
-
-      {/* Sidebar info — landlords + tenants */}
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-line">
-            <h3 className="font-display text-[14px] font-medium text-ink">Propietarios</h3>
-            <p className="text-[12px] text-slate mt-0.5">{contract.landlords.length} en este contrato</p>
-          </div>
-          <ul className="divide-y divide-line">
-            {contract.landlords.map(l => (
-              <li key={l.id} className="px-5 py-3 flex items-center justify-between">
-                <span className="text-[13px] text-ink">{l.name}</span>
-                <span className="text-[12px] text-slate tabular-nums">{l.ownershipPct.toFixed(0)}%</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-line">
-            <h3 className="font-display text-[14px] font-medium text-ink">Inquilinos</h3>
-            <p className="text-[12px] text-slate mt-0.5">{contract.tenants.length} en este contrato</p>
-          </div>
-          <ul className="divide-y divide-line">
-            {contract.tenants.map(t => (
-              <li key={t.id} className="px-5 py-3 flex items-center justify-between">
-                <div>
-                  <span className="text-[13px] text-ink">{t.name}</span>
-                  {t.isPrimary && <span className="ml-2 text-[10px] text-slate uppercase tracking-wider">titular</span>}
-                </div>
-                <span className="text-[12px] text-slate-dark tabular-nums">{t.phone ?? '—'}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-    </>
-  )
-}
-
-function Meta({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div>
-      <p className="label-cap text-slate">{label}</p>
-      <p className={`text-[14px] text-ink mt-1 ${mono ? 'font-display font-medium tabular-nums' : ''}`}>{value}</p>
+      {/* Observaciones */}
+      <Card title={`Observaciones · ${PERIOD_LABEL(period)}`} sub="Notas libres por mes — recuperos, deudas, observaciones para el inquilino o el propietario.">
+        <PeriodNotesEditor
+          contractId={id}
+          period={period}
+          periodLabel={PERIOD_LABEL(period)}
+          initialBody={note.body}
+          initialUpdatedAt={note.updatedAt}
+          initialUpdatedBy={note.updatedBy}
+        />
+      </Card>
     </div>
   )
 }
 
-function Row({
-  label,
-  value,
-  bold,
-  indent,
-  tone,
-}: {
-  label:  string
-  value:  number
-  bold?:  boolean
-  indent?: boolean
-  tone?:  'commission' | 'payout'
+// ── Reusable card wrapper ──
+function Card({ title, sub, children, flush }: { title: string; sub?: string; children: React.ReactNode; flush?: boolean }) {
+  return (
+    <section className="bg-paper border border-line rounded-xl shadow-card p-4 sm:p-5">
+      <header className="mb-3">
+        <h2 className="font-display text-[15px] font-medium text-ink leading-tight">{title}</h2>
+        {sub && <p className="text-[12px] text-slate mt-0.5">{sub}</p>}
+      </header>
+      {children}
+    </section>
+  )
+}
+
+function Avatar({ name, color }: { name: string; color: string }) {
+  return (
+    <span className="w-8 h-8 rounded-full grid place-items-center text-[11px] font-semibold shrink-0" style={{ backgroundColor: color + '22', color }}>
+      {initials(name)}
+    </span>
+  )
+}
+
+function ResumenRow({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <dt className="text-slate shrink-0">{k}</dt>
+      <dd className={`text-ink text-right ${mono ? 'tabular-nums' : ''}`}>{v}</dd>
+    </div>
+  )
+}
+
+function indexerLabel(indexer: string): string {
+  const map: Record<string, string> = { IPC_GENERAL: 'IPC', ICL: 'ICL', CASA_PROPIA: 'Casa Propia', FIXED: 'Fijo' }
+  return map[indexer] ?? indexer
+}
+
+function Row({ label, value, bold, indent, tone }: {
+  label: string; value: number; bold?: boolean; indent?: boolean; tone?: 'commission' | 'payout'
 }) {
   const valueClass = [
     'tabular-nums',
@@ -396,95 +350,38 @@ function Row({
   )
 }
 
-function Divider() {
-  return <div className="my-2 border-t border-line" />
-}
+function Divider() { return <div className="my-2 border-t border-line" /> }
 
-/**
- * Detail-page status badge. Same urgency-aware logic as the list — so what
- * the client saw red on /contratos becomes "Sin pago" / "Vence pronto" /
- * etc. here instead of a stale "Activo" green.
- */
 function RowStatusBadge({ status, urgency, hasRent, hasNote }: {
-  status:   string
-  urgency:  UrgencyTier
-  hasRent:  boolean
-  hasNote:  boolean
+  status: string; urgency: UrgencyTier; hasRent: boolean; hasNote: boolean
 }) {
   if (status === 'rescinded') return <Badge tone="danger">Rescindido</Badge>
   if (status === 'ended')     return <Badge tone="neutral">Finalizado</Badge>
   if (status === 'draft')     return <Badge tone="neutral">Borrador</Badge>
   if (status === 'suspended') return <Badge tone="warn">Suspendido</Badge>
-
-  const contrastClass = urgency === 'critical' ? '!text-white'
-                       : urgency === 'warning' ? '!text-ink'
-                       : ''
-
+  const cc = urgency === 'critical' ? '!text-white' : urgency === 'warning' ? '!text-ink' : ''
   switch (urgency) {
-    case 'critical':
-      if (!hasRent) return <Badge tone="danger" className={contrastClass}>Sin pago</Badge>
-      return <Badge tone="danger" className={contrastClass}>Vence pronto</Badge>
-    case 'warning':
-      if (!hasRent) return <Badge tone="warn" className={contrastClass}>Sin pago</Badge>
-      if (!hasNote) return <Badge tone="warn" className={contrastClass}>Sin nota</Badge>
-      return <Badge tone="warn" className={contrastClass}>Por vencer</Badge>
-    case 'recent':
-      return <Badge tone="info">Activo · cambios</Badge>
-    case 'upcoming':
-      return <Badge tone="info">Aumento próximo</Badge>
-    default:
-      return <Badge tone="success">Activo</Badge>
+    case 'critical': return <Badge tone="danger" className={cc}>{hasRent ? 'Vence pronto' : 'Sin pago'}</Badge>
+    case 'warning':  return <Badge tone="warn" className={cc}>{!hasRent ? 'Sin pago' : !hasNote ? 'Sin nota' : 'Por vencer'}</Badge>
+    case 'recent':   return <Badge tone="info">Activo · cambios</Badge>
+    case 'upcoming': return <Badge tone="info">Aumento próximo</Badge>
+    default:         return <Badge tone="success">Activo</Badge>
   }
 }
 
-/**
- * Audit banner — surfaces the urgency reasons on the detail page, mirroring
- * the row tint from /contratos. Excel-familiar palette (orange/yellow), so
- * the alert reads instantly to the team.
- */
 function AuditBanner({ urgency, reasons }: { urgency: 'critical' | 'warning'; reasons: string[] }) {
   const p = URGENCY_BANNER[urgency]
-  const label = URGENCY_LABEL[urgency]
-
   return (
-    <section className={`mt-6 ${p.bg} border border-line border-l-[4px] ${p.border} rounded shadow-card p-4 sm:p-5`}>
+    <section className={`${p.bg} border border-line border-l-[4px] ${p.border} rounded-xl shadow-card p-4`}>
       <div className="flex items-start gap-3">
         <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${p.dot}`} aria-hidden />
         <div className="flex-1 min-w-0">
-          <p className={`label-cap ${p.text}`}>{label}</p>
+          <p className={`label-cap ${p.text}`}>{URGENCY_LABEL[urgency]}</p>
           <ul className="mt-2 space-y-1">
-            {reasons.map((r, i) => (
-              <li key={i} className="text-[13px] text-slate-dark leading-snug">{r}</li>
-            ))}
+            {reasons.map((r, i) => <li key={i} className="text-[13px] text-slate-dark leading-snug">{r}</li>)}
           </ul>
         </div>
       </div>
-    </section>
-  )
-}
-
-function cap(s: string) { return s ? s[0].toUpperCase() + s.slice(1) : s }
-
-function NextAdjustmentCallout({ date, cadence }: { date: string; cadence: string }) {
-  const days = daysUntil(date)
-  const soon = days <= 30
-  return (
-    <section
-      className={[
-        'mt-6 rounded border shadow-card p-4 flex items-center justify-between gap-4 flex-wrap',
-        soon ? 'bg-cream-2 border-ink/30' : 'bg-paper border-line',
-      ].join(' ')}
-    >
-      <div className="flex items-baseline gap-3">
-        <span className="label-cap">Próximo aumento</span>
-        <span className={`font-display text-[18px] ${soon ? 'text-ink font-medium' : 'text-slate-dark'} tabular-nums`}>
-          {fmtMonthYear(date)}
-        </span>
-        <span className="text-[12px] text-slate">
-          ({days <= 0 ? 'vencido' : days === 1 ? 'mañana' : `en ${days} días`})
-        </span>
-      </div>
-      <span className="text-[11px] text-slate capitalize">según cadencia {cadence}</span>
     </section>
   )
 }

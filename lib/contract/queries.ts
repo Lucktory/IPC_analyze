@@ -11,6 +11,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 
 export interface ContractDetail {
   id:              string
+  contractNumber:  string | null
   status:          string
   currentRent:     number
   initialRent:     number
@@ -22,10 +23,12 @@ export interface ContractDetail {
   endDate:         string
   nextAdjustmentDate: string | null
   paymentDay:      number
+  depositAmount:   number | null
+  depositStatus:   string | null
   notes:           string | null
-  landlords:       { id: string; name: string; ownershipPct: number }[]
-  tenants:         { id: string; name: string; phone: string | null; isPrimary: boolean }[]
-  property:        { id: string; address: string; propertyType: string } | null
+  landlords:       { id: string; name: string; ownershipPct: number; cuit: string | null }[]
+  tenants:         { id: string; name: string; phone: string | null; dni: string | null; sharePct: number; isPrimary: boolean }[]
+  property:        { id: string; address: string; unit: string | null; city: string | null; propertyType: string } | null
 }
 
 export async function getContractDetail(id: string): Promise<ContractDetail | null> {
@@ -34,11 +37,11 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
   const { data } = await supabase
     .from('contracts')
     .select(`
-      id, status, current_rent, initial_rent, expensas, currency, cadence, indexer,
-      start_date, end_date, next_adjustment_date, payment_day, notes,
-      contract_landlords(ownership_pct, landlords(id, name)),
-      contract_tenants(is_primary, tenants(id, name, phone)),
-      properties(id, address, property_type)
+      id, contract_number, status, current_rent, initial_rent, expensas, currency, cadence, indexer,
+      start_date, end_date, next_adjustment_date, payment_day, deposit_amount, deposit_status, notes,
+      contract_landlords(ownership_pct, landlords(id, name, dni_or_cuit)),
+      contract_tenants(is_primary, share_pct, tenants(id, name, phone, dni)),
+      properties(id, address, unit, city, property_type)
     `)
     .eq('id', id)
     .single()
@@ -48,6 +51,7 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
 
   return {
     id:              c.id,
+    contractNumber:  c.contract_number ?? null,
     status:          c.status,
     currentRent:     Number(c.current_rent),
     initialRent:     Number(c.initial_rent),
@@ -59,20 +63,25 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     endDate:         c.end_date,
     nextAdjustmentDate: c.next_adjustment_date,
     paymentDay:      c.payment_day,
+    depositAmount:   c.deposit_amount != null ? Number(c.deposit_amount) : null,
+    depositStatus:   c.deposit_status ?? null,
     notes:           c.notes,
     landlords:       (c.contract_landlords ?? []).map((cl: any) => ({
       id:           cl.landlords.id,
       name:         cl.landlords.name,
       ownershipPct: Number(cl.ownership_pct),
+      cuit:         cl.landlords.dni_or_cuit ?? null,
     })),
     tenants: (c.contract_tenants ?? []).map((ct: any) => ({
       id:        ct.tenants.id,
       name:      ct.tenants.name,
       phone:     ct.tenants.phone,
+      dni:       ct.tenants.dni ?? null,
+      sharePct:  Number(ct.share_pct ?? 100),
       isPrimary: ct.is_primary,
     })),
     property: c.properties
-      ? { id: c.properties.id, address: c.properties.address, propertyType: c.properties.property_type }
+      ? { id: c.properties.id, address: c.properties.address, unit: c.properties.unit ?? null, city: c.properties.city ?? null, propertyType: c.properties.property_type }
       : null,
   }
 }
