@@ -1,223 +1,206 @@
 import Link from 'next/link'
-import { KPICard } from '@/components/ui/KPICard'
-import { StickyHeader } from '@/components/ui/StickyHeader'
-import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
-import { FilterPill } from '@/components/ui/FilterPill'
+import { Users, CircleCheck, CircleAlert, UserX, SlidersHorizontal, Plus, ChevronRight } from 'lucide-react'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { FilterPill } from '@/components/ui/FilterPill'
 import { ClickableRow } from '@/components/ui/ClickableRow'
-import { listTenants, type TenantRow } from '@/lib/entities/queries'
-import { URGENCY_STYLES } from '@/lib/urgency'
+import { TablePagination } from '@/components/ui/TablePagination'
+import { listTenants, type EstadoPago } from '@/lib/entities/queries'
+import { getDashboardPeriod } from '@/lib/dashboard/queries'
 import { fmtMoney as fmt } from '@/lib/format'
 
-type Tipo = 'todos' | 'con_contrato' | 'sin_contrato' | 'sin_telefono' | 'sin_email'
+const PER_PAGE = 12
+const AVATAR_COLORS = ['#3B82F6', '#16A34A', '#8B5CF6', '#F59E0B', '#06B6D4', '#EC4899']
+const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+const colorFor = (s: string) => AVATAR_COLORS[[...s].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length]
 
 interface PageProps {
-  searchParams: Promise<{
-    tipo?: string
-    q?:    string
-  }>
+  searchParams: Promise<{ tipo?: string; q?: string; pagina?: string }>
 }
 
 export default async function InquilinosPage({ searchParams }: PageProps) {
   const sp   = await searchParams
-  const tipo = (sp.tipo as Tipo) ?? 'todos'
-  const q    = sp.q?.trim() ?? ''
+  const tipo = sp.tipo ?? 'todos'
+  const q    = (sp.q ?? '').trim().toLowerCase()
 
-  const all  = await listTenants()
+  const dashPeriod = await getDashboardPeriod()
+  const all = await listTenants(dashPeriod)
 
-  const match = (t: TenantRow, kind: Tipo) => {
-    switch (kind) {
-      case 'con_contrato':  return t.contractCount > 0
-      case 'sin_contrato':  return t.contractCount === 0
-      case 'sin_telefono':  return !t.phone
-      case 'sin_email':     return !t.email
-      default:              return true
-    }
-  }
+  const total    = all.length
+  const alDia     = all.filter(t => t.estadoPago === 'al_dia').length
+  const enMoraSet = all.filter(t => t.estadoPago === 'en_mora' || t.estadoPago === 'sin_pago')
+  const enMora    = enMoraSet.length
+  // Sum the shortfall per DISTINCT contract (co-tenants share one contract, so
+  // don't count the same debt twice).
+  const moraByContract = new Map<string, number>()
+  for (const t of enMoraSet) if (t.contractId) moraByContract.set(t.contractId, t.debtAmount)
+  const moraMonto = [...moraByContract.values()].reduce((s, v) => s + v, 0)
+  const sinContrato = all.filter(t => t.estadoPago === 'sin_contrato').length
+  const pctAlDia  = total > 0 ? (alDia / total) * 100 : 0
 
-  const counts = {
-    todos:         all.length,
-    con_contrato:  all.filter(t => match(t, 'con_contrato')).length,
-    sin_contrato:  all.filter(t => match(t, 'sin_contrato')).length,
-    sin_telefono:  all.filter(t => match(t, 'sin_telefono')).length,
-    sin_email:     all.filter(t => match(t, 'sin_email')).length,
-  }
-
-  let rows = all.filter(t => match(t, tipo))
+  let rows = all
+  if (tipo === 'al_dia')          rows = rows.filter(t => t.estadoPago === 'al_dia')
+  else if (tipo === 'en_mora')    rows = rows.filter(t => t.estadoPago === 'en_mora' || t.estadoPago === 'sin_pago')
+  else if (tipo === 'sin_contrato') rows = rows.filter(t => t.estadoPago === 'sin_contrato')
   if (q) {
-    const ql = q.toLowerCase()
     rows = rows.filter(t =>
-      t.name.toLowerCase().includes(ql) ||
-      (t.dni?.toLowerCase().includes(ql) ?? false) ||
-      (t.phone?.toLowerCase().includes(ql) ?? false),
-    )
+      t.name.toLowerCase().includes(q) ||
+      (t.dni ?? '').toLowerCase().includes(q) ||
+      (t.contractNumber ?? '').toLowerCase().includes(q) ||
+      (t.propertyAddress ?? '').toLowerCase().includes(q) ||
+      (t.phone ?? '').toLowerCase().includes(q) ||
+      (t.email ?? '').toLowerCase().includes(q))
   }
 
-  const totalRent      = all.reduce((s, t) => s + t.monthlyRent, 0)
-  const withPhone      = counts.todos - counts.sin_telefono
+  const totalPages = Math.max(1, Math.ceil(rows.length / PER_PAGE))
+  const page       = Math.min(Math.max(1, parseInt(sp.pagina ?? '1', 10) || 1), totalPages)
+  const pageRows   = rows.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const fromN      = rows.length === 0 ? 0 : (page - 1) * PER_PAGE + 1
+  const toN        = Math.min(page * PER_PAGE, rows.length)
 
-  const buildHref = (overrides: Partial<{ tipo: Tipo; q: string }>) => {
+  const buildHref = (o: Partial<Record<string, string>>) => {
     const params = new URLSearchParams()
-    const merged = { tipo, q, ...overrides }
-    if (merged.tipo && merged.tipo !== 'todos') params.set('tipo', merged.tipo)
-    if (merged.q)                                params.set('q',    merged.q)
+    const m = { tipo, q, ...o }
+    if (m.tipo && m.tipo !== 'todos') params.set('tipo', m.tipo)
+    if (m.q) params.set('q', m.q)
     const qs = params.toString()
     return qs ? `/inquilinos?${qs}` : '/inquilinos'
   }
+  const pageHref = (n: number) => {
+    const base = buildHref({})
+    const sep = base.includes('?') ? '&' : '?'
+    return n <= 1 ? base : `${base}${sep}pagina=${n}`
+  }
 
-  const clearTipoHref = buildHref({ tipo: 'todos' })
-
-  const kpis = [
-    {
-      label: 'Total inquilinos',
-      value: counts.todos.toString(),
-      delta: 'en cartera',
-      tone:  'neutral' as const,
-      href:  buildHref({ tipo: 'todos' }),
-      active: tipo === 'todos',
-    },
-    {
-      label: 'Con contrato',
-      value: counts.con_contrato.toString(),
-      delta: `${counts.sin_contrato} sin contrato actual`,
-      tone:  'neutral' as const,
-      href:  buildHref({ tipo: 'con_contrato' }),
-      clearHref: clearTipoHref,
-      active: tipo === 'con_contrato',
-    },
-    {
-      label: 'Con teléfono',
-      value: `${withPhone} / ${counts.todos}`,
-      delta: counts.sin_telefono > 0 ? `${counts.sin_telefono} sin teléfono — tocá para revisar` : 'todos cargados',
-      tone:  counts.sin_telefono > 0 ? 'negative' as const : 'positive' as const,
-      href:  buildHref({ tipo: 'sin_telefono' }),
-      clearHref: clearTipoHref,
-      active: tipo === 'sin_telefono',
-    },
-    {
-      label: 'Alquiler total',
-      value: '$' + (totalRent / 1_000_000).toFixed(1) + ' M',
-      delta: 'suma de alquileres activos',
-      tone:  'positive' as const,
-      href:  buildHref({ tipo: 'con_contrato' }),
-      clearHref: clearTipoHref,
-      active: tipo === 'con_contrato',
-    },
+  const stats = [
+    { key: 'total',   label: 'Inquilinos',   value: total.toLocaleString('es-AR'),      sub: 'Total registrados',       Icon: Users,       color: '#3B82F6', href: buildHref({ tipo: 'todos' }),        active: tipo === 'todos' },
+    { key: 'aldia',   label: 'Al día',       value: alDia.toLocaleString('es-AR'),      sub: `${pctAlDia.toFixed(0)}% del total`, Icon: CircleCheck, color: '#16A34A', href: buildHref({ tipo: 'al_dia' }),       active: tipo === 'al_dia' },
+    { key: 'mora',    label: 'En mora',      value: enMora.toLocaleString('es-AR'),     sub: fmt(moraMonto),            Icon: CircleAlert, color: '#EF4444', href: buildHref({ tipo: 'en_mora' }),      active: tipo === 'en_mora' },
+    { key: 'sincon',  label: 'Sin contrato', value: sinContrato.toLocaleString('es-AR'), sub: 'Sin contrato vigente',    Icon: UserX,       color: '#8A93A5', href: buildHref({ tipo: 'sin_contrato' }), active: tipo === 'sin_contrato' },
   ]
 
-  const activeBits: string[] = []
-  if (tipo === 'con_contrato')  activeBits.push('Con contrato')
-  if (tipo === 'sin_contrato')  activeBits.push('Sin contrato')
-  if (tipo === 'sin_telefono')  activeBits.push('Sin teléfono')
-  if (tipo === 'sin_email')     activeBits.push('Sin email')
-  const activeSummary = activeBits.join(' · ')
-
   return (
-    <>
-      <StickyHeader>
-        <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap mb-2">
-          <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
-            <strong className="text-ink font-medium">Inquilinos</strong>
-            {' · '}
-            {rows.length === counts.todos ? `${counts.todos}` : `${rows.length} de ${counts.todos}`}
-            {activeSummary && <span className="text-slate"> · {activeSummary}</span>}
-          </p>
-          <div className="flex items-center gap-2 order-3 sm:order-none">
-            <div className="w-full sm:w-72 shrink-0">
-              <AutoSearchInput initialValue={q} placeholder="Buscar por nombre, DNI o teléfono…" />
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
+      <header className="shrink-0">
+        <h1 className="text-[24px] font-semibold text-ink tracking-tight">Inquilinos</h1>
+        <nav className="text-[12px] text-slate mt-1 flex items-center gap-1.5">
+          <Link href="/dashboard" className="hover:text-ink transition-colors">Inicio</Link>
+          <span className="text-slate/50">/</span>
+          <span className="text-slate-dark">Inquilinos</span>
+        </nav>
+      </header>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <div className="flex-1 min-w-[220px]">
+          <AutoSearchInput initialValue={sp.q ?? ''} placeholder="Buscar inquilino, DNI, contrato o propiedad…" resetParams={['pagina']} />
+        </div>
+        <details className="relative">
+          <summary className="list-none inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-line text-ink bg-paper hover:border-info/40 text-[13px] cursor-pointer transition-colors [&::-webkit-details-marker]:hidden">
+            <SlidersHorizontal size={15} /> Filtros
+          </summary>
+          <div className="absolute right-0 mt-2 z-30 w-[240px] bg-paper border border-line rounded-xl shadow-lg p-3.5">
+            <span className="label-cap text-slate">Estado de pago</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <FilterPill href={buildHref({ tipo: 'al_dia' })}   clearHref={buildHref({ tipo: 'todos' })} label="Al día"       active={tipo === 'al_dia'} />
+              <FilterPill href={buildHref({ tipo: 'en_mora' })}  clearHref={buildHref({ tipo: 'todos' })} label="En mora"      active={tipo === 'en_mora'} />
+              <FilterPill href={buildHref({ tipo: 'sin_contrato' })} clearHref={buildHref({ tipo: 'todos' })} label="Sin contrato" active={tipo === 'sin_contrato'} />
             </div>
-            <Link
-              href="/inquilinos/nuevo"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 transition-opacity shrink-0"
-            >
-              + Nuevo
-            </Link>
           </div>
-        </div>
+        </details>
+        <Link href="/inquilinos/nuevo" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-info text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0">
+          <Plus size={16} /> Nuevo inquilino
+        </Link>
+      </div>
 
-        <StickyKPIStrip cols={4}>
-          {kpis.map((k) => (
-            <StickyKPIStripItem key={k.label}>
-              <KPICard {...k} deltaTone={k.tone} />
-            </StickyKPIStripItem>
-          ))}
-        </StickyKPIStrip>
-      </StickyHeader>
-
-      <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
-        <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
-          <span className="label-cap text-slate mr-1 shrink-0">Filtros extra</span>
-          <FilterPill href={buildHref({ tipo: 'sin_contrato' })} clearHref={clearTipoHref} label="Sin contrato" count={counts.sin_contrato} active={tipo === 'sin_contrato'} />
-          <FilterPill href={buildHref({ tipo: 'sin_email' })}    clearHref={clearTipoHref} label="Sin email"    count={counts.sin_email}    active={tipo === 'sin_email'} />
-        </div>
-
-        {q && (
-          <div className="mt-3">
-            <Link
-              href={buildHref({ q: '' })}
-              className="inline-flex items-center px-3 h-8 text-[12px] text-slate hover:text-ink transition-colors"
-            >
-              ↺ Limpiar búsqueda
-            </Link>
-          </div>
-        )}
+      {/* KPI row */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+        {stats.map(s => (
+          <Link key={s.key} href={s.href} className={`rounded-xl border bg-paper p-4 flex flex-col gap-3 transition-colors ${
+            s.active ? 'border-info ring-1 ring-info/30' : 'border-line hover:border-info/40'
+          }`}>
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0" style={{ backgroundColor: s.color + '1f', color: s.color }}>
+                <s.Icon size={18} />
+              </span>
+              <span className="text-[12px] font-medium text-slate leading-tight">{s.label}</span>
+            </div>
+            <div>
+              <p className="text-[24px] font-semibold text-ink leading-none tabular-nums truncate">{s.value}</p>
+              <p className="text-[11px] text-slate mt-1.5 truncate">{s.sub}</p>
+            </div>
+          </Link>
+        ))}
       </section>
 
-      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="font-display text-[15px] font-medium text-ink">Listado</h2>
-            <p className="text-[12px] text-slate mt-0.5">Datos de contacto y contratos vigentes</p>
-          </div>
-          <p className="text-[12px] text-slate tabular-nums">{rows.length} resultado{rows.length === 1 ? '' : 's'}</p>
-        </div>
-        <div className="overflow-x-auto">
-          {rows.length > 0 ? (
-            <table className="w-full text-[13px] min-w-[720px] border-collapse">
-              <thead className="bg-cream-2/60">
+      {/* Table */}
+      <section className="bg-paper border border-line rounded-xl shadow-card overflow-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
+        <div className="overflow-auto lg:flex-1 lg:min-h-0">
+          {pageRows.length > 0 ? (
+            <table className="w-full text-[13px] min-w-[980px]">
+              <thead className="sticky top-0 z-10 bg-paper">
                 <tr className="border-b border-line">
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Inquilino</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Teléfono</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Email</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">DNI</th>
-                  <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Contratos</th>
-                  <th className="text-right px-4 py-1.5 label-cap font-medium">Alquiler mensual</th>
+                  {['Inquilino', 'DNI', 'Contacto', 'Contrato', 'Propiedad', 'Alquiler', 'Estado de pago', ''].map((h, i) => (
+                    <th key={i} className={`label-cap font-medium text-slate px-4 py-2.5 ${h === 'Alquiler' ? 'text-right' : 'text-left'}`}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((t, idx) => {
-                  const u = URGENCY_STYLES[t.urgency]
-                  const tinted   = !!u.row
-                  const zebra    = tinted ? '' : (idx % 2 === 0 ? 'bg-cream/40' : '')
-                  const cellTint = (t.urgency === 'critical' || t.urgency === 'warning')
-                  const phoneMissing = cellTint && !t.phone ? u.cellTint : ''
-                  const emailMissing = cellTint && !t.email ? u.cellTint : ''
-                  const dniMissing   = cellTint && !t.dni   ? u.cellTint : ''
+                {pageRows.map(t => {
+                  const col = colorFor(t.name)
                   return (
-                    <ClickableRow
-                      key={t.id}
-                      href={`/inquilinos/${t.id}`}
-                      title={t.urgencyReasons.length ? t.urgencyReasons.join(' · ') : undefined}
-                      className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
-                    >
-                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>{t.name}</td>
-                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${phoneMissing}`}>{t.phone ?? ''}</td>
-                      <td className={`px-4 py-1.5 text-slate-dark border-r border-line/30 ${emailMissing}`}>{t.email ?? ''}</td>
-                      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-r border-line/30 ${dniMissing}`}>{t.dni ?? ''}</td>
-                      <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">{t.contractCount}</td>
-                      <td className="px-4 py-1.5 text-right tabular-nums text-ink">{t.monthlyRent > 0 ? fmt(t.monthlyRent) : ''}</td>
+                    <ClickableRow key={t.id} href={`/inquilinos/${t.id}`} className="border-b border-line/60 last:border-0 hover:bg-cream-2 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="w-8 h-8 rounded-full grid place-items-center text-[11px] font-semibold shrink-0" style={{ backgroundColor: col + '22', color: col }}>{initials(t.name)}</span>
+                          <span className="text-ink truncate">{t.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-dark tabular-nums whitespace-nowrap">{t.dni ?? <span className="text-slate/50">—</span>}</td>
+                      <td className="px-4 py-3">
+                        <div className="leading-tight min-w-0">
+                          {t.phone && <div className="text-slate-dark tabular-nums">{t.phone}</div>}
+                          <div className="text-slate text-[11px] truncate max-w-[200px]">{t.email ?? 'sin email'}</div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 tabular-nums text-slate-dark whitespace-nowrap">{t.contractNumber ?? <span className="text-slate/50">—</span>}</td>
+                      <td className="px-4 py-3">
+                        {t.propertyAddress ? (
+                          <div className="leading-tight min-w-0">
+                            <div className="text-ink truncate max-w-[190px]">{t.propertyAddress}</div>
+                            {t.propertyCity && <div className="text-slate text-[11px] truncate">{t.propertyCity}</div>}
+                          </div>
+                        ) : <span className="text-slate/50">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink whitespace-nowrap">{t.rent > 0 ? fmt(t.rent) : <span className="text-slate/50">—</span>}</td>
+                      <td className="px-4 py-3"><EstadoBadge estado={t.estadoPago} /></td>
+                      <td className="px-4 py-3 text-right"><ChevronRight size={16} className="text-slate/50 inline" /></td>
                     </ClickableRow>
                   )
                 })}
               </tbody>
             </table>
           ) : (
-            <div className="p-10 text-center">
-              <p className="text-[14px] text-slate">Ningún inquilino coincide con los filtros aplicados</p>
-            </div>
+            <div className="p-12 text-center text-[14px] text-slate">Ningún inquilino coincide con la búsqueda</div>
           )}
         </div>
+        {rows.length > 0 && (
+          <div className="px-4 py-3 border-t border-line flex items-center justify-between gap-3 flex-wrap shrink-0">
+            <p className="text-[12px] text-slate tabular-nums">Mostrando {fromN} a {toN} de {rows.length} inquilino{rows.length === 1 ? '' : 's'}</p>
+            <TablePagination page={page} totalPages={totalPages} hrefFor={pageHref} />
+          </div>
+        )}
       </section>
-    </>
+    </div>
   )
+}
+
+function EstadoBadge({ estado }: { estado: EstadoPago }) {
+  const map: Record<EstadoPago, { label: string; cls: string }> = {
+    al_dia:       { label: 'Al día',       cls: 'bg-success/15 text-success' },
+    en_mora:      { label: 'En mora',      cls: 'bg-danger/15 text-danger' },
+    sin_pago:     { label: 'Sin pago',     cls: 'border border-danger/50 text-danger' },
+    sin_contrato: { label: 'Sin contrato', cls: 'bg-slate/15 text-slate' },
+  }
+  const s = map[estado]
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${s.cls}`}>{s.label}</span>
 }

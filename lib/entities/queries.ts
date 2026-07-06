@@ -145,6 +145,8 @@ export async function listLandlords(period?: string): Promise<LandlordRow[]> {
 // ---------------------------------------------------------------------------
 // TENANTS  (inquilinos)
 // ---------------------------------------------------------------------------
+export type EstadoPago = 'al_dia' | 'en_mora' | 'sin_pago' | 'sin_contrato'
+
 export interface TenantRow {
   id:            string
   name:          string
@@ -153,15 +155,24 @@ export interface TenantRow {
   dni:           string | null
   contractCount: number
   monthlyRent:   number   // sum of current_rent across the tenant's active contracts
+  // Primary active contract (for the list columns)
+  contractId:      string | null
+  contractNumber:  string | null
+  propertyAddress: string | null
+  propertyCity:    string | null
+  rent:            number   // primary active contract's current_rent
+  estadoPago:      EstadoPago
+  debtAmount:      number   // expected - cobrado this period on the primary contract (>= 0)
   urgency:        UrgencyTier
   urgencyReasons: string[]
 }
 
-export async function listTenants(): Promise<TenantRow[]> {
+export async function listTenants(period?: string): Promise<TenantRow[]> {
   const supabase = await createSupabaseServer()
+  const p = period ?? getCurrentPeriod()
 
   const tenantsSelect = 'id, name, email, phone, dni'
-  const [tenantsRes, junctionRes, contractsRes] = await Promise.all([
+  const [tenantsRes, junctionRes, contractsRes, rentRes] = await Promise.all([
     supabase
       .from('tenants')
       .select(tenantsSelect)
@@ -173,7 +184,12 @@ export async function listTenants(): Promise<TenantRow[]> {
       .select('contract_id, tenant_id, is_primary'),
     supabase
       .from('contracts')
-      .select('id, current_rent, status'),
+      .select('id, contract_number, current_rent, status, properties(address, city)'),
+    supabase
+      .from('transactions')
+      .select('contract_id, amount, transaction_types!inner(code)')
+      .eq('transaction_types.code', 'RENT_IN')
+      .eq('period', p),
   ])
 
   // Fall back for tenantsRes if the updated_at column doesn't exist yet.
@@ -184,28 +200,57 @@ export async function listTenants(): Promise<TenantRow[]> {
     tenantsData = fallback.data
   }
 
-  const rentByContract = new Map<string, { rent: number; active: boolean }>()
+  const contractInfo = new Map<string, { number: string | null; rent: number; active: boolean; address: string | null; city: string | null }>()
   for (const c of (contractsRes.data ?? []) as any[]) {
-    rentByContract.set(c.id, { rent: Number(c.current_rent), active: c.status === 'active' })
+    contractInfo.set(c.id, {
+      number:  c.contract_number ?? null,
+      rent:    Number(c.current_rent),
+      active:  c.status === 'active',
+      address: c.properties?.address ?? null,
+      city:    c.properties?.city ?? null,
+    })
+  }
+  const cobradoByContract = new Map<string, number>()
+  for (const tx of (rentRes.data ?? []) as any[]) {
+    if (tx.contract_id) cobradoByContract.set(tx.contract_id, (cobradoByContract.get(tx.contract_id) ?? 0) + Number(tx.amount))
   }
 
-  const stats = new Map<string, { contracts: Set<string>; rent: number }>()
+  // Tenant -> their contract_tenants rows (to pick the primary active contract)
+  const tenantJunctions = new Map<string, { contract_id: string; is_primary: boolean }[]>()
   for (const j of (junctionRes.data ?? []) as any[]) {
-    const c = rentByContract.get(j.contract_id)
-    if (!c) continue
-    const entry = stats.get(j.tenant_id) ?? { contracts: new Set<string>(), rent: 0 }
-    entry.contracts.add(j.contract_id)
-    if (c.active) entry.rent += c.rent
-    stats.set(j.tenant_id, entry)
+    const arr = tenantJunctions.get(j.tenant_id) ?? []
+    arr.push({ contract_id: j.contract_id, is_primary: !!j.is_primary })
+    tenantJunctions.set(j.tenant_id, arr)
   }
 
   return (tenantsData ?? []).map(t => {
     const id     = (t as any).id as string
-    const s      = stats.get(id) ?? { contracts: new Set<string>(), rent: 0 }
     const email  = (t as any).email as string | null
     const phone  = (t as any).phone as string | null
     const dni    = (t as any).dni as string | null
-    const contracts = s.contracts.size
+
+    const js          = (tenantJunctions.get(id) ?? []).filter(j => contractInfo.has(j.contract_id))
+    const contracts   = new Set(js.map(j => j.contract_id)).size
+    const monthlyRent = js.reduce((sum, j) => { const ci = contractInfo.get(j.contract_id)!; return sum + (ci.active ? ci.rent : 0) }, 0)
+
+    // Primary active contract drives the list columns + payment status
+    const activeJs  = js.filter(j => contractInfo.get(j.contract_id)!.active)
+    const primaryJ  = activeJs.find(j => j.is_primary) ?? activeJs[0]
+    let contractId: string | null = null, contractNumber: string | null = null
+    let propertyAddress: string | null = null, propertyCity: string | null = null
+    let rent = 0, debtAmount = 0
+    let estadoPago: EstadoPago = 'sin_contrato'
+    if (primaryJ) {
+      const ci = contractInfo.get(primaryJ.contract_id)!
+      contractId = primaryJ.contract_id
+      contractNumber = ci.number
+      propertyAddress = ci.address
+      propertyCity = ci.city
+      rent = ci.rent
+      const cobrado = cobradoByContract.get(contractId) ?? 0
+      debtAmount = Math.max(0, ci.rent - cobrado)
+      estadoPago = cobrado <= 0 ? 'sin_pago' : cobrado >= ci.rent ? 'al_dia' : 'en_mora'
+    }
 
     // Urgency for tenants:
     //   Critical: zero contracts (orphan tenant record)
@@ -231,7 +276,9 @@ export async function listTenants(): Promise<TenantRow[]> {
       name:           (t as any).name,
       email, phone, dni,
       contractCount:  contracts,
-      monthlyRent:    s.rent,
+      monthlyRent,
+      contractId, contractNumber, propertyAddress, propertyCity, rent,
+      estadoPago, debtAmount,
       urgency,
       urgencyReasons: reasons,
     }
