@@ -68,7 +68,7 @@ export async function createContract(formData: FormData): Promise<CreateContract
   const indexer         = String(formData.get('indexer')         ?? 'IPC_GENERAL').trim()
   const paymentDay      = Number(String(formData.get('payment_day') ?? '5').trim() || '5')
   const lfaCode         = String(formData.get('lfa_code')        ?? '').trim() || null
-  const contractNumber  = String(formData.get('contract_number') ?? '').trim() || null
+  let   contractNumber  = String(formData.get('contract_number') ?? '').trim() || null
 
   if (!propertyId) return { ok: false, error: 'Seleccioná una propiedad.' }
   if (!tenantId)   return { ok: false, error: 'Seleccioná un inquilino.' }
@@ -91,6 +91,22 @@ export async function createContract(formData: FormData): Promise<CreateContract
     .from('properties').select('administration_id').eq('id', propertyId).maybeSingle()
   if (propErr)   return dbFailure(propErr)
   if (!property) return { ok: false, error: 'Propiedad no encontrada.' }
+
+  // Auto-assign a human contract number (C-YYYY-NNNN) when none was entered,
+  // sequencing within the start-date year. Numbers are zero-padded to 4 digits
+  // so they sort lexicographically — ordering desc gives the current max.
+  if (!contractNumber) {
+    const year = startDate.slice(0, 4)
+    const { data: last } = await supabase
+      .from('contracts')
+      .select('contract_number')
+      .like('contract_number', `C-${year}-%`)
+      .order('contract_number', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const lastSeq = last?.contract_number ? parseInt((last.contract_number as string).slice(-4), 10) || 0 : 0
+    contractNumber = `C-${year}-${String(lastSeq + 1).padStart(4, '0')}`
+  }
 
   // Insert contract row
   const { data: contract, error: contractErr } = await supabase
