@@ -11,7 +11,21 @@ Ultima verificacion contra la base: 2026-07-05.
 ## 1. PENDIENTE — 9 contratos con `end_date` vencida pero `status = 'active'`
 
 El panel muestra "Contratos activos = 101" y "Morosidad = 8,3%", ambos INFLADOS
-por estos 9 contratos. Detectado al verificar los datos del dashboard.
+por estos 9 contratos.
+
+**EL PROPIO SISTEMA YA LOS DETECTA** (prueba de que actua como control, no como
+copia). La regla de validacion #8 `CONTRACT_EXPIRED_BUT_ACTIVE` (severidad: error)
+marca EXACTAMENTE estos 9 contratos para junio (verificado 2026-07-05: la regla
+devuelve 9, los mismos IDs). Se ven en:
+- /liquidacion — badge rojo en la columna Check de cada fila
+- /diagnostico — lista general, filtro por regla "Contrato vencido..."
+- /contratos/[id] — por contrato
+El mensaje del sistema ya dice "Renovalo o cerralo" — que es justo la decision
+de los grupos 1a (renovar / corregir fecha) y 1b (cerrar).
+
+Nota: /diagnostico hoy usa el mes actual (getCurrentPeriod = julio) y muestra 16
+(los 9 + 7 que vencieron el 30-jun). Conviene alinearlo al ultimo mes con datos,
+igual que el dashboard (pendiente menor).
 
 ### 1a. 5 contratos SEGUIAN facturados en junio  -> renovados, fecha sin actualizar
 NO dar de baja. Pedir a Alejandro la fecha de fin correcta y actualizar `end_date`.
