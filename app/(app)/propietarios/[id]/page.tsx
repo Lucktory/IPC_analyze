@@ -42,10 +42,10 @@ export default async function LandlordDetailPage({ params }: PageProps) {
   ]
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-3 lg:h-full lg:min-h-0">
       <BreadcrumbTitle name={landlord.name} />
 
-      <header>
+      <header className="shrink-0">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <nav className="text-[12px] text-slate flex items-center gap-1.5">
             <Link href="/dashboard" className="hover:text-ink transition-colors">Inicio</Link>
@@ -62,7 +62,7 @@ export default async function LandlordDetailPage({ params }: PageProps) {
       </header>
 
       {/* KPI cards */}
-      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 shrink-0">
         {kpis.map(k => (
           <div key={k.label} className="rounded-xl border border-line bg-paper p-3.5 flex flex-col gap-2.5">
             <span className="w-8 h-8 rounded-lg grid place-items-center" style={{ backgroundColor: k.color + '1f', color: k.color }}>
@@ -77,10 +77,10 @@ export default async function LandlordDetailPage({ params }: PageProps) {
         ))}
       </section>
 
-      {/* Body: 3 columns */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+      {/* Body: 3 columns — each scrolls independently at lg so the page fits one screen */}
+      <section className="flex flex-col lg:flex-row gap-4 lg:flex-1 lg:min-h-0">
         {/* Left column */}
-        <div className="space-y-4">
+        <div className="space-y-4 lg:flex-1 lg:min-h-0 lg:overflow-auto lg:pr-1">
           <Card title="Datos de contacto">
             <dl className="space-y-2.5 text-[12px]">
               <Field k="Email" v={landlord.email ?? '—'} />
@@ -112,7 +112,7 @@ export default async function LandlordDetailPage({ params }: PageProps) {
         </div>
 
         {/* Center column — Contratos */}
-        <div className="space-y-4">
+        <div className="space-y-4 lg:flex-1 lg:min-h-0 lg:overflow-auto lg:pr-1">
           <Card title="Contratos" sub={`${contracts.length} · ${activeContracts.length} activos`} flush>
             {contracts.length === 0 ? (
               <p className="text-[13px] text-slate px-4 pb-4">Sin contratos asociados</p>
@@ -145,7 +145,7 @@ export default async function LandlordDetailPage({ params }: PageProps) {
         </div>
 
         {/* Right column — Resumen + Notas */}
-        <div className="space-y-4">
+        <div className="space-y-4 lg:flex-1 lg:min-h-0 lg:overflow-auto lg:pr-1">
           <Card title="Resumen" sub={periodLabel(period)}>
             <dl className="space-y-2 text-[13px]">
               <div className="flex items-center justify-between"><dt className="text-slate">Cobrado</dt><dd className="tabular-nums text-ink">{fmt(stats.cobrado)}</dd></div>
@@ -173,18 +173,18 @@ export default async function LandlordDetailPage({ params }: PageProps) {
           <Card title="Notas">
             <p className="text-[13px] text-slate-dark whitespace-pre-wrap leading-relaxed">{landlord.notes?.trim() || 'Sin notas'}</p>
           </Card>
+
+          {/* Edit (collapsible) — preserves the fiscal/contact edit form */}
+          <details className="bg-paper border border-line rounded-xl shadow-card">
+            <summary className="list-none px-4 sm:px-5 py-3.5 flex items-center gap-2 cursor-pointer text-[14px] font-medium text-ink [&::-webkit-details-marker]:hidden">
+              <Pencil size={15} className="text-slate" /> Editar datos
+            </summary>
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-line">
+              <EditLandlordForm landlord={landlord} propertyCount={properties.length} contractCount={contracts.length} />
+            </div>
+          </details>
         </div>
       </section>
-
-      {/* Edit (collapsible) — preserves the fiscal/contact edit form */}
-      <details className="bg-paper border border-line rounded-xl shadow-card">
-        <summary className="list-none px-4 sm:px-5 py-3.5 flex items-center gap-2 cursor-pointer text-[14px] font-medium text-ink [&::-webkit-details-marker]:hidden">
-          <Pencil size={15} className="text-slate" /> Editar datos fiscales y de contacto
-        </summary>
-        <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-line">
-          <EditLandlordForm landlord={landlord} propertyCount={properties.length} contractCount={contracts.length} />
-        </div>
-      </details>
     </div>
   )
 }

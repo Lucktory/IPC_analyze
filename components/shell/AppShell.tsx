@@ -23,11 +23,16 @@ function isWideRoute(pathname: string): boolean {
   return pathname === '/liquidacion'
 }
 
-// Routes that fill the viewport height with NO page scroll — the content lays
-// itself out to fit one screen (charts flex to the free height). Currently the
-// Panel dashboard, which must show every widget at once at 1024x768 and up.
+// Routes that fill the viewport height with NO page scroll (at lg+) — the
+// content lays itself out to fit one screen at 1024x768 and up; internal areas
+// (table body, detail columns) scroll instead of the page. The Panel dashboard
+// plus the redesigned entity list + detail pages. Their /nuevo, /cargar-emails
+// form sub-routes keep normal page scroll.
 function isFullHeightRoute(pathname: string): boolean {
-  return pathname === '/dashboard'
+  if (pathname === '/dashboard') return true
+  const m = pathname.match(/^\/(propietarios|inquilinos)(?:\/([^/]+))?$/)
+  if (!m) return false
+  return !m[2] || !['nuevo', 'cargar-emails'].includes(m[2])
 }
 
 export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProps) {
