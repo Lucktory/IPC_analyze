@@ -16,6 +16,8 @@ export interface LandlordRow {
   email:           string | null
   phone:           string | null
   dniOrCuit:       string | null
+  taxCategory:     string   // RI | MONOTRIBUTO | CF | EXENTO
+  createdAt:       string | null
   propertyCount:   number
   contractCount:   number
   monthlyRevenue:  number   // RENT_IN sum for current period across this landlord's contracts
@@ -24,12 +26,13 @@ export interface LandlordRow {
   urgencyReasons:  string[]
 }
 
-export async function listLandlords(): Promise<LandlordRow[]> {
+export async function listLandlords(period?: string): Promise<LandlordRow[]> {
   const supabase = await createSupabaseServer()
+  const p = period ?? getCurrentPeriod()
 
   // Defensive: if the updated_at migration hasn't been applied yet, fall
   // back to a name-only order so the /propietarios page doesn't go blank.
-  const landlordsSelect = 'id, name, email, phone, dni_or_cuit'
+  const landlordsSelect = 'id, name, email, phone, dni_or_cuit, tax_category, created_at'
   const landlordsOrderedP = supabase
     .from('landlords')
     .select(landlordsSelect)
@@ -54,7 +57,7 @@ export async function listLandlords(): Promise<LandlordRow[]> {
         transaction_types!inner(code)
       `)
       .eq('transaction_types.code', 'RENT_IN')
-      .eq('period', getCurrentPeriod()),
+      .eq('period', p),
   ])
 
   // Fall back for landlordsRes if the updated_at column doesn't exist yet.
@@ -128,6 +131,8 @@ export async function listLandlords(): Promise<LandlordRow[]> {
       email,
       phone,
       dniOrCuit:       cuit,
+      taxCategory:     (l as any).tax_category ?? 'CF',
+      createdAt:       (l as any).created_at ?? null,
       propertyCount:   props,
       contractCount:   contracts,
       monthlyRevenue:  s.revenue,
