@@ -347,11 +347,12 @@ export async function getMonthlyIncomeTrend(months = 6, anchor?: string): Promis
       totals.set(row.period, (totals.get(row.period) ?? 0) + Number(row.amount))
     }
 
-    return periods.map(p => ({
-      period: p,
-      label:  periodAxisLabel(p),
-      value:  totals.get(p) ?? 0,
-    }))
+    // Drop months with no recorded income so the line doesn't dive to zero on
+    // months that simply haven't been loaded yet (the history only starts once
+    // a month is imported). The trend fills in as more months are entered.
+    return periods
+      .map(p => ({ period: p, label: periodAxisLabel(p), value: totals.get(p) ?? 0 }))
+      .filter(pt => pt.value > 0)
   } catch (err) {
     console.error('[getMonthlyIncomeTrend] failed:', err)
     return []

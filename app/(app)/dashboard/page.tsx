@@ -154,7 +154,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const commDelta   = m >= 2 ? pctChange(commVals[m - 1], commVals[m - 2]) : null
 
   const morosidadPct = health.expectedAmount > 0 ? (health.pendingAmount / health.expectedAmount) * 100 : 0
-  const saludPct     = Math.round(health.collectionRateByAmount)
+  // Cap at 100% — a messy historical month can have RENT_IN > current rent roll
+  // (duplicate/legacy rows), which would otherwise render a >100% gauge.
+  const saludPct     = Math.min(100, Math.round(health.collectionRateByAmount))
   const saludStatus: 'ok' | 'warning' | 'critical' = saludPct >= 80 ? 'ok' : saludPct >= 50 ? 'warning' : 'critical'
 
   // Donut / bar items
