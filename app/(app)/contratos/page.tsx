@@ -77,8 +77,8 @@ export default async function ContratosPage({ searchParams }: PageProps) {
   const secondaryActive = (filters.cadencia && filters.cadencia !== 'todas') || orden === 'fecha' || pendientes
 
   return (
-    <div className="space-y-5">
-      <header>
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
+      <header className="shrink-0">
         <h1 className="text-[24px] font-semibold text-ink tracking-tight">Contratos</h1>
         <nav className="text-[12px] text-slate mt-1 flex items-center gap-1.5">
           <Link href="/dashboard" className="hover:text-ink transition-colors">Inicio</Link>
@@ -88,7 +88,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       </header>
 
       {/* KPI row */}
-      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 shrink-0">
         {stats.map(s => (
           <Link
             key={s.key}
@@ -112,7 +112,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       </section>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
         <div className="flex-1 min-w-[220px]">
           <AutoSearchInput initialValue={filters.q ?? ''} placeholder="Buscar por propietario o inquilino…" resetParams={['pagina']} />
         </div>
@@ -158,11 +158,11 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       </div>
 
       {/* Table */}
-      <section className="bg-paper border border-line rounded-xl shadow-card overflow-hidden">
-        <div className="overflow-x-auto">
+      <section className="bg-paper border border-line rounded-xl shadow-card overflow-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
+        <div className="overflow-auto lg:flex-1 lg:min-h-0">
           {pageRows.length > 0 ? (
             <table className="w-full text-[13px] min-w-[940px]">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-paper">
                 <tr className="border-b border-line">
                   {['ID Contrato', 'Propietario', 'Inquilino', 'Propiedad', 'Alquiler', 'Cadencia', 'Vigencia', 'Estado', ''].map((h, i) => (
                     <th key={i} className={`label-cap font-medium text-slate px-4 py-2.5 ${h === 'Alquiler' ? 'text-right' : 'text-left'}`}>{h}</th>
@@ -210,7 +210,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
         </div>
 
         {rows.length > 0 && (
-          <div className="px-4 py-3 border-t border-line flex items-center justify-between gap-3 flex-wrap">
+          <div className="px-4 py-3 border-t border-line flex items-center justify-between gap-3 flex-wrap shrink-0">
             <p className="text-[12px] text-slate tabular-nums">
               Mostrando {fromN} a {toN} de {rows.length} contrato{rows.length === 1 ? '' : 's'}
             </p>

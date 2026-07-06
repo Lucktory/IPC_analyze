@@ -31,7 +31,8 @@ export default async function PropertyDetailPage({ params }: PageProps) {
   const isVacant  = !active || /\(vacante\)/i.test(prop.address)
   const t         = TYPE[prop.propertyType] ?? { label: prop.propertyType, color: '#8A93A5' }
   const fullAddr  = `${cleanAddress(prop.address)}${prop.unit ? ` ${prop.unit}` : ''}`
-  const mapsUrl   = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${fullAddr}, ${prop.city ?? ''} ${prop.province ?? ''}`)}`
+  const mapQuery  = `${fullAddr}, ${prop.city ?? ''} ${prop.province ?? ''}`.trim()
+  const mapsUrl   = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`
   // Contract history newest-first
   const history = prop.contracts.slice().sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''))
 
@@ -181,9 +182,16 @@ export default async function PropertyDetailPage({ params }: PageProps) {
           </Card>
 
           <Card title="Ubicación">
-            <div className="rounded-lg border border-line bg-cream-2 h-28 grid place-items-center">
-              <MapPin size={28} className="text-slate/50" />
-            </div>
+            {/* Keyless Google Maps embed — geocodes from the address string
+                (no lat/lng column exists). Placeholder-style addresses just
+                center on the city. */}
+            <iframe
+              title="Mapa"
+              src={`https://maps.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=15&output=embed`}
+              className="w-full h-32 rounded-lg border border-line"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
             <p className="text-[13px] text-ink mt-3">{fullAddr}</p>
             <p className="text-[12px] text-slate">{[prop.city, prop.province].filter(Boolean).join(', ')}</p>
             <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-info hover:underline">
