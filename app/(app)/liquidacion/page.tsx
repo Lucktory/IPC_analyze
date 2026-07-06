@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Receipt, ShieldCheck, Users, CheckCircle2 } from 'lucide-react'
 import { listTransactionPeriods, listTransactions } from '@/lib/entities/queries'
 
 // Force dynamic rendering on every request — the planilla shows the
@@ -114,7 +115,14 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
   const pendientes    = baseRows.length - cobrados
   const totalIngresos = baseRows.reduce((s, r) => s + r.ingresos, 0)
   const totalAdmi     = baseRows.reduce((s, r) => s + r.admi, 0)
-  const conAumento    = baseRows.filter(r => r.hasUpcomingAdjustment).length
+  const totalTransfer = baseRows.reduce((s, r) => s + r.transferencia, 0)
+  // Descuadre = the real control: sum of the recorded-transfer vs computed-recibo
+  // mismatches the validator flags (TRANSFERENCIA_IMBALANCE). $0 = books balance.
+  const descuadre     = Math.round(baseRows.reduce((s, r) =>
+    s + (r.validationIssues ?? [])
+      .filter(i => i.code === 'TRANSFERENCIA_IMBALANCE')
+      .reduce((a, i) => a + Math.abs(i.diff ?? 0), 0), 0))
+  const balanceado    = descuadre === 0
 
   // Period tabs: current month + recent + months-with-data (see buildPeriodTabs).
   const periodTabs = buildPeriodTabs(periods, period)
@@ -191,13 +199,14 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
           ))}
         </div>
 
-        {/* Compact KPI strip — passive metrics. */}
+        {/* Summary strip — the period's money in one line, ending in the
+            Descuadre control (green $0 when the books balance). */}
         {view !== 'movimientos' && view !== 'destinos' && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] mb-2">
-            <MiniKpi label="Cobrados"       value={`${cobrados} / ${baseRows.length}`} hint={pendientes > 0 ? `${pendientes} sin cobrar` : 'todo cobrado'} tone={pendientes > 0 ? 'warn' : 'success'} />
-            <MiniKpi label="Total cobrado"  value={fmt(totalIngresos)}                hint={`${periodShort(period)}`} tone="ink" />
-            <MiniKpi label="Comisión"       value={fmt(totalAdmi)}                    hint={totalIngresos > 0 ? `${(totalAdmi / totalIngresos * 100).toFixed(1)}%` : '—'} tone="success" />
-            <MiniKpi label="Aumentos ≤30d"  value={conAumento.toString()}             hint={conAumento > 0 ? 'avisos pendientes' : 'sin novedades'} tone={conAumento > 0 ? 'warn' : 'slate'} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+            <SummaryChip Icon={Receipt}      color="#16A34A" label="Total cobrado" value={fmt(totalIngresos)} hint={`${cobrados}/${baseRows.length} cobrados`} />
+            <SummaryChip Icon={ShieldCheck}  color="#8B5CF6" label="Comisión"      value={fmt(totalAdmi)}     hint={totalIngresos > 0 ? `${(totalAdmi / totalIngresos * 100).toFixed(1)}% · ${periodShort(period)}` : periodShort(period)} />
+            <SummaryChip Icon={Users}        color="#3B82F6" label="A transferir"  value={fmt(totalTransfer)} hint="neto a propietarios" />
+            <SummaryChip Icon={CheckCircle2} color={balanceado ? '#16A34A' : '#EF4444'} label="Descuadre" value={fmt(descuadre)} valueClass={balanceado ? 'text-success' : 'text-danger'} hint={balanceado ? 'las cuentas cuadran' : 'revisar liquidación'} />
           </div>
         )}
 
@@ -302,29 +311,28 @@ function StatusPill({
   )
 }
 
-// Compact KPI tile — passive metric for the sticky header. Smaller than
-// the KPICard used elsewhere in the app; tuned for /liquidacion where
-// vertical real estate is at a premium and the planilla is the focus.
-function MiniKpi({
-  label, value, hint, tone,
+// Summary chip for the /liquidacion header — icon + the period's key money
+// figure. Ends the strip with the Descuadre control (green when balanced).
+function SummaryChip({
+  Icon, color, label, value, hint, valueClass,
 }: {
+  Icon:  React.ComponentType<{ size?: number }>
+  color: string
   label: string
   value: string
-  hint:  string
-  tone:  'ink' | 'success' | 'warn' | 'slate'
+  hint?: string
+  valueClass?: string
 }) {
-  const valueColor =
-    tone === 'success' ? 'text-success' :
-    tone === 'warn'    ? 'text-warn'    :
-    tone === 'slate'   ? 'text-slate-dark' :
-                         'text-ink'
   return (
-    <div className="flex items-baseline justify-between gap-2 bg-paper/70 border border-line/60 rounded px-2 py-1 min-w-0">
+    <div className="flex items-center gap-2.5 bg-paper border border-line rounded-lg px-3 py-2 min-w-0">
+      <span className="w-8 h-8 rounded-lg grid place-items-center shrink-0" style={{ backgroundColor: color + '1f', color }}>
+        <Icon size={16} />
+      </span>
       <div className="min-w-0">
-        <p className="text-[9px] uppercase tracking-wider text-slate truncate">{label}</p>
-        <p className="text-[10px] text-slate truncate">{hint}</p>
+        <p className="text-[10px] uppercase tracking-wider text-slate truncate">{label}</p>
+        <p className={`font-display font-semibold tabular-nums text-[15px] leading-tight truncate ${valueClass ?? 'text-ink'}`}>{value}</p>
+        {hint && <p className="text-[10px] text-slate truncate">{hint}</p>}
       </div>
-      <p className={`font-display font-medium tabular-nums text-[14px] shrink-0 ${valueColor}`}>{value}</p>
     </div>
   )
 }
