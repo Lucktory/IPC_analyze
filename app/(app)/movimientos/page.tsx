@@ -1,368 +1,250 @@
-import { KPICard } from '@/components/ui/KPICard'
-import { Badge } from '@/components/ui/Badge'
-import { StickyHeader } from '@/components/ui/StickyHeader'
-import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
-import { FilterPill } from '@/components/ui/FilterPill'
-import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
-import { ClickableRow } from '@/components/ui/ClickableRow'
+// ============================================================================
+// /movimientos — the period's transaction ledger. 4 month KPIs with real
+// month-over-month deltas + a paginated table. Every figure is real: amounts
+// are unsigned in the DB, direction comes from transaction_types. Bank is only
+// shown for commission rows (ADM_* tag); it is not stored on other rows.
+// ============================================================================
+
 import Link from 'next/link'
-import { listTransactions, listTransactionPeriods, type TransactionRow } from '@/lib/entities/queries'
-import { URGENCY_STYLES } from '@/lib/urgency'
-import { fmtMoney as fmt } from '@/lib/format'
-import { buildPeriodTabs } from '@/lib/period'
+import {
+  TrendingUp, TrendingDown, Wallet, Percent,
+  SlidersHorizontal, Plus, ArrowUp, ArrowDown, ChevronRight,
+} from 'lucide-react'
+import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { FilterPill } from '@/components/ui/FilterPill'
+import { ClickableRow } from '@/components/ui/ClickableRow'
+import { TablePagination } from '@/components/ui/TablePagination'
+import { PeriodSelect } from '@/components/charts/panel/PeriodSelect'
+import { getMovimientos, getMovimientosSummary, type MovimientoRow } from '@/lib/movimientos/queries'
+import { getDashboardPeriod, getPeriodsWithData } from '@/lib/dashboard/queries'
+import { buildPeriodTabs, periodLabel, shiftPeriod } from '@/lib/period'
+import { fmtMoney as fmt, fmtSignedMoney } from '@/lib/format'
 
-const PAGE_SIZE = 50
+export const dynamic    = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
-const PERIOD_LABEL = (s: string | null) => {
-  if (!s) return '—'
-  const [y, m] = s.split('-')
-  const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-  return `${months[+m - 1]} ${y}`
-}
+const PER_PAGE = 12
 
 const DATE_LABEL = (s: string | null) => {
   if (!s) return '—'
-  const d = new Date(s)
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+  const [, m, d] = s.split('-')
+  return `${d}/${m}`
 }
 
 type Dir = 'todos' | 'in' | 'out'
 
 const CATEGORY_LABEL: Record<string, string> = {
-  rent:       'Alquiler',
-  commission: 'Comisión',
-  expense:    'Gastos',
-  tax:        'Impuestos',
-  utility:    'Servicios',
-  deposit:    'Depósito',
-  refund:     'Reintegros',
-  transfer:   'Transferencias',
-  other:      'Otros',
+  rent: 'Alquiler', commission: 'Comisión', expense: 'Gastos', tax: 'Impuestos',
+  utility: 'Servicios', deposit: 'Depósito', refund: 'Reintegros', transfer: 'Transferencias', other: 'Otros',
 }
-const CATEGORIES = Object.keys(CATEGORY_LABEL)
+
+// Map a type code to its category so the Filtros category pills work off the list rows.
+const CODE_CATEGORY: Record<string, string> = {
+  RENT_IN: 'rent', LANDLORD_PAYOUT: 'rent', COMMISSION_OUT: 'commission',
+  OTHER_IN: 'other', OTHER_OUT: 'other', DEPOSIT_IN: 'deposit',
+  METROGAS_OUT: 'utility', ABL_OUT: 'tax',
+}
 
 interface PageProps {
-  searchParams: Promise<{
-    period?:   string
-    dir?:      string
-    category?: string
-    q?:        string
-    page?:     string
-  }>
+  searchParams: Promise<{ period?: string; dir?: string; category?: string; q?: string; page?: string }>
 }
 
 export default async function MovimientosPage({ searchParams }: PageProps) {
   const sp       = await searchParams
-  const period   = sp.period
   const dir      = (sp.dir as Dir) ?? 'todos'
   const category = sp.category ?? 'todas'
-  const q        = sp.q?.trim() ?? ''
-  const pageNum  = Math.max(1, Number(sp.page) || 1)
+  const q        = (sp.q ?? '').trim().toLowerCase()
 
-  const [dataPeriods, all] = await Promise.all([
-    listTransactionPeriods(),
-    listTransactions(period),
+  const [latest, dataPeriods] = await Promise.all([getDashboardPeriod(), getPeriodsWithData()])
+  const validReq = sp.period && /^\d{4}-\d{2}-01$/.test(sp.period) ? sp.period : null
+  const period   = validReq ?? latest
+  const prev     = shiftPeriod(period, -1)
+  const selectorPeriods = buildPeriodTabs(dataPeriods, period, 3)
+
+  const [rows, sum, prevSum] = await Promise.all([
+    getMovimientos(period),
+    getMovimientosSummary(period),
+    getMovimientosSummary(prev),
   ])
-  // Current month + recent + months-with-data, so "now" is always selectable.
-  const periods = buildPeriodTabs(dataPeriods, period)
 
-  const match = (t: TransactionRow, d: Dir) => {
-    if (d === 'in')  return t.direction === 'IN'
-    if (d === 'out') return t.direction === 'OUT'
-    return true
-  }
-
-  const counts = {
-    todos: all.length,
-    in:    all.filter(t => match(t, 'in')).length,
-    out:   all.filter(t => match(t, 'out')).length,
-  }
-
-  let filtered = all.filter(t => match(t, dir))
-  if (category !== 'todas') filtered = filtered.filter(t => t.category === category)
-  if (q) {
-    const ql = q.toLowerCase()
-    filtered = filtered.filter(t =>
-      (t.tenantName?.toLowerCase().includes(ql) ?? false) ||
-      (t.description?.toLowerCase().includes(ql) ?? false) ||
-      t.typeLabel.toLowerCase().includes(ql),
-    )
-  }
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const page       = Math.min(pageNum, totalPages)
-  const start      = (page - 1) * PAGE_SIZE
-  const slice      = filtered.slice(start, start + PAGE_SIZE)
-
-  const inTotal  = filtered.filter(t => t.direction === 'IN').reduce((s, t) => s + t.amount, 0)
-  const outTotal = filtered.filter(t => t.direction === 'OUT').reduce((s, t) => s + t.amount, 0)
-
-  const buildHref = (overrides: Partial<{ period: string; dir: Dir; category: string; q: string; page: number }>) => {
-    const params = new URLSearchParams()
-    const merged = { period, dir, category, q, page, ...overrides }
-    if (merged.period)                                  params.set('period',   merged.period)
-    if (merged.dir      && merged.dir      !== 'todos') params.set('dir',      merged.dir)
-    if (merged.category && merged.category !== 'todas') params.set('category', merged.category)
-    if (merged.q)                                       params.set('q',        merged.q)
-    if (merged.page     && merged.page     > 1)         params.set('page',     String(merged.page))
-    const qs = params.toString()
-    return qs ? `/movimientos?${qs}` : '/movimientos'
-  }
-
-  const clearDirHref      = buildHref({ dir: 'todos',      page: 1 })
-  const clearCategoryHref = buildHref({ category: 'todas', page: 1 })
-
+  // ── KPI deltas (real, month-over-month) ──────────────────────────────────
+  const prevName = periodLabel(prev).split(' ')[0].toLowerCase()
+  const delta = (cur: number, base: number): number | null => (base ? ((cur - base) / Math.abs(base)) * 100 : null)
   const kpis = [
-    {
-      label: 'Movimientos',
-      value: filtered.length.toString(),
-      delta: filtered.length === all.length ? 'sin filtros' : `de ${all.length} totales`,
-      tone:  'neutral' as const,
-      href:  buildHref({ dir: 'todos', page: 1 }),
-      active: dir === 'todos',
-    },
-    {
-      label: 'Ingresos',
-      value: '$' + (inTotal / 1_000_000).toFixed(2) + ' M',
-      delta: 'cobros del rango filtrado',
-      tone:  'positive' as const,
-      href:  buildHref({ dir: 'in', page: 1 }),
-      clearHref: clearDirHref,
-      active: dir === 'in',
-    },
-    {
-      label: 'Egresos',
-      value: '$' + (outTotal / 1_000_000).toFixed(2) + ' M',
-      delta: 'comisión + gastos',
-      tone:  'negative' as const,
-      href:  buildHref({ dir: 'out', page: 1 }),
-      clearHref: clearDirHref,
-      active: dir === 'out',
-    },
-    {
-      label: 'Neto',
-      value: '$' + ((inTotal - outTotal) / 1_000_000).toFixed(2) + ' M',
-      delta: 'a transferir',
-      tone:  'neutral' as const,
-      // Not a filter — it's the difference, leave as info-only
-    },
+    { label: 'Ingresos del mes', value: fmt(sum.ingresos),          Icon: TrendingUp,   color: '#16A34A', d: delta(sum.ingresos, prevSum.ingresos) },
+    { label: 'Egresos',          value: fmt(sum.egresos),           Icon: TrendingDown, color: '#EF4444', d: delta(sum.egresos, prevSum.egresos) },
+    { label: 'Neto',             value: fmtSignedMoney(sum.neto),   Icon: Wallet,       color: '#3B82F6', d: null, sub: 'ingresos − egresos' },
+    { label: 'Comisiones',       value: fmt(sum.comisiones),        Icon: Percent,      color: '#8B5CF6', d: delta(sum.comisiones, prevSum.comisiones) },
   ]
 
-  const activeBits: string[] = []
-  if (dir === 'in')                                    activeBits.push('Ingresos')
-  if (dir === 'out')                                   activeBits.push('Egresos')
-  if (category !== 'todas')                            activeBits.push(CATEGORY_LABEL[category] ?? category)
-  if (period)                                          activeBits.push(PERIOD_LABEL(period))
-  const activeSummary = activeBits.join(' · ')
+  // ── Filter + paginate the table ──────────────────────────────────────────
+  let filtered = rows
+  if (dir === 'in')  filtered = filtered.filter(r => r.direction === 'IN')
+  if (dir === 'out') filtered = filtered.filter(r => r.direction === 'OUT')
+  if (category !== 'todas') filtered = filtered.filter(r => CODE_CATEGORY[r.typeCode] === category)
+  if (q) filtered = filtered.filter(r =>
+    (r.contractNumber ?? '').toLowerCase().includes(q) ||
+    (r.counterparty ?? '').toLowerCase().includes(q) ||
+    (r.description ?? '').toLowerCase().includes(q) ||
+    r.typeLabel.toLowerCase().includes(q) ||
+    (r.bank ?? '').toLowerCase().includes(q))
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
+  const page       = Math.min(Math.max(1, parseInt(sp.page ?? '1', 10) || 1), totalPages)
+  const pageRows   = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const fromN      = filtered.length === 0 ? 0 : (page - 1) * PER_PAGE + 1
+  const toN        = Math.min(page * PER_PAGE, filtered.length)
+
+  const buildHref = (o: Partial<Record<string, string>>) => {
+    const p = new URLSearchParams()
+    const m = { period, dir, category, q, ...o }
+    if (m.period && m.period !== latest) p.set('period', m.period)
+    if (m.dir && m.dir !== 'todos')      p.set('dir', m.dir)
+    if (m.category && m.category !== 'todas') p.set('category', m.category)
+    if (m.q) p.set('q', m.q)
+    const qs = p.toString()
+    return qs ? `/movimientos?${qs}` : '/movimientos'
+  }
+  const pageHref = (n: number) => {
+    const base = buildHref({})
+    const sep = base.includes('?') ? '&' : '?'
+    return n <= 1 ? base : `${base}${sep}page=${n}`
+  }
+  // PeriodSelect preserves active filters when switching month.
+  const psExtra = new URLSearchParams()
+  if (dir !== 'todos')      psExtra.set('dir', dir)
+  if (category !== 'todas') psExtra.set('category', category)
+  if (sp.q)                 psExtra.set('q', sp.q)
+
+  const filtersActive = dir !== 'todos' || category !== 'todas' || !!q
 
   return (
-    <>
-      <StickyHeader>
-        <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap mb-2">
-          <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
-            <strong className="text-ink font-medium">Movimientos</strong>
-            {' · '}
-            {period ? PERIOD_LABEL(period) : 'todos los períodos'}
-            {filtered.length !== all.length && ` · ${filtered.length} de ${all.length}`}
-            {activeSummary && <span className="text-slate"> · {activeSummary}</span>}
-          </p>
-          <div className="flex items-center gap-2 order-3 sm:order-none">
-            <div className="w-full sm:w-72 shrink-0">
-              <AutoSearchInput initialValue={q} placeholder="Buscar por inquilino, descripción o tipo…" resetParams={['page']} />
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
+      {/* Header */}
+      <header className="flex items-start justify-between gap-3 flex-wrap shrink-0">
+        <div>
+          <h1 className="text-[26px] font-bold text-ink tracking-tight">Movimientos</h1>
+          <nav className="text-[12px] text-slate mt-1 flex items-center gap-1.5">
+            <Link href="/dashboard" className="text-info hover:underline">Inicio</Link>
+            <span className="text-slate/50">/</span>
+            <span className="text-slate-dark">Movimientos</span>
+          </nav>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <PeriodSelect current={period} periods={selectorPeriods} basePath="/movimientos" extraQuery={psExtra.toString()} />
+          <details className="relative">
+            <summary className={`list-none inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border text-[13px] font-medium cursor-pointer transition-colors [&::-webkit-details-marker]:hidden ${
+              filtersActive ? 'border-info text-info bg-info/5' : 'border-line text-ink bg-paper hover:border-info/40'
+            }`}>
+              <SlidersHorizontal size={15} /> Filtros{filtersActive ? ' · activos' : ''}
+            </summary>
+            <div className="absolute right-0 mt-2 z-30 w-[280px] bg-paper border border-line rounded-xl shadow-lg p-3.5 space-y-3">
+              <AutoSearchInput initialValue={sp.q ?? ''} placeholder="Buscar contrato, nombre, tipo…" resetParams={['page']} />
+              <div>
+                <span className="label-cap text-slate">Dirección</span>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <FilterPill href={buildHref({ dir: 'in',  page: undefined })} clearHref={buildHref({ dir: 'todos' })} label="Ingresos" active={dir === 'in'} />
+                  <FilterPill href={buildHref({ dir: 'out', page: undefined })} clearHref={buildHref({ dir: 'todos' })} label="Egresos"  active={dir === 'out'} />
+                </div>
+              </div>
+              <div>
+                <span className="label-cap text-slate">Categoría</span>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {['rent', 'commission', 'other', 'deposit', 'utility', 'tax'].map(c => (
+                    <FilterPill key={c} href={buildHref({ category: c, page: undefined })} clearHref={buildHref({ category: 'todas' })} label={CATEGORY_LABEL[c]} active={category === c} />
+                  ))}
+                </div>
+              </div>
             </div>
-            <Link
-              href="/movimientos/nuevo"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 transition-opacity shrink-0"
-            >
-              + Nuevo
-            </Link>
+          </details>
+          <Link href="/movimientos/nuevo" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-info text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0">
+            <Plus size={16} /> Nuevo movimiento
+          </Link>
+        </div>
+      </header>
+
+      {/* KPI row */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0">
+        {kpis.map(k => (
+          <div key={k.label} className="rounded-2xl border border-line bg-paper p-4 flex items-center gap-3 shadow-card">
+            <span className="w-11 h-11 rounded-xl grid place-items-center shrink-0" style={{ backgroundColor: k.color + '26', color: k.color }}>
+              <k.Icon size={22} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[12px] text-slate truncate">{k.label}</p>
+              <p className="text-[20px] font-bold text-ink leading-tight tabular-nums">{k.value}</p>
+              {k.d !== null && k.d !== undefined
+                ? <p className="text-[11px] text-slate mt-0.5">vs. {prevName} <span className={k.d >= 0 ? 'text-success font-medium' : 'text-danger font-medium'}>{(k.d >= 0 ? '+' : '-') + Math.abs(k.d).toFixed(1).replace('.', ',')}%</span></p>
+                : <p className="text-[11px] text-slate mt-0.5">{k.sub}</p>}
+            </div>
           </div>
-        </div>
-
-        <StickyKPIStrip cols={4}>
-          {kpis.map((k) => (
-            <StickyKPIStripItem key={k.label}>
-              <KPICard {...k} deltaTone={k.tone} />
-            </StickyKPIStripItem>
-          ))}
-        </StickyKPIStrip>
-      </StickyHeader>
-
-      <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
-        {/* Categoría pills */}
-        <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
-          <span className="label-cap text-slate mr-1 shrink-0">Categoría</span>
-          <FilterPill href={buildHref({ category: 'todas', page: 1 })} label="Todas" active={category === 'todas'} />
-          {CATEGORIES.map(c => (
-            <FilterPill
-              key={c}
-              href={buildHref({ category: c, page: 1 })}
-              clearHref={clearCategoryHref}
-              label={CATEGORY_LABEL[c]}
-              active={category === c}
-            />
-          ))}
-        </div>
-
-        {/* Período pills */}
-        <div className="mt-3 flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
-          <span className="label-cap text-slate mr-1 shrink-0">Período</span>
-          <PeriodPill label="Todos" href={buildHref({ period: undefined, page: 1 })} active={!period} />
-          {periods.map(p => (
-            <PeriodPill
-              key={p}
-              label={PERIOD_LABEL(p)}
-              href={buildHref({ period: p, page: 1 })}
-              clearHref={buildHref({ period: undefined, page: 1 })}
-              active={period === p}
-            />
-          ))}
-        </div>
-
-        {(q || category !== 'todas') && (
-          <div className="mt-3">
-            <Link
-              href={buildHref({ q: '', category: 'todas', page: 1 })}
-              className="inline-flex items-center px-3 h-8 text-[12px] text-slate hover:text-ink transition-colors"
-            >
-              ↺ Limpiar búsqueda y categoría
-            </Link>
-          </div>
-        )}
+        ))}
       </section>
 
-      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="font-display text-[15px] font-medium text-ink">Detalle</h2>
-            <p className="text-[12px] text-slate mt-0.5">
-              Ordenados por fecha bancaria descendente · {PAGE_SIZE} por página
-            </p>
-          </div>
-          <p className="text-[12px] text-slate tabular-nums">
-            {filtered.length === 0
-              ? 'sin resultados'
-              : `${start + 1}–${start + slice.length} de ${filtered.length}`}
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          {slice.length > 0 ? (
-            <table className="w-full text-[13px] min-w-[920px] border-collapse">
-              <thead className="bg-cream-2/60">
+      {/* Table */}
+      <section className="bg-paper border border-line rounded-2xl shadow-card overflow-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
+        <div className="overflow-auto lg:flex-1 lg:min-h-0">
+          {pageRows.length > 0 ? (
+            <table className="w-full text-[13px] min-w-[900px]">
+              <thead className="sticky top-0 z-10 bg-paper">
                 <tr className="border-b border-line">
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Fecha</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Período</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Tipo</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Inquilino</th>
-                  <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Monto</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium">Detalle</th>
+                  <th className="label-cap font-medium text-slate text-left  px-4 py-2.5 w-[70px]">Fecha</th>
+                  <th className="label-cap font-medium text-slate text-left  px-4 py-2.5">Tipo</th>
+                  <th className="label-cap font-medium text-slate text-left  px-4 py-2.5">Concepto / contrato</th>
+                  <th className="label-cap font-medium text-slate text-center px-4 py-2.5 w-[90px]">Dirección</th>
+                  <th className="label-cap font-medium text-slate text-right  px-4 py-2.5">Monto</th>
+                  <th className="label-cap font-medium text-slate text-left  px-4 py-2.5 w-[120px]">Banco</th>
+                  <th className="px-3 py-2.5 w-[36px]"></th>
                 </tr>
               </thead>
               <tbody>
-                {slice.map((t, idx) => <TxRow key={t.id} t={t} odd={idx % 2 === 0} />)}
+                {pageRows.map(m => <MovRow key={m.id} m={m} />)}
               </tbody>
             </table>
           ) : (
-            <div className="p-10 text-center">
-              <p className="text-[14px] text-slate">No hay movimientos que coincidan con los filtros</p>
-            </div>
+            <div className="p-12 text-center text-[14px] text-slate">No hay movimientos que coincidan con los filtros</div>
           )}
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-5 py-3 border-t border-line flex items-center justify-between text-[12px]">
-            <p className="text-slate">
-              Página {page} de {totalPages}
-            </p>
-            <div className="flex items-center gap-1">
-              <PageLink href={buildHref({ page: page - 1 })} disabled={page <= 1} label="← Anterior" />
-              <PageLink href={buildHref({ page: page + 1 })} disabled={page >= totalPages} label="Siguiente →" />
-            </div>
+        {filtered.length > 0 && (
+          <div className="px-4 py-3 border-t border-line flex items-center justify-between gap-3 flex-wrap shrink-0">
+            <p className="text-[12px] text-slate tabular-nums">Mostrando {fromN} a {toN} de {filtered.length} movimiento{filtered.length === 1 ? '' : 's'}</p>
+            <TablePagination page={page} totalPages={totalPages} hrefFor={pageHref} />
           </div>
         )}
       </section>
-    </>
+    </div>
   )
 }
 
-// Magnitude threshold for "noteworthy" amounts — above this, bump weight + slight glow.
-// Chosen ≈ median rent so big-ticket movements (renovations, deposits, large rentals)
-// stand out from the routine traffic.
-const LARGE_AMOUNT_THRESHOLD = 1_000_000
-
-function TxRow({ t, odd }: { t: TransactionRow; odd: boolean }) {
-  const u = URGENCY_STYLES[t.urgency]
-  const tinted   = !!u.row
-  const zebra    = tinted ? '' : (odd ? 'bg-cream/40' : '')
-  const cellTint = (t.urgency === 'critical' || t.urgency === 'warning')
-  const bankDateMissing = cellTint && !t.bankDate ? u.cellTint : ''
-
-  // ── Monto visual effects ──────────────────────────────────────────────────
-  // Direction: ingreso (green tint + green text) vs egreso (red tint + red).
-  // Magnitude: bold + slightly larger font when above the LARGE_AMOUNT_THRESHOLD
-  // so the encargada's eye locks on big-ticket items.
-  const isIn  = t.direction === 'IN'
-  const isBig = t.amount >= LARGE_AMOUNT_THRESHOLD
-  const amountCellBg   = isIn ? 'bg-success/10' : 'bg-danger/10'
-  const amountTextCol  = isIn ? 'text-success'  : 'text-danger'
-  const amountWeight   = isBig ? 'font-bold text-[14px]' : 'font-semibold text-[13px]'
-  const amountPrefix   = isIn ? '+ ' : '− '
-
+function MovRow({ m }: { m: MovimientoRow }) {
+  const isIn = m.direction === 'IN'
   return (
-    <ClickableRow
-      href={`/movimientos/${t.id}`}
-      title={t.urgencyReasons.length ? t.urgencyReasons.join(' · ') : undefined}
-      className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30`}
-    >
-      <td className={`px-4 py-1.5 text-slate-dark tabular-nums border-l-[4px] ${u.borderLeft} border-r border-line/30 ${bankDateMissing}`}>{DATE_LABEL(t.bankDate)}</td>
-      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{PERIOD_LABEL(t.period)}</td>
-      <td className="px-4 py-1.5 border-r border-line/30">
-        <Badge tone={isIn ? 'success' : 'neutral'}>{t.typeLabel}</Badge>
+    <ClickableRow href={`/movimientos/${m.id}`} className="border-b border-line/60 last:border-0 hover:bg-cream-2 transition-colors">
+      <td className="px-4 py-2.5 text-slate-dark tabular-nums whitespace-nowrap">{DATE_LABEL(m.bankDate)}</td>
+      <td className="px-4 py-2.5">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+          {isIn ? <ArrowUp size={15} className="text-success shrink-0" /> : <ArrowDown size={15} className="text-danger shrink-0" />}
+          <span className="text-ink">{m.typeLabel}</span>
+        </span>
       </td>
-      <td className="px-4 py-1.5 text-ink border-r border-line/30">{t.tenantName ?? ''}</td>
-      <td className={`px-4 py-1.5 text-right tabular-nums border-r border-line/30 ${amountCellBg} ${amountTextCol} ${amountWeight}`}>
-        {amountPrefix}{fmt(t.amount)}
+      <td className="px-4 py-2.5">
+        {m.contractNumber ? (
+          <span className="min-w-0">
+            <span className="tabular-nums text-slate-dark">{m.contractNumber}</span>
+            {m.counterparty && <span className="text-ink"> · {m.counterparty}</span>}
+          </span>
+        ) : (
+          <span className="text-slate-dark">{m.description || '—'}</span>
+        )}
       </td>
-      <td className="px-4 py-1.5 text-slate text-[12px] truncate max-w-[280px]">
-        {t.description ?? ''}
+      <td className="px-4 py-2.5 text-center">
+        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${isIn ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'}`}>
+          {isIn ? 'IN' : 'OUT'}
+        </span>
       </td>
+      <td className={`px-4 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap ${isIn ? 'text-success' : 'text-danger'}`}>{fmt(m.amount)}</td>
+      <td className="px-4 py-2.5 text-slate-dark whitespace-nowrap">{m.bank ?? <span className="text-slate/40">—</span>}</td>
+      <td className="px-3 py-2.5 text-right"><ChevronRight size={16} className="text-slate/50 inline" /></td>
     </ClickableRow>
-  )
-}
-
-function PeriodPill({ label, href, active, clearHref }: { label: string; href: string; active: boolean; clearHref?: string }) {
-  const target = active && clearHref ? clearHref : href
-  return (
-    <Link
-      href={target}
-      title={active && clearHref ? 'Tocá para quitar este filtro' : undefined}
-      className={[
-        'inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors',
-        active
-          ? 'bg-cream-2 text-ink border-ink/40 ring-1 ring-success/30 hover:bg-cream'
-          : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
-      ].join(' ')}
-    >
-      {active && (
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-success shrink-0">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      )}
-      {label}
-    </Link>
-  )
-}
-
-function PageLink({ href, label, disabled }: { href: string; label: string; disabled: boolean }) {
-  if (disabled) {
-    return (
-      <span className="px-3 py-1 rounded border border-line/40 text-slate/40 cursor-not-allowed">{label}</span>
-    )
-  }
-  return (
-    <Link href={href} className="px-3 py-1 rounded border border-line text-slate-dark hover:bg-cream-2 hover:border-slate/30 transition-colors">
-      {label}
-    </Link>
   )
 }
