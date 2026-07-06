@@ -2,6 +2,7 @@
 // option lists used by the New Contract modal's property autocomplete.
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { displayCity, displayProvince } from '@/lib/geo'
 
 // ── Property autocomplete option (id + label only) ─────────────────────────
 export interface PropertyOption {
@@ -134,8 +135,8 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
     id:           p.id,
     address:      p.address,
     unit:         p.unit ?? null,
-    city:         p.city ?? null,
-    province:     p.province ?? null,
+    city:         displayCity(p.city),
+    province:     displayProvince(p.province, p.city),
     propertyType: p.property_type,
     rooms:        p.rooms ?? null,
     surfaceM2:    p.surface_m2 != null ? Number(p.surface_m2) : null,

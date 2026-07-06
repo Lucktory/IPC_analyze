@@ -6,6 +6,7 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { getRecentPeriods, periodAxisLabel } from '@/lib/period'
+import { displayCity } from '@/lib/geo'
 
 export type BankDest = 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6' | 'OTHER'
 
@@ -43,7 +44,7 @@ export async function getCommissionByContract(period: string): Promise<Commissio
     contractId:      r.contract_id ?? null,
     contractNumber:  r.contracts?.contract_number ?? null,
     propertyAddress: r.contracts?.properties?.address ?? null,
-    propertyCity:    r.contracts?.properties?.city ?? null,
+    propertyCity:    displayCity(r.contracts?.properties?.city),
     destination:     classifyDestination(r.description ?? ''),
     amount:          Number(r.amount),
     pct:             total > 0 ? (Number(r.amount) / total) * 100 : 0,

@@ -8,6 +8,7 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { displayCity } from '@/lib/geo'
 
 export interface ContractDetail {
   id:              string
@@ -83,7 +84,7 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
       isPrimary: ct.is_primary,
     })),
     property: c.properties
-      ? { id: c.properties.id, address: c.properties.address, unit: c.properties.unit ?? null, city: c.properties.city ?? null, propertyType: c.properties.property_type }
+      ? { id: c.properties.id, address: c.properties.address, unit: c.properties.unit ?? null, city: displayCity(c.properties.city), propertyType: c.properties.property_type }
       : null,
   }
 }

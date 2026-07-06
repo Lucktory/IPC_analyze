@@ -6,6 +6,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { getCurrentPeriod } from '@/lib/period'
 import { deriveOwner, type OwnerType } from '@/lib/owner'
+import { displayCity } from '@/lib/geo'
 
 // ---------------------------------------------------------------------------
 // LANDLORDS  (a.k.a. "contribuyentes" — propietarios with tax info)
@@ -207,7 +208,7 @@ export async function listTenants(period?: string): Promise<TenantRow[]> {
       rent:    Number(c.current_rent),
       active:  c.status === 'active',
       address: c.properties?.address ?? null,
-      city:    c.properties?.city ?? null,
+      city:    displayCity(c.properties?.city),
     })
   }
   const cobradoByContract = new Map<string, number>()
@@ -611,7 +612,7 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
       primaryLandlord:   topOwner?.landlords?.name ?? '(sin propietario)',
       propertyAddress:   c.properties?.address ?? null,
       propertyUnit:      c.properties?.unit ?? null,
-      propertyCity:      c.properties?.city ?? null,
+      propertyCity:      displayCity(c.properties?.city),
       landlordId:        topOwner?.landlords?.id ?? '',
       currentRent:       Number(c.current_rent),
       cadence:           c.cadence,
@@ -788,7 +789,7 @@ export async function listProperties(): Promise<PropertyRow[]> {
       id:           p.id,
       address:      addr,
       unit:         p.unit ?? null,
-      city:         p.city ?? null,
+      city:         displayCity(p.city),
       propertyType: p.property_type,
       isVacant,
       hasContract:  !!contract,
