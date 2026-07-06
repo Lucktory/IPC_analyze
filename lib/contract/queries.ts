@@ -23,6 +23,7 @@ export interface ContractDetail {
   endDate:         string
   nextAdjustmentDate: string | null
   paymentDay:      number
+  commissionPct:   number
   depositAmount:   number | null
   depositStatus:   string | null
   notes:           string | null
@@ -38,7 +39,7 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     .from('contracts')
     .select(`
       id, contract_number, status, current_rent, initial_rent, expensas, currency, cadence, indexer,
-      start_date, end_date, next_adjustment_date, payment_day, deposit_amount, deposit_status, notes,
+      start_date, end_date, next_adjustment_date, payment_day, commission_pct, deposit_amount, deposit_status, notes,
       contract_landlords(ownership_pct, landlords(id, name, dni_or_cuit)),
       contract_tenants(is_primary, share_pct, tenants(id, name, phone, dni)),
       properties(id, address, unit, city, property_type)
@@ -63,6 +64,7 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     endDate:         c.end_date,
     nextAdjustmentDate: c.next_adjustment_date,
     paymentDay:      c.payment_day,
+    commissionPct:   Number(c.commission_pct ?? 8),
     depositAmount:   c.deposit_amount != null ? Number(c.deposit_amount) : null,
     depositStatus:   c.deposit_status ?? null,
     notes:           c.notes,
@@ -84,6 +86,41 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
       ? { id: c.properties.id, address: c.properties.address, unit: c.properties.unit ?? null, city: c.properties.city ?? null, propertyType: c.properties.property_type }
       : null,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Payment history — last N periods of RENT_IN for a contract, cobrado (bank_date
+// set) vs pendiente. Feeds the tenant detail "Historial de pagos" timeline.
+// ---------------------------------------------------------------------------
+export interface PaymentHistoryEntry {
+  period:      string
+  periodLabel: string
+  amount:      number
+  cobrado:     boolean
+}
+const HIST_MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+export async function getContractPaymentHistory(contractId: string, months = 5): Promise<PaymentHistoryEntry[]> {
+  const supabase = await createSupabaseServer()
+  const { data } = await supabase
+    .from('transactions')
+    .select('period, amount, bank_date, transaction_types!inner(code)')
+    .eq('contract_id', contractId)
+    .eq('transaction_types.code', 'RENT_IN')
+
+  const byPeriod = new Map<string, { amount: number; cobrado: boolean }>()
+  for (const t of (data ?? []) as any[]) {
+    const e = byPeriod.get(t.period) ?? { amount: 0, cobrado: false }
+    e.amount += Number(t.amount)
+    if (t.bank_date) e.cobrado = true
+    byPeriod.set(t.period, e)
+  }
+  return [...byPeriod.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .slice(0, months)
+    .map(([period, v]) => {
+      const [y, m] = period.split('-')
+      return { period, periodLabel: `${HIST_MONTHS[+m - 1]} ${y}`, amount: v.amount, cobrado: v.cobrado }
+    })
 }
 
 // ---------------------------------------------------------------------------

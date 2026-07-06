@@ -21,6 +21,7 @@ export interface TenantDetail {
   email:    string | null
   phone:    string | null
   dni:      string | null
+  notes:    string | null
   // Contract roll-up — used to decide whether delete is even allowed
   contractCount: number
   contracts:     TenantContractRow[]
@@ -44,7 +45,7 @@ export async function getTenantDetail(id: string): Promise<TenantDetail | null> 
   const { data } = await supabase
     .from('tenants')
     .select(`
-      id, name, email, phone, dni,
+      id, name, email, phone, dni, notes,
       contract_tenants(
         contracts(
           id, current_rent, status,
@@ -100,6 +101,7 @@ export async function getTenantDetail(id: string): Promise<TenantDetail | null> 
     email:         t.email,
     phone:         t.phone,
     dni:           t.dni,
+    notes:         t.notes ?? null,
     contractCount: contracts.length,
     contracts,
   }
