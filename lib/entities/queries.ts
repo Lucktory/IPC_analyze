@@ -686,6 +686,8 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
 export interface PropertyRow {
   id:            string
   address:       string
+  unit:          string | null
+  city:          string | null
   propertyType:  string
   isVacant:      boolean       // address ends with "(vacante)" OR no contract
   hasContract:   boolean
@@ -710,7 +712,7 @@ export async function listProperties(): Promise<PropertyRow[]> {
     supabase
       .from('properties')
       .select(`
-        id, address, property_type,
+        id, address, unit, city, property_type,
         property_landlords(ownership_pct, landlords(id, name))
       `)
       .order('address'),
@@ -775,6 +777,8 @@ export async function listProperties(): Promise<PropertyRow[]> {
     return {
       id:           p.id,
       address:      addr,
+      unit:         p.unit ?? null,
+      city:         p.city ?? null,
       propertyType: p.property_type,
       isVacant,
       hasContract:  !!contract,

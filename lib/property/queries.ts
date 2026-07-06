@@ -54,6 +54,10 @@ export interface PropertyContract {
   id:             string
   status:         string
   currentRent:    number
+  cadence:        string
+  startDate:      string | null
+  endDate:        string | null
+  paymentDay:     number | null
   primaryTenant:  string | null
   /** Phase 11: full co-tenants list with share %. */
   tenants:        { id: string; name: string; sharePct: number }[]
@@ -65,8 +69,14 @@ export interface PropertyContract {
 export interface PropertyDetail {
   id:           string
   address:      string
+  unit:         string | null
+  city:         string | null
+  province:     string | null
   propertyType: string
-  landlords:    { id: string; name: string; ownershipPct: number }[]
+  rooms:        number | null
+  surfaceM2:    number | null
+  notes:        string | null
+  landlords:    { id: string; name: string; ownershipPct: number; cuit: string | null }[]
   contracts:    PropertyContract[]
 }
 
@@ -75,10 +85,10 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
   const { data } = await supabase
     .from('properties')
     .select(`
-      id, address, property_type,
-      property_landlords(ownership_pct, landlords(id, name)),
+      id, address, unit, city, province, property_type, rooms, surface_m2, notes,
+      property_landlords(ownership_pct, landlords(id, name, dni_or_cuit)),
       contracts(
-        id, current_rent, status, deposit_amount, deposit_status,
+        id, current_rent, status, cadence, start_date, end_date, payment_day, deposit_amount, deposit_status,
         contract_tenants(is_primary, share_pct, tenants(id, name))
       )
     `)
@@ -92,6 +102,7 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
     id:           pl.landlords?.id,
     name:         pl.landlords?.name ?? '',
     ownershipPct: Number(pl.ownership_pct),
+    cuit:         pl.landlords?.dni_or_cuit ?? null,
   })).filter((l: any) => l.id)
 
   const contracts: PropertyContract[] = (p.contracts ?? []).map((c: any) => {
@@ -108,6 +119,10 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
       id:             c.id,
       status:         c.status,
       currentRent:    Number(c.current_rent),
+      cadence:        c.cadence,
+      startDate:      c.start_date ?? null,
+      endDate:        c.end_date ?? null,
+      paymentDay:     c.payment_day ?? null,
       primaryTenant:  primary?.tenants?.name ?? null,
       tenants,
       depositAmount:  c.deposit_amount != null ? Number(c.deposit_amount) : null,
@@ -118,7 +133,13 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
   return {
     id:           p.id,
     address:      p.address,
+    unit:         p.unit ?? null,
+    city:         p.city ?? null,
+    province:     p.province ?? null,
     propertyType: p.property_type,
+    rooms:        p.rooms ?? null,
+    surfaceM2:    p.surface_m2 != null ? Number(p.surface_m2) : null,
+    notes:        p.notes ?? null,
     landlords,
     contracts,
   }

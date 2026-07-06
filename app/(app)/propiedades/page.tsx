@@ -1,261 +1,223 @@
 import Link from 'next/link'
-import { KPICard } from '@/components/ui/KPICard'
-import { Badge } from '@/components/ui/Badge'
-import { StickyHeader } from '@/components/ui/StickyHeader'
-import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
-import { FilterPill } from '@/components/ui/FilterPill'
+import { Building2, Home, DoorOpen, Building, SlidersHorizontal, Plus, ChevronRight } from 'lucide-react'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { FilterPill } from '@/components/ui/FilterPill'
 import { ClickableRow } from '@/components/ui/ClickableRow'
-import { listProperties, type PropertyRow } from '@/lib/entities/queries'
-import { URGENCY_STYLES } from '@/lib/urgency'
+import { TablePagination } from '@/components/ui/TablePagination'
+import { listProperties } from '@/lib/entities/queries'
 import { fmtMoney as fmt } from '@/lib/format'
-import { NamesCell } from '@/components/shared/cells'
 
-const TYPE_LABEL: Record<string, string> = {
-  vivienda: 'Vivienda',
-  local:    'Local',
-  cochera:  'Cochera',
-  oficina:  'Oficina',
-  deposito: 'Depósito',
+const PER_PAGE = 12
+const TYPE: Record<string, { label: string; color: string }> = {
+  vivienda: { label: 'Vivienda', color: '#3B82F6' },
+  local:    { label: 'Local',    color: '#8B5CF6' },
+  cochera:  { label: 'Cochera',  color: '#F59E0B' },
+  oficina:  { label: 'Oficina',  color: '#06B6D4' },
+  deposito: { label: 'Depósito', color: '#8A93A5' },
 }
-const TYPES = Object.keys(TYPE_LABEL)
-
-type Estado = 'todos' | 'ocupadas' | 'vacantes'
+const TYPE_ORDER = ['vivienda', 'local', 'cochera', 'oficina', 'deposito']
+const cleanAddress = (s: string) => s.replace(/\s*\(vacante\)\s*$/i, '')
 
 interface PageProps {
-  searchParams: Promise<{
-    estado?: string
-    tipo?:   string
-    q?:      string
-  }>
+  searchParams: Promise<{ estado?: string; tipo?: string; q?: string; pagina?: string }>
 }
 
 export default async function PropiedadesPage({ searchParams }: PageProps) {
   const sp     = await searchParams
-  const estado = (sp.estado as Estado) ?? 'todos'
-  const tipo   = sp.tipo ?? 'todos'
-  const q      = sp.q?.trim() ?? ''
+  const estado = sp.estado ?? 'todos'
+  const tipoF  = sp.tipo ?? 'todos'
+  const q      = (sp.q ?? '').trim().toLowerCase()
 
   const all = await listProperties()
 
-  const match = (p: PropertyRow, e: Estado) => {
-    if (e === 'ocupadas') return !p.isVacant
-    if (e === 'vacantes') return p.isVacant
-    return true
-  }
+  const total    = all.length
+  const ocupadas = all.filter(p => !p.isVacant).length
+  const vacantes = total - ocupadas
+  const typeCounts: Record<string, number> = {}
+  for (const p of all) typeCounts[p.propertyType] = (typeCounts[p.propertyType] ?? 0) + 1
+  const viviendas = typeCounts.vivienda ?? 0
+  const locales   = typeCounts.local ?? 0
+  const donutItems = TYPE_ORDER.filter(t => typeCounts[t]).map(t => ({
+    label: TYPE[t].label, color: TYPE[t].color, value: typeCounts[t],
+    pct: total > 0 ? Math.round((typeCounts[t] / total) * 100) : 0,
+  }))
 
-  const counts = {
-    todos:    all.length,
-    ocupadas: all.filter(p => match(p, 'ocupadas')).length,
-    vacantes: all.filter(p => match(p, 'vacantes')).length,
-  }
-
-  let rows = all.filter(p => match(p, estado))
-  if (tipo !== 'todos') rows = rows.filter(p => p.propertyType === tipo)
+  let rows = all
+  if (estado === 'ocupadas')      rows = rows.filter(p => !p.isVacant)
+  else if (estado === 'vacantes') rows = rows.filter(p => p.isVacant)
+  if (tipoF !== 'todos') rows = rows.filter(p => p.propertyType === tipoF)
   if (q) {
-    const ql = q.toLowerCase()
     rows = rows.filter(p =>
-      p.address.toLowerCase().includes(ql) ||
-      p.landlords.some(l => l.name.toLowerCase().includes(ql)) ||
-      p.tenants.some(t => t.name.toLowerCase().includes(ql)),
-    )
+      cleanAddress(p.address).toLowerCase().includes(q) ||
+      (p.landlord ?? '').toLowerCase().includes(q) ||
+      (p.tenant ?? '').toLowerCase().includes(q))
   }
 
-  // Sort: occupied first, then vacant — same intent as before
-  const sortedRows = rows.slice().sort((a, b) => {
-    if (a.isVacant !== b.isVacant) return a.isVacant ? 1 : -1
-    return a.address.localeCompare(b.address)
-  })
+  const totalPages = Math.max(1, Math.ceil(rows.length / PER_PAGE))
+  const page       = Math.min(Math.max(1, parseInt(sp.pagina ?? '1', 10) || 1), totalPages)
+  const pageRows   = rows.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const fromN      = rows.length === 0 ? 0 : (page - 1) * PER_PAGE + 1
+  const toN        = Math.min(page * PER_PAGE, rows.length)
 
-  // Type breakdown (over the full set, for the KPI)
-  const byType = new Map<string, number>()
-  for (const p of all) byType.set(p.propertyType, (byType.get(p.propertyType) ?? 0) + 1)
-
-  const buildHref = (overrides: Partial<{ estado: Estado; tipo: string; q: string }>) => {
+  const buildHref = (o: Partial<Record<string, string>>) => {
     const params = new URLSearchParams()
-    const merged = { estado, tipo, q, ...overrides }
-    if (merged.estado && merged.estado !== 'todos') params.set('estado', merged.estado)
-    if (merged.tipo   && merged.tipo   !== 'todos') params.set('tipo',   merged.tipo)
-    if (merged.q)                                    params.set('q',      merged.q)
+    const m = { estado, tipo: tipoF, q, ...o }
+    if (m.estado && m.estado !== 'todos') params.set('estado', m.estado)
+    if (m.tipo && m.tipo !== 'todos')     params.set('tipo', m.tipo)
+    if (m.q) params.set('q', m.q)
     const qs = params.toString()
     return qs ? `/propiedades?${qs}` : '/propiedades'
   }
+  const pageHref = (n: number) => {
+    const base = buildHref({})
+    const sep = base.includes('?') ? '&' : '?'
+    return n <= 1 ? base : `${base}${sep}pagina=${n}`
+  }
 
-  const clearEstadoHref = buildHref({ estado: 'todos' })
-  const clearTipoHref   = buildHref({ tipo:   'todos' })
-
-  const kpis = [
-    {
-      label: 'Total propiedades',
-      value: counts.todos.toString(),
-      delta: 'en cartera',
-      tone:  'neutral' as const,
-      href:  buildHref({ estado: 'todos' }),
-      active: estado === 'todos',
-    },
-    {
-      label: 'Ocupadas',
-      value: counts.ocupadas.toString(),
-      delta: counts.todos > 0 ? `${Math.round((counts.ocupadas / counts.todos) * 100)}% ocupación` : 'sin datos',
-      tone:  'positive' as const,
-      href:  buildHref({ estado: 'ocupadas' }),
-      clearHref: clearEstadoHref,
-      active: estado === 'ocupadas',
-    },
-    {
-      label: 'Vacantes',
-      value: counts.vacantes.toString(),
-      delta: 'requieren ocupar',
-      tone:  counts.vacantes > 0 ? 'negative' as const : 'neutral' as const,
-      href:  buildHref({ estado: 'vacantes' }),
-      clearHref: clearEstadoHref,
-      active: estado === 'vacantes',
-    },
-    {
-      label: 'Locales',
-      value: (byType.get('local') ?? 0).toString(),
-      delta: 'comerciales',
-      tone:  'neutral' as const,
-      href:  buildHref({ tipo: 'local' }),
-      clearHref: clearTipoHref,
-      active: tipo === 'local',
-    },
+  const pctOcup = total > 0 ? (ocupadas / total) * 100 : 0
+  const pctVac  = total > 0 ? (vacantes / total) * 100 : 0
+  const stats = [
+    { key: 'total',  label: 'Propiedades', value: total.toLocaleString('es-AR'),    sub: 'Total de unidades',                     Icon: Building2, color: '#3B82F6', href: buildHref({ estado: 'todos' }),    active: estado === 'todos' },
+    { key: 'ocup',   label: 'Ocupadas',    value: ocupadas.toLocaleString('es-AR'), sub: `${pctOcup.toFixed(1).replace('.', ',')}% del total`, Icon: Home,      color: '#16A34A', href: buildHref({ estado: 'ocupadas' }), active: estado === 'ocupadas' },
+    { key: 'vac',    label: 'Vacantes',    value: vacantes.toLocaleString('es-AR'), sub: `${pctVac.toFixed(1).replace('.', ',')}% del total`,  Icon: DoorOpen,  color: '#F59E0B', href: buildHref({ estado: 'vacantes' }), active: estado === 'vacantes' },
+    { key: 'vivloc', label: 'Viviendas / Locales', value: `${viviendas} / ${locales}`, sub: `${total ? Math.round(viviendas / total * 100) : 0}% viv. / ${total ? Math.round(locales / total * 100) : 0}% loc.`, Icon: Building, color: '#8B5CF6', href: buildHref({ tipo: 'vivienda' }), active: tipoF === 'vivienda' },
   ]
 
-  const activeBits: string[] = []
-  if (estado === 'ocupadas') activeBits.push('Ocupadas')
-  if (estado === 'vacantes') activeBits.push('Vacantes')
-  if (tipo !== 'todos')      activeBits.push(TYPE_LABEL[tipo] ?? tipo)
-  const activeSummary = activeBits.join(' · ')
-
   return (
-    <>
-      <StickyHeader>
-        <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap mb-2">
-          <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
-            <strong className="text-ink font-medium">Propiedades</strong>
-            {' · '}
-            {sortedRows.length === counts.todos ? `${counts.todos}` : `${sortedRows.length} de ${counts.todos}`}
-            {activeSummary && <span className="text-slate"> · {activeSummary}</span>}
-          </p>
-          <div className="flex items-center gap-2 order-3 sm:order-none">
-            <div className="w-full sm:w-72 shrink-0">
-              <AutoSearchInput initialValue={q} placeholder="Buscar por dirección, propietario o inquilino…" />
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
+      <header className="shrink-0">
+        <h1 className="text-[24px] font-semibold text-ink tracking-tight">Propiedades</h1>
+        <nav className="text-[12px] text-slate mt-1 flex items-center gap-1.5">
+          <Link href="/dashboard" className="hover:text-ink transition-colors">Inicio</Link>
+          <span className="text-slate/50">/</span>
+          <span className="text-slate-dark">Propiedades</span>
+        </nav>
+      </header>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <div className="flex-1 min-w-[220px]">
+          <AutoSearchInput initialValue={sp.q ?? ''} placeholder="Buscar por dirección, propietario o inquilino…" resetParams={['pagina']} />
+        </div>
+        <details className="relative">
+          <summary className={`list-none inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[13px] cursor-pointer transition-colors [&::-webkit-details-marker]:hidden ${
+            tipoF !== 'todos' ? 'border-info text-info bg-info/5' : 'border-line text-ink bg-paper hover:border-info/40'
+          }`}>
+            <SlidersHorizontal size={15} /> Filtros
+          </summary>
+          <div className="absolute right-0 mt-2 z-30 w-[260px] bg-paper border border-line rounded-xl shadow-lg p-3.5">
+            <span className="label-cap text-slate">Tipo</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {TYPE_ORDER.filter(t => typeCounts[t]).map(t => (
+                <FilterPill key={t} href={buildHref({ tipo: t })} clearHref={buildHref({ tipo: 'todos' })} label={TYPE[t].label} active={tipoF === t} />
+              ))}
             </div>
-            <Link
-              href="/propiedades/nuevo"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 transition-opacity shrink-0"
-            >
-              + Nueva
-            </Link>
           </div>
+        </details>
+        <Link href="/propiedades/nuevo" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-info text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0">
+          <Plus size={16} /> Nueva propiedad
+        </Link>
+      </div>
+
+      {/* KPI row */}
+      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 shrink-0">
+        {stats.map(s => (
+          <Link key={s.key} href={s.href} className={`rounded-xl border bg-paper p-4 flex flex-col gap-3 transition-colors ${
+            s.active ? 'border-info ring-1 ring-info/30' : 'border-line hover:border-info/40'
+          }`}>
+            <div className="flex items-center gap-2.5">
+              <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0" style={{ backgroundColor: s.color + '1f', color: s.color }}>
+                <s.Icon size={18} />
+              </span>
+              <span className="text-[12px] font-medium text-slate leading-tight">{s.label}</span>
+            </div>
+            <div>
+              <p className="text-[22px] font-semibold text-ink leading-none tabular-nums truncate">{s.value}</p>
+              <p className="text-[11px] text-slate mt-1.5 truncate">{s.sub}</p>
+            </div>
+          </Link>
+        ))}
+        {/* Por tipo donut */}
+        <div className="rounded-xl border border-line bg-paper p-4 flex flex-col gap-2">
+          <span className="text-[12px] font-medium text-slate">Por tipo</span>
+          <TypeDonut items={donutItems} />
         </div>
-
-        <StickyKPIStrip cols={4}>
-          {kpis.map((k) => (
-            <StickyKPIStripItem key={k.label}>
-              <KPICard {...k} deltaTone={k.tone} />
-            </StickyKPIStripItem>
-          ))}
-        </StickyKPIStrip>
-      </StickyHeader>
-
-      <section className="mt-4 bg-paper border border-line rounded shadow-card p-3 sm:p-4">
-        <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden">
-          <span className="label-cap text-slate mr-1 shrink-0">Tipo</span>
-          <FilterPill href={buildHref({ tipo: 'todos' })} label="Todos" active={!tipo || tipo === 'todos'} />
-          {TYPES.map(t => (
-            <FilterPill key={t} href={buildHref({ tipo: t })} clearHref={clearTipoHref} label={TYPE_LABEL[t]} active={tipo === t} />
-          ))}
-        </div>
-
-        {(q || tipo !== 'todos') && (
-          <div className="mt-3">
-            <Link
-              href={buildHref({ q: '', tipo: 'todos' })}
-              className="inline-flex items-center px-3 h-8 text-[12px] text-slate hover:text-ink transition-colors"
-            >
-              ↺ Limpiar búsqueda y tipo
-            </Link>
-          </div>
-        )}
       </section>
 
-      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
-        <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="font-display text-[15px] font-medium text-ink">Catálogo</h2>
-            <p className="text-[12px] text-slate mt-0.5">Propiedades ocupadas primero, luego vacantes</p>
-          </div>
-          <p className="text-[12px] text-slate tabular-nums">{sortedRows.length} resultado{sortedRows.length === 1 ? '' : 's'}</p>
-        </div>
-        <div className="overflow-x-auto">
-          {sortedRows.length > 0 ? (
-            <table className="w-full text-[13px] min-w-[960px] border-collapse">
-              <thead className="bg-cream-2/60">
+      {/* Table */}
+      <section className="bg-paper border border-line rounded-xl shadow-card overflow-hidden lg:flex-1 lg:min-h-0 lg:flex lg:flex-col">
+        <div className="overflow-auto lg:flex-1 lg:min-h-0">
+          {pageRows.length > 0 ? (
+            <table className="w-full text-[13px] min-w-[940px]">
+              <thead className="sticky top-0 z-10 bg-paper">
                 <tr className="border-b border-line">
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Dirección</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Tipo</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Propietarios</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium border-r border-line/50">Inquilinos</th>
-                  <th className="text-right px-4 py-1.5 label-cap font-medium border-r border-line/50">Alquiler</th>
-                  <th className="text-left  px-4 py-1.5 label-cap font-medium">Estado</th>
+                  {['Dirección', 'Tipo', 'Propietario', 'Inquilino actual', 'Alquiler', 'Estado', ''].map((h, i) => (
+                    <th key={i} className={`label-cap font-medium text-slate px-4 py-2.5 ${h === 'Alquiler' ? 'text-right' : 'text-left'}`}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {sortedRows.map((p, idx) => {
-                  const u = URGENCY_STYLES[p.urgency]
-                  const tinted = !!u.row
-                  const zebra  = tinted ? '' : (idx % 2 === 0 ? 'bg-cream/40' : '')
+                {pageRows.map(p => {
+                  const t = TYPE[p.propertyType] ?? { label: p.propertyType, color: '#8A93A5' }
                   return (
-                    <ClickableRow
-                      key={p.id}
-                      href={`/propiedades/${p.id}`}
-                      title={p.urgencyReasons.length ? p.urgencyReasons.join(' · ') : undefined}
-                      className={`${zebra} ${u.row} ${tinted ? '' : 'hover:bg-cream-2'} transition-colors border-b border-line/30 align-top`}
-                    >
-                      <td className={`px-4 py-1.5 text-ink font-medium border-l-[4px] ${u.borderLeft} border-r border-line/30`}>{cleanAddress(p.address)}</td>
-                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">{TYPE_LABEL[p.propertyType] ?? p.propertyType}</td>
-                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">
-                        <NamesCell
-                          noun={['propietario', 'propietarios']}
-                          items={p.landlords.map(l => ({ id: l.id, name: l.name, pct: l.ownershipPct }))}
-                        />
+                    <ClickableRow key={p.id} href={`/propiedades/${p.id}`} className="border-b border-line/60 last:border-0 hover:bg-cream-2 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="leading-tight min-w-0">
+                          <div className="text-ink truncate max-w-[220px]">{cleanAddress(p.address)}{p.unit ? ` ${p.unit}` : ''}</div>
+                          {p.city && <div className="text-slate text-[11px] truncate">{p.city}</div>}
+                        </div>
                       </td>
-                      <td className="px-4 py-1.5 text-slate-dark border-r border-line/30">
-                        <NamesCell
-                          noun={['inquilino', 'inquilinos']}
-                          items={p.tenants.map(t => ({ id: t.id, name: t.name, pct: t.sharePct }))}
-                        />
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium" style={{ backgroundColor: t.color + '1f', color: t.color }}>{t.label}</span>
                       </td>
-                      <td className="px-4 py-1.5 text-right tabular-nums text-ink border-r border-line/30">
-                        {p.currentRent > 0 ? fmt(p.currentRent) : ''}
-                      </td>
-                      <td className="px-4 py-1.5">
+                      <td className="px-4 py-3 text-slate-dark truncate max-w-[160px]">{p.landlord ?? <span className="text-slate/50">—</span>}</td>
+                      <td className="px-4 py-3 text-slate-dark truncate max-w-[160px]">{p.tenant ?? <span className="text-slate/50">—</span>}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-ink whitespace-nowrap">{p.currentRent > 0 ? fmt(p.currentRent) : <span className="text-slate/50">—</span>}</td>
+                      <td className="px-4 py-3">
                         {p.isVacant
-                          ? <Badge tone="warn">Vacante</Badge>
-                          : <Badge tone="success">Ocupada</Badge>}
+                          ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-warn/15 text-warn">Vacante</span>
+                          : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-success/15 text-success">Ocupada</span>}
                       </td>
+                      <td className="px-4 py-3 text-right"><ChevronRight size={16} className="text-slate/50 inline" /></td>
                     </ClickableRow>
                   )
                 })}
               </tbody>
             </table>
           ) : (
-            <div className="p-10 text-center">
-              <p className="text-[14px] text-slate">Ninguna propiedad coincide con los filtros aplicados</p>
-            </div>
+            <div className="p-12 text-center text-[14px] text-slate">Ninguna propiedad coincide con la búsqueda</div>
           )}
         </div>
+        {rows.length > 0 && (
+          <div className="px-4 py-3 border-t border-line flex items-center justify-between gap-3 flex-wrap shrink-0">
+            <p className="text-[12px] text-slate tabular-nums">Mostrando {fromN} a {toN} de {rows.length} propiedad{rows.length === 1 ? '' : 'es'}</p>
+            <TablePagination page={page} totalPages={totalPages} hrefFor={pageHref} />
+          </div>
+        )}
       </section>
-    </>
+    </div>
   )
 }
 
-// Strip the "(vacante)" suffix from address text for the display column —
-// the Estado badge already conveys vacancy.
-function cleanAddress(s: string) {
-  return s.replace(/\s*\(vacante\)\s*$/i, '')
+// Compact conic-gradient donut + legend for the "Por tipo" KPI card.
+function TypeDonut({ items }: { items: { label: string; color: string; value: number; pct: number }[] }) {
+  if (items.length === 0) return <p className="text-[12px] text-slate">Sin datos</p>
+  let acc = 0
+  const stops = items.map(i => { const from = acc; acc += i.pct; return `${i.color} ${from}% ${acc}%` }).join(', ')
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative w-12 h-12 rounded-full shrink-0" style={{ background: `conic-gradient(${stops})` }}>
+        <div className="absolute inset-[7px] rounded-full bg-paper" />
+      </div>
+      <ul className="text-[10px] space-y-0.5 min-w-0 flex-1">
+        {items.map(i => (
+          <li key={i.label} className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: i.color }} />
+            <span className="text-slate-dark truncate">{i.label}</span>
+            <span className="text-slate tabular-nums ml-auto whitespace-nowrap">{i.value} · {i.pct}%</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
-
-// NamesCell is imported from @/components/shared/cells — registry rule.
