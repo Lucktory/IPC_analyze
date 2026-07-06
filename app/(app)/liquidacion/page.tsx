@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Receipt, ShieldCheck, Users, CheckCircle2 } from 'lucide-react'
+import { PeriodSelect } from '@/components/charts/panel/PeriodSelect'
 import { listTransactionPeriods, listTransactions } from '@/lib/entities/queries'
 
 // Force dynamic rendering on every request — the planilla shows the
@@ -126,6 +127,11 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
 
   // Period tabs: current month + recent + months-with-data (see buildPeriodTabs).
   const periodTabs = buildPeriodTabs(periods, period)
+  // Preserve the current view + status when switching month via the dropdown.
+  const periodExtra = new URLSearchParams()
+  if (view !== 'grilla')          periodExtra.set('view', view)
+  if (statusFilter !== 'todas')   periodExtra.set('status', statusFilter)
+  const periodExtraQuery = periodExtra.toString()
 
   const linkWith = (overrides: Partial<{ period: string; status: StatusFilter; view: View }>) => {
     const merged = { period, status: statusFilter, view, ...overrides }
@@ -213,22 +219,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
         {/* Inline filter strip — Period always; Estado + Nuevo on grilla only. */}
         <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11.5px] pb-2">
           <span className="label-cap text-slate shrink-0">Período</span>
-          <div className="flex items-center gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-            {periodTabs.map(p => (
-              <Link
-                key={p}
-                href={linkWith({ period: p })}
-                className={[
-                  'inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium transition-colors shrink-0',
-                  p === period
-                    ? 'bg-ink text-paper border-ink'
-                    : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
-                ].join(' ')}
-              >
-                {periodShort(p)}
-              </Link>
-            ))}
-          </div>
+          <PeriodSelect current={period} periods={periodTabs} basePath="/liquidacion" extraQuery={periodExtraQuery} />
 
           {view === 'grilla' && (
             <>

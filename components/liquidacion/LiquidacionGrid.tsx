@@ -154,7 +154,10 @@ const STICKY_LEFTS = {
 // Width of the "Control" group (check + obs + lfa + fbanco) — the frozen block
 // before Propietario. Drives the sticky-left group-header cell.
 const G_CTRL_W = W.check + W.obs + W.lfa + W.fbanco
-const CREAM2   = 'rgb(var(--color-cream-2))'
+// Opaque background for the sticky header + totals cells. Uses the dedicated
+// --color-header band so the header/totals stand clearly apart from the paper
+// row content in both light and dark.
+const CREAM2   = 'rgb(var(--color-header))'
 
 function fmtVigencia(start: string | null, end: string | null): string {
   if (!start && !end) return '—'
@@ -257,7 +260,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
           form a frozen freeze-panes corner. */}
       <div className="overflow-auto flex-1 min-h-0">
         <table className="w-full text-[12px] border-collapse" style={{ minWidth: tableMinWidth }}>
-          <thead className="bg-cream-2 text-[10px] uppercase tracking-wider text-slate-dark font-semibold">
+          <thead className="bg-header text-[10px] uppercase tracking-wider text-ink font-semibold">
             {/* Group header row (2-level headers). Not sticky-top, so it
                 scrolls away and the column-header row below stays pinned; the
                 two frozen groups (Control / Propietario) are sticky-left. */}
@@ -807,8 +810,8 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               "al fin de la columna poner el monto que da de suma total."
               Each <Tf> tracks its column's width so the total lines up
               exactly under the data. Empty cells render blank. */}
-          <tfoot className="bg-cream-2 text-[11px] font-medium text-ink">
-            <tr className="border-t-2 border-line">
+          <tfoot className="bg-header text-[11px] font-semibold text-ink">
+            <tr className="border-t-2 border-slate/40">
               <Tf sticky left={STICKY_LEFTS.check}  width={W.check}  align="center" />
               <Tf sticky left={STICKY_LEFTS.obs}    width={W.obs}    align="left">TOTAL</Tf>
               <Tf sticky left={STICKY_LEFTS.lfa}    width={W.lfa}    align="center" />
@@ -863,8 +866,8 @@ function Th({ children, width, sticky, left, align = 'left' }: ThProps) {
   // left offset and a higher z-index so they form the "frozen corner" of
   // the freeze-panes layout.
   const stickyStyle: React.CSSProperties = sticky
-    ? { position: 'sticky', top: 0, left, zIndex: 30, backgroundColor: 'rgb(var(--color-cream-2))' /* gray-100 */ }
-    : { position: 'sticky', top: 0,        zIndex: 20, backgroundColor: 'rgb(var(--color-cream-2))' }
+    ? { position: 'sticky', top: 0, left, zIndex: 30, backgroundColor: CREAM2 /* gray-100 */ }
+    : { position: 'sticky', top: 0,        zIndex: 20, backgroundColor: CREAM2 }
   return (
     <th
       style={{ width, minWidth: width, ...stickyStyle }}
@@ -927,8 +930,8 @@ function Tf({ children, width, align = 'left', sticky, left, tabular }: TfProps)
   // (Observación / LFA / F. banco / Propietario) ALSO stick to the left
   // to form the frozen freeze-panes corner that matches the header.
   const stickyStyle: React.CSSProperties = sticky
-    ? { position: 'sticky', bottom: 0, left, zIndex: 25, backgroundColor: 'rgb(var(--color-cream-2))' }
-    : { position: 'sticky', bottom: 0,        zIndex: 15, backgroundColor: 'rgb(var(--color-cream-2))' }
+    ? { position: 'sticky', bottom: 0, left, zIndex: 25, backgroundColor: CREAM2 }
+    : { position: 'sticky', bottom: 0,        zIndex: 15, backgroundColor: CREAM2 }
   return (
     <td
       style={{ width, minWidth: width, ...stickyStyle }}

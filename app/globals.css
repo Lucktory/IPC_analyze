@@ -20,6 +20,7 @@
   --color-cream:        245 247 251;   /* #F5F7FB — page background, cool */
   --color-cream-2:      238 241 246;   /* #EEF1F6 — zebra / hover */
   --color-line:         226 230 237;   /* #E2E6ED — border, cool */
+  --color-header:       220 226 236;   /* #DCE2EC — table header/totals band (clearly darker than paper) */
 
   /* Text */
   --color-ink:          19  26  40;    /* #131A28 — dark slate */
@@ -60,6 +61,7 @@
   --color-cream:        11  15  22;    /* #0B0F16 — page background */
   --color-cream-2:      30  37  49;    /* #1E2531 — zebra row / hover */
   --color-line:         35  42  56;    /* #232A38 — border, subtle */
+  --color-header:       44  54  73;    /* #2C3649 — elevated table header/totals band (clearly above paper) */
 
   /* Text — off-white not pure */
   --color-ink:          244 246 250;   /* #F4F6FA */

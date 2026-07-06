@@ -25,6 +25,7 @@ export default {
           2:       'rgb(var(--color-cream-2) / <alpha-value>)',
         },
         line:   'rgb(var(--color-line) / <alpha-value>)',
+        header: 'rgb(var(--color-header) / <alpha-value>)',
         ink: {
           DEFAULT: 'rgb(var(--color-ink)      / <alpha-value>)',
           soft:    'rgb(var(--color-ink-soft) / <alpha-value>)',

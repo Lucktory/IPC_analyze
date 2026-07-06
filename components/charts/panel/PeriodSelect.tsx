@@ -12,7 +12,15 @@ import { useTransition } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { periodLabel } from '@/lib/period'
 
-export function PeriodSelect({ current, periods }: { current: string; periods: string[] }) {
+export function PeriodSelect({ current, periods, basePath = '/dashboard', extraQuery = '' }: {
+  current:   string
+  periods:   string[]
+  /** Route to navigate to (defaults to the dashboard). */
+  basePath?: string
+  /** Extra query string preserved on change, e.g. "view=resumen&status=draft".
+   *  A plain string (not a fn) so it can cross the server->client boundary. */
+  extraQuery?: string
+}) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
@@ -22,7 +30,7 @@ export function PeriodSelect({ current, periods }: { current: string; periods: s
         value={current}
         onChange={e => {
           const p = e.target.value
-          startTransition(() => router.push(`/dashboard?period=${p}`))
+          startTransition(() => router.push(`${basePath}?period=${p}${extraQuery ? `&${extraQuery}` : ''}`))
         }}
         aria-label="Seleccionar mes"
         className="appearance-none bg-cream-2 border border-line rounded-md pl-3 pr-8 py-1 text-[13px] font-medium text-ink cursor-pointer hover:border-info/50 focus:outline-none focus:ring-2 focus:ring-info/40 transition-colors"
