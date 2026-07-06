@@ -151,6 +151,10 @@ const STICKY_LEFTS = {
   fbanco: W.check + W.obs + W.lfa,
   prop:   W.check + W.obs + W.lfa + W.fbanco,
 }
+// Width of the "Control" group (check + obs + lfa + fbanco) — the frozen block
+// before Propietario. Drives the sticky-left group-header cell.
+const G_CTRL_W = W.check + W.obs + W.lfa + W.fbanco
+const CREAM2   = 'rgb(var(--color-cream-2))'
 
 function fmtVigencia(start: string | null, end: string | null): string {
   if (!start && !end) return '—'
@@ -254,6 +258,18 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
       <div className="overflow-auto flex-1 min-h-0">
         <table className="w-full text-[12px] border-collapse" style={{ minWidth: tableMinWidth }}>
           <thead className="bg-cream-2 text-[10px] uppercase tracking-wider text-slate-dark font-semibold">
+            {/* Group header row (2-level headers). Not sticky-top, so it
+                scrolls away and the column-header row below stays pinned; the
+                two frozen groups (Control / Propietario) are sticky-left. */}
+            <tr className="text-[9px] tracking-[0.08em] text-slate border-b border-line/60">
+              <th colSpan={4} className="text-left px-2 py-1 border-r border-line/40" style={{ position: 'sticky', left: 0, zIndex: 24, width: G_CTRL_W, minWidth: G_CTRL_W, backgroundColor: CREAM2 }}>Control</th>
+              <th colSpan={1} className="text-left px-2 py-1 border-r border-line/40" style={{ position: 'sticky', left: G_CTRL_W, zIndex: 24, width: W.prop, minWidth: W.prop, backgroundColor: CREAM2 }}>Propietario</th>
+              <th colSpan={7} className="text-left px-2 py-1 border-r border-line/40">Inquilino y contrato</th>
+              <th colSpan={7} className="text-left px-2 py-1 border-r border-line/40">Cobros del período</th>
+              <th colSpan={2} className="text-center px-2 py-1 border-r border-line/40">Comisión</th>
+              <th colSpan={3} className="text-center px-2 py-1 border-r border-line/40">Distribución bancaria</th>
+              <th colSpan={2} className="text-center px-2 py-1">Cierre</th>
+            </tr>
             <tr className="border-b border-line">
               {/* 0 */}<Th sticky left={STICKY_LEFTS.check}  width={W.check}  align="center">Check</Th>
               {/* 1 */}<Th sticky left={STICKY_LEFTS.obs}    width={W.obs}>Observación</Th>
