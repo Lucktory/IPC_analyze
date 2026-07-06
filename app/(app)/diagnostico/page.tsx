@@ -1,226 +1,182 @@
 // ============================================================================
-// /diagnostico — system-wide view of every validation issue across the
-// active contracts for the current period.
-//
-// Complements the per-row Check badge on /liquidacion by giving a single
-// list view sorted by severity (errors first) with per-rule filter chips.
-// Same digest pattern as /pendientes; reuses StickyHeader + KPICard for
-// visual consistency with /propietarios.
+// /diagnostico — system-wide view of every validation issue for the period,
+// grouped into Errores / Advertencias, with per-rule filter chips, a free-text
+// filter, and expandable sections (show a few, "ver más" for the rest).
 // ============================================================================
 
 import Link from 'next/link'
-import { getCurrentPeriod, getCurrentPeriodLabel } from '@/lib/period'
+import { AlertCircle, AlertTriangle, ShieldCheck, ChevronRight, CalendarDays } from 'lucide-react'
+import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { getDiagnosticoDigest, type DiagnosticoItem } from '@/lib/liquidacion/diagnostico'
-import { StickyHeader } from '@/components/ui/StickyHeader'
-import { StickyKPIStrip, StickyKPIStripItem } from '@/components/ui/StickyKPIStrip'
-import { KPICard } from '@/components/ui/KPICard'
-import { ValidationIssueRow, prettyValidationCode } from '@/components/shared/ValidationIssueRow'
+import { getDashboardPeriod } from '@/lib/dashboard/queries'
+import { prettyValidationCode } from '@/components/shared/ValidationIssueRow'
+import { periodLabel } from '@/lib/period'
+import { fmtMoney } from '@/lib/format'
 import type { ValidationCode } from '@/lib/liquidacion/validations'
 
 export const dynamic    = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 
-type SeverityFilter = 'all' | 'error' | 'warning'
+const CAP = 6
 
 interface PageProps {
-  searchParams: Promise<{ severidad?: string; regla?: string }>
+  searchParams: Promise<{ regla?: string; q?: string }>
 }
 
-function isSeverity(s: string | undefined): s is 'error' | 'warning' {
-  return s === 'error' || s === 'warning'
+function fmtVal(v: unknown): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'number') return fmtMoney(v)
+  return String(v)
 }
 
 export default async function DiagnosticoPage({ searchParams }: PageProps) {
-  const sp = await searchParams
-  const severityFilter: SeverityFilter = isSeverity(sp.severidad) ? sp.severidad : 'all'
-  const codeFilter: ValidationCode | null = (sp.regla as ValidationCode) || null
+  const sp    = await searchParams
+  const regla = sp.regla ?? null
+  const q     = (sp.q ?? '').trim().toLowerCase()
 
-  const period      = getCurrentPeriod()
-  const periodLabel = getCurrentPeriodLabel()
+  const period = await getDashboardPeriod()
+  const digest = await getDiagnosticoDigest(period)
+  const { items, counts, byCode } = digest
 
-  let digest: Awaited<ReturnType<typeof getDiagnosticoDigest>> | null = null
-  let runtimeError: string | null = null
-  try {
-    digest = await getDiagnosticoDigest(period)
-  } catch (err) {
-    console.error('[/diagnostico] getDiagnosticoDigest threw:', err)
-    runtimeError = err instanceof Error ? err.message : String(err)
-  }
+  // Filter — by rule chip + free-text (contract, names, rule, message)
+  let filtered = items
+  if (regla) filtered = filtered.filter(i => i.issue.code === regla)
+  if (q) filtered = filtered.filter(i =>
+    (i.contractNumber ?? '').toLowerCase().includes(q) ||
+    (i.tenantName ?? '').toLowerCase().includes(q) ||
+    (i.landlordName ?? '').toLowerCase().includes(q) ||
+    prettyValidationCode(i.issue.code).toLowerCase().includes(q) ||
+    i.issue.message.toLowerCase().includes(q))
 
-  const items = digest?.items ?? []
-  const counts = digest?.counts ?? { errors: 0, warnings: 0, totalIssues: 0, cleanContracts: 0, totalContracts: 0 }
-  const byCode = digest?.byCode ?? {}
+  const errores      = filtered.filter(i => i.issue.severity === 'error')
+  const advertencias = filtered.filter(i => i.issue.severity === 'warning')
 
-  const filtered = items.filter(i => {
-    if (severityFilter !== 'all' && i.issue.severity !== severityFilter) return false
-    if (codeFilter && i.issue.code !== codeFilter) return false
-    return true
-  })
-
-  const grouped: Record<'error' | 'warning', DiagnosticoItem[]> = { error: [], warning: [] }
-  for (const it of filtered) grouped[it.issue.severity].push(it)
-
-  function linkWith(overrides: Partial<{ severidad: SeverityFilter; regla: ValidationCode | null }>) {
-    const merged: { severidad: SeverityFilter; regla: ValidationCode | null } = {
-      severidad: severityFilter,
-      regla:     codeFilter,
-      ...overrides,
-    }
-    const qs = new URLSearchParams()
-    if (merged.severidad && merged.severidad !== 'all') qs.set('severidad', merged.severidad)
-    if (merged.regla)                                    qs.set('regla',     merged.regla)
-    return qs.size > 0 ? `/diagnostico?${qs.toString()}` : '/diagnostico'
-  }
-
-  // Per-rule chip list — sorted by count desc so the most pressing rules
-  // surface first. Only rules with at least one occurrence are shown.
   const codeChips = (Object.entries(byCode) as [ValidationCode, number][])
-    .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1])
+    .filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])
+
+  const chipHref = (code: string) => {
+    const p = new URLSearchParams()
+    if (regla !== code) p.set('regla', code)
+    if (q) p.set('q', q)
+    const qs = p.toString()
+    return qs ? `/diagnostico?${qs}` : '/diagnostico'
+  }
+
+  const kpis = [
+    { Icon: AlertCircle,   color: '#EF4444', label: 'Errores',          value: String(counts.errors),                          sub: 'acción requerida' },
+    { Icon: AlertTriangle, color: '#F59E0B', label: 'Advertencias',     value: String(counts.warnings),                        sub: 'revisar este período' },
+    { Icon: ShieldCheck,   color: '#16A34A', label: 'Contratos limpios', value: `${counts.cleanContracts} / ${counts.totalContracts}`, sub: 'sin inconsistencias' },
+  ]
 
   return (
-    <>
-      <StickyHeader>
-        <div className="flex items-baseline justify-between gap-3 flex-wrap sm:flex-nowrap mb-2">
-          <p className="text-[13px] text-slate-dark min-w-0 truncate flex-1 sm:flex-initial">
-            <strong className="text-ink font-medium">Diagnóstico</strong>
-            {' · '}
-            {filtered.length === counts.totalIssues
-              ? `${counts.totalIssues} ${counts.totalIssues === 1 ? 'issue' : 'issues'} · ${periodLabel}`
-              : `${filtered.length} de ${counts.totalIssues} · ${periodLabel}`}
-          </p>
-        </div>
+    <div className="space-y-5 pb-6">
+      <header>
+        <h1 className="text-[26px] font-bold text-ink tracking-tight">Diagnóstico</h1>
+        <nav className="text-[12px] text-slate mt-1 flex items-center gap-1.5">
+          <Link href="/dashboard" className="text-info hover:underline">Inicio</Link>
+          <span className="text-slate/50">/</span>
+          <span className="text-slate-dark">Diagnóstico</span>
+          <span className="ml-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-info/10 text-info text-[12px] font-medium">
+            <CalendarDays size={13} /> {periodLabel(period)}
+          </span>
+        </nav>
+      </header>
 
-        <StickyKPIStrip cols={3}>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Errores"
-              value={counts.errors.toString()}
-              delta="acción requerida"
-              deltaTone={counts.errors > 0 ? 'negative' : 'positive'}
-              href={linkWith({ severidad: 'error', regla: null })}
-              clearHref={linkWith({ severidad: 'all', regla: null })}
-              active={severityFilter === 'error'}
-            />
-          </StickyKPIStripItem>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Advertencias"
-              value={counts.warnings.toString()}
-              delta="revisar cuando puedas"
-              deltaTone={counts.warnings > 0 ? 'negative' : 'neutral'}
-              href={linkWith({ severidad: 'warning', regla: null })}
-              clearHref={linkWith({ severidad: 'all', regla: null })}
-              active={severityFilter === 'warning'}
-            />
-          </StickyKPIStripItem>
-          <StickyKPIStripItem>
-            <KPICard
-              label="Contratos limpios"
-              value={`${counts.cleanContracts} / ${counts.totalContracts}`}
-              delta={counts.cleanContracts === counts.totalContracts ? '✓ todo en orden' : 'sin issues'}
-              deltaTone="positive"
-            />
-          </StickyKPIStripItem>
-        </StickyKPIStrip>
-      </StickyHeader>
+      {/* KPI cards */}
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {kpis.map(k => (
+          <div key={k.label} className="rounded-2xl border border-line border-l-[5px] bg-paper p-5 flex items-center gap-4 shadow-card" style={{ borderLeftColor: k.color }}>
+            <span className="w-14 h-14 rounded-xl grid place-items-center shrink-0 text-white" style={{ backgroundColor: k.color }}>
+              <k.Icon size={26} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[14px] text-slate-dark">{k.label}</p>
+              <p className="text-[30px] font-bold text-ink leading-none tabular-nums mt-0.5">{k.value}</p>
+              <p className="text-[12px] text-slate mt-1">{k.sub}</p>
+            </div>
+          </div>
+        ))}
+      </section>
 
-      {/* Per-rule filter chips */}
-      {codeChips.length > 0 && (
-        <div className="mt-4 bg-paper border border-line rounded shadow-card p-3">
-          <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
-            <span className="label-cap text-slate shrink-0">Regla</span>
-            <Link
-              href={linkWith({ regla: null })}
-              className={[
-                'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-[11px] font-medium transition-colors shrink-0',
-                !codeFilter
-                  ? 'bg-ink text-paper border-ink'
-                  : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
-              ].join(' ')}
-            >
-              Todas
-            </Link>
+      {/* Filter field + rule chips */}
+      <div className="flex flex-col gap-3">
+        <AutoSearchInput initialValue={sp.q ?? ''} placeholder="Filtrar por contrato, propietario, inquilino o regla…" />
+        {codeChips.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
             {codeChips.map(([code, n]) => {
-              const active = codeFilter === code
+              const active = regla === code
               return (
-                <Link
-                  key={code}
-                  href={linkWith({ regla: active ? null : code })}
-                  className={[
-                    'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[11px] font-medium transition-colors shrink-0',
-                    active
-                      ? 'bg-ink text-paper border-ink'
-                      : 'bg-cream-2 text-slate-dark border-line hover:bg-cream hover:border-slate/30',
-                  ].join(' ')}
-                  title={code}
-                >
-                  <span>{prettyValidationCode(code)}</span>
-                  <span className={`inline-flex items-center justify-center text-[9px] font-medium tabular-nums px-1 rounded ${active ? 'bg-paper/15 text-paper' : 'bg-line/60 text-slate-dark'}`}>
-                    {n}
-                  </span>
+                <Link key={code} href={chipHref(code)} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[13px] font-medium transition-colors ${
+                  active ? 'border-info text-info bg-info/5' : 'border-line text-slate-dark bg-paper hover:border-info/40'
+                }`}>
+                  {prettyValidationCode(code)}
+                  <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full text-[11px] tabular-nums ${active ? 'bg-info text-white' : 'bg-cream-2 text-slate-dark'}`}>{n}</span>
                 </Link>
               )
             })}
           </div>
-        </div>
-      )}
-
-      <div className="mt-4 space-y-4 pb-8">
-        {runtimeError && (
-          <div className="bg-danger/10 border border-danger/40 rounded p-3 text-[12px] text-ink">
-            <p className="font-medium text-danger">⚠ No se pudo calcular el listado de diagnóstico.</p>
-            <p className="text-slate-dark mt-1">{runtimeError}</p>
-          </div>
-        )}
-
-        {(['error', 'warning'] as const).map(sev => {
-          const list = grouped[sev]
-          if (list.length === 0) return null
-          const meta = sev === 'error'
-            ? { label: 'Errores',       sub: 'Acción requerida para cerrar el ciclo de liquidación', dot: 'bg-danger', banner: 'bg-danger/10 border-danger/30 text-ink' }
-            : { label: 'Advertencias', sub: 'Revisar cuando puedas — el flujo sigue funcionando',   dot: 'bg-warn',   banner: 'bg-warn/10 border-warn/30 text-ink' }
-          return (
-            <section key={sev} className="bg-paper border border-line rounded shadow-card overflow-hidden">
-              <div className={`px-4 py-2.5 border-b border-line flex items-center justify-between ${meta.banner}`}>
-                <div>
-                  <h2 className="font-display text-[14px] font-medium flex items-center gap-2">
-                    <span className={`inline-block w-2 h-2 rounded-full ${meta.dot}`} aria-hidden />
-                    {meta.label}
-                  </h2>
-                  <p className="text-[11px] text-slate mt-0.5">{meta.sub}</p>
-                </div>
-                <span className="text-[11px] text-slate-dark tabular-nums">
-                  {list.length} {list.length === 1 ? 'ítem' : 'ítems'}
-                </span>
-              </div>
-              <ul>
-                {list.map(item => (
-                  <ValidationIssueRow
-                    key={`${item.contractId}-${item.issue.code}`}
-                    issue={item.issue}
-                    contract={{
-                      contractId:   item.contractId,
-                      tenantName:   item.tenantName,
-                      landlordName: item.landlordName,
-                    }}
-                  />
-                ))}
-              </ul>
-            </section>
-          )
-        })}
-
-        {filtered.length === 0 && !runtimeError && (
-          <div className="bg-paper border border-line rounded shadow-card p-10 text-center">
-            <p className="text-[14px] text-slate">
-              {counts.totalIssues === 0
-                ? '✓ Todo en orden — no hay issues de validación en este período.'
-                : 'Sin issues que coincidan con los filtros aplicados.'}
-            </p>
-          </div>
         )}
       </div>
-    </>
+
+      {/* Errores */}
+      <Section title="Errores" count={errores.length} dot="#EF4444" items={errores} />
+
+      {/* Advertencias */}
+      <Section title="Advertencias" count={advertencias.length} dot="#F59E0B" items={advertencias} />
+
+      {filtered.length === 0 && (
+        <div className="bg-paper border border-line rounded-2xl shadow-card p-10 text-center">
+          <ShieldCheck size={36} className="text-success mx-auto" />
+          <p className="text-[15px] font-medium text-ink mt-2">
+            {counts.totalIssues === 0 ? 'Todo en orden — sin inconsistencias en este período.' : 'Ningún issue coincide con el filtro.'}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Section({ title, count, dot, items }: { title: string; count: number; dot: string; items: DiagnosticoItem[] }) {
+  if (items.length === 0) return null
+  const head = items.slice(0, CAP)
+  const rest = items.slice(CAP)
+  return (
+    <section className="bg-paper border border-line rounded-2xl shadow-card overflow-hidden">
+      <div className="px-5 py-3 border-b border-line flex items-center gap-2">
+        <h2 className="font-display text-[16px] font-semibold text-ink">{title}</h2>
+        <span className="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full text-white text-[12px] font-semibold tabular-nums" style={{ backgroundColor: dot }}>{count}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[860px]">
+          {head.map((it, i) => <Row key={`${it.contractId}-${it.issue.code}-${i}`} it={it} dot={dot} />)}
+          {rest.length > 0 && (
+            <details className="group">
+              <summary className="list-none cursor-pointer px-5 py-3 text-[13px] font-medium text-info hover:bg-cream-2 flex items-center gap-1.5 [&::-webkit-details-marker]:hidden border-t border-line">
+                <ChevronRight size={15} className="transition-transform group-open:rotate-90" />
+                Ver {rest.length} más
+              </summary>
+              {rest.map((it, i) => <Row key={`${it.contractId}-${it.issue.code}-rest-${i}`} it={it} dot={dot} />)}
+            </details>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Row({ it, dot }: { it: DiagnosticoItem; dot: string }) {
+  const { issue } = it
+  const ea: string[] = []
+  if (issue.expected !== null && issue.expected !== undefined) ea.push(`Esperado: ${fmtVal(issue.expected)}`)
+  if (issue.actual !== null && issue.actual !== undefined)     ea.push(`Actual: ${fmtVal(issue.actual)}`)
+  return (
+    <Link href={`/contratos/${it.contractId}`} className="grid grid-cols-[10px_170px_210px_1fr_240px_18px] items-center gap-3 px-5 py-3 border-b border-line/60 last:border-0 hover:bg-cream-2 transition-colors">
+      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: dot }} />
+      <span className="text-[13px] font-medium text-ink truncate">{prettyValidationCode(issue.code)}</span>
+      <span className="text-[13px] text-slate-dark truncate tabular-nums">{it.contractNumber ?? `#${it.contractId.slice(0, 8)}`} · {it.tenantName}</span>
+      <span className="text-[13px] text-slate truncate">{issue.message}</span>
+      <span className="text-[12px] text-slate text-right truncate tabular-nums">{ea.join(' · ')}</span>
+      <ChevronRight size={16} className="text-slate/50" />
+    </Link>
   )
 }
