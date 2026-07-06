@@ -5,12 +5,13 @@
 // ============================================================================
 
 import Link from 'next/link'
-import { AlertCircle, AlertTriangle, ShieldCheck, ChevronRight, CalendarDays } from 'lucide-react'
+import { AlertCircle, AlertTriangle, ShieldCheck, ChevronRight } from 'lucide-react'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { PeriodSelect } from '@/components/charts/panel/PeriodSelect'
 import { getDiagnosticoDigest, type DiagnosticoItem } from '@/lib/liquidacion/diagnostico'
-import { getDashboardPeriod } from '@/lib/dashboard/queries'
+import { getDashboardPeriod, getPeriodsWithData } from '@/lib/dashboard/queries'
 import { prettyValidationCode } from '@/components/shared/ValidationIssueRow'
-import { periodLabel } from '@/lib/period'
+import { buildPeriodTabs } from '@/lib/period'
 import { fmtMoney } from '@/lib/format'
 import type { ValidationCode } from '@/lib/liquidacion/validations'
 
@@ -20,7 +21,7 @@ export const fetchCache = 'force-no-store'
 const CAP = 6
 
 interface PageProps {
-  searchParams: Promise<{ regla?: string; q?: string }>
+  searchParams: Promise<{ period?: string; regla?: string; q?: string }>
 }
 
 function fmtVal(v: unknown): string {
@@ -34,9 +35,19 @@ export default async function DiagnosticoPage({ searchParams }: PageProps) {
   const regla = sp.regla ?? null
   const q     = (sp.q ?? '').trim().toLowerCase()
 
-  const period = await getDashboardPeriod()
+  const [latest, dataPeriods] = await Promise.all([getDashboardPeriod(), getPeriodsWithData()])
+  const validReq = sp.period && /^\d{4}-\d{2}-01$/.test(sp.period) ? sp.period : null
+  const period = validReq ?? latest
+  const selectorPeriods = buildPeriodTabs(dataPeriods, period, 3)
+
   const digest = await getDiagnosticoDigest(period)
   const { items, counts, byCode } = digest
+
+  // Preserve the active rule + search when switching month.
+  const dgExtra = new URLSearchParams()
+  if (regla)  dgExtra.set('regla', regla)
+  if (sp.q)   dgExtra.set('q', sp.q)
+  const dgExtraQuery = dgExtra.toString()
 
   // Filter — by rule chip + free-text (contract, names, rule, message)
   let filtered = items
@@ -70,16 +81,16 @@ export default async function DiagnosticoPage({ searchParams }: PageProps) {
 
   return (
     <div className="space-y-5 pb-6">
-      <header>
-        <h1 className="text-[26px] font-bold text-ink tracking-tight">Diagnóstico</h1>
-        <nav className="text-[12px] text-slate mt-1 flex items-center gap-1.5">
-          <Link href="/dashboard" className="text-info hover:underline">Inicio</Link>
-          <span className="text-slate/50">/</span>
-          <span className="text-slate-dark">Diagnóstico</span>
-          <span className="ml-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-info/10 text-info text-[12px] font-medium">
-            <CalendarDays size={13} /> {periodLabel(period)}
-          </span>
-        </nav>
+      <header className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-[26px] font-bold text-ink tracking-tight">Diagnóstico</h1>
+          <nav className="text-[12px] text-slate mt-1 flex items-center gap-1.5">
+            <Link href="/dashboard" className="text-info hover:underline">Inicio</Link>
+            <span className="text-slate/50">/</span>
+            <span className="text-slate-dark">Diagnóstico</span>
+          </nav>
+        </div>
+        <PeriodSelect current={period} periods={selectorPeriods} basePath="/diagnostico" extraQuery={dgExtraQuery} />
       </header>
 
       {/* KPI cards */}
