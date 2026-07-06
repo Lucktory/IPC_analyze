@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/Badge'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { ClickableRow } from '@/components/ui/ClickableRow'
+import { StatCard } from '@/components/ui/StatCard'
 import { listContracts, type ContractListFilters, type ContractRow } from '@/lib/entities/queries'
 import { fmtMoney as fmt, fmtDate } from '@/lib/format'
 
@@ -90,24 +91,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       {/* KPI row */}
       <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 shrink-0">
         {stats.map(s => (
-          <Link
-            key={s.key}
-            href={s.href}
-            className={`rounded-xl border bg-paper p-4 flex flex-col gap-3 transition-colors ${
-              s.active ? 'border-info ring-1 ring-info/30' : 'border-line hover:border-info/40'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="w-9 h-9 rounded-lg grid place-items-center shrink-0 text-white" style={{ backgroundColor: s.color }}>
-                <s.Icon size={18} />
-              </span>
-              <span className="text-[12px] font-medium text-slate leading-tight">{s.label}</span>
-            </div>
-            <div>
-              <p className="text-[26px] font-semibold text-ink leading-none tabular-nums">{s.value.toLocaleString('es-AR')}</p>
-              <p className="text-[11px] text-slate mt-1.5">{s.sub}</p>
-            </div>
-          </Link>
+          <StatCard key={s.key} Icon={s.Icon} color={s.color} label={s.label} value={s.value.toLocaleString('es-AR')} sub={s.sub} href={s.href} active={s.active} />
         ))}
       </section>
 
