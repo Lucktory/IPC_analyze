@@ -1,9 +1,12 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, Home, ShieldCheck, DollarSign, DoorOpen, Ruler, MapPin, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Home, ShieldCheck, DollarSign, DoorOpen, Ruler, MapPin, ExternalLink, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { getPropertyDetail } from '@/lib/property/queries'
+import { EditPropertyForm } from '@/components/property/EditPropertyForm'
+import { listLandlordOptions } from '@/lib/landlord/queries'
+import { listTenantOptions } from '@/lib/tenant/queries'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { fmtMoney as fmt, fmtDate } from '@/lib/format'
 
@@ -24,7 +27,11 @@ interface PageProps { params: Promise<{ id: string }> }
 
 export default async function PropertyDetailPage({ params }: PageProps) {
   const { id } = await params
-  const prop = await getPropertyDetail(id)
+  const [prop, landlordOptions, tenantOptions] = await Promise.all([
+    getPropertyDetail(id),
+    listLandlordOptions(),
+    listTenantOptions(),
+  ])
   if (!prop) notFound()
 
   const active   = prop.contracts.find(c => c.status === 'active') ?? null
@@ -127,6 +134,22 @@ export default async function PropertyDetailPage({ params }: PageProps) {
               </>
             )}
           </Card>
+
+          {/* Editar (collapsible) — full property editor: datos + propietarios + contrato activo */}
+          <details className="bg-paper border border-line rounded-xl shadow-card">
+            <summary className="list-none px-4 sm:px-5 py-3.5 flex items-center gap-2 cursor-pointer text-[14px] font-medium text-ink [&::-webkit-details-marker]:hidden">
+              <Pencil size={15} className="text-slate" /> Editar propiedad
+            </summary>
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-line">
+              <EditPropertyForm
+                property={prop}
+                contractCount={prop.contracts.length}
+                activeContract={active}
+                landlordOptions={landlordOptions}
+                tenantOptions={tenantOptions}
+              />
+            </div>
+          </details>
         </div>
 
         {/* Center */}

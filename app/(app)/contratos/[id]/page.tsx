@@ -12,6 +12,10 @@ import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { MovimientosPanel } from '@/components/shared/MovimientosPanel'
 import { RecurringChargesEditor } from '@/components/contract/RecurringChargesEditor'
 import { AplicarAumentoControl } from '@/components/contract/AplicarAumentoControl'
+import { InlineParticipantsCell } from '@/components/liquidacion/InlineParticipantsCell'
+import { CommissionPctEditor } from '@/components/contract/CommissionPctEditor'
+import { listLandlordOptions } from '@/lib/landlord/queries'
+import { listTenantOptions } from '@/lib/tenant/queries'
 import { DeudaBreakdownPanel } from '@/components/shared/DeudaBreakdownPanel'
 import { getDeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
 import { ValidationIssueRow } from '@/components/shared/ValidationIssueRow'
@@ -61,11 +65,13 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
 
   const periods = await getContractPeriods(id)
   const period  = paramPeriod ?? periods[0] ?? getCurrentPeriod()
-  const [embudo, note, deudaBreakdown, contractIssues] = await Promise.all([
+  const [embudo, note, deudaBreakdown, contractIssues, landlordOptions, tenantOptions] = await Promise.all([
     getEmbudoForContract(id, period),
     getNoteForPeriod(id, period),
     getDeudaBreakdown(id, period),
     getContractDiagnostico(id, period),
+    listLandlordOptions(),
+    listTenantOptions(),
   ])
 
   const primaryTenant  = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
@@ -163,44 +169,30 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
 
       {/* People + resumen band */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Propietarios */}
+        {/* Propietarios — editable (same editor as the planilla) */}
         <Card title="Propietarios" sub={`${contract.landlords.length} en este contrato`}>
-          <ul className="divide-y divide-line">
-            {contract.landlords.map(l => (
-              <li key={l.id} className="py-2.5 flex items-center gap-3">
-                <Avatar name={l.name} color="#3B82F6" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] text-ink truncate">{l.name}</p>
-                  {l.cuit && <p className="text-[11px] text-slate tabular-nums">CUIT {l.cuit}</p>}
-                </div>
-                <span className="text-[12px] font-medium text-info tabular-nums shrink-0">{l.ownershipPct.toFixed(0)}%</span>
-              </li>
-            ))}
-          </ul>
-          <div className="pt-2.5 mt-1 border-t border-line flex items-center justify-between text-[12px]">
+          <InlineParticipantsCell
+            kind="landlord"
+            contractId={contract.id}
+            initial={contract.landlords.map(l => ({ id: l.id, name: l.name, pct: l.ownershipPct }))}
+            options={landlordOptions}
+          />
+          <div className="pt-2.5 mt-2 border-t border-line flex items-center justify-between text-[12px]">
             <span className="text-slate">Total</span>
             <span className="tabular-nums text-ink font-medium">{contract.landlords.reduce((s, l) => s + l.ownershipPct, 0).toFixed(0)}%</span>
           </div>
+          <p className="text-[10px] text-slate mt-1.5 italic">Tocá para editar propietarios y su %</p>
         </Card>
 
-        {/* Inquilinos */}
+        {/* Inquilinos — editable, incl. the % each tenant pays */}
         <Card title="Inquilinos" sub={`${contract.tenants.length} en este contrato`}>
-          <ul className="divide-y divide-line">
-            {contract.tenants.map(t => (
-              <li key={t.id} className="py-2.5 flex items-center gap-3">
-                <Avatar name={t.name} color="#34D399" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] text-ink truncate">
-                    {t.name}
-                    {t.isPrimary && <span className="ml-2 text-[9px] text-slate uppercase tracking-wider">titular</span>}
-                  </p>
-                  {t.dni ? <p className="text-[11px] text-slate tabular-nums">DNI {t.dni}</p>
-                         : t.phone && <p className="text-[11px] text-slate tabular-nums">{t.phone}</p>}
-                </div>
-                <span className="text-[12px] font-medium text-success tabular-nums shrink-0">{t.sharePct.toFixed(0)}%</span>
-              </li>
-            ))}
-          </ul>
+          <InlineParticipantsCell
+            kind="tenant"
+            contractId={contract.id}
+            initial={contract.tenants.map(t => ({ id: t.id, name: t.name, pct: t.sharePct }))}
+            options={tenantOptions}
+          />
+          <p className="text-[10px] text-slate mt-1.5 italic">Tocá para editar inquilinos y el % que paga cada uno</p>
         </Card>
 
         {/* Resumen + progreso */}
@@ -211,6 +203,10 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
             <ResumenRow k="Destino" v={contract.property ? cap(contract.property.propertyType) : '—'} />
             <ResumenRow k="Expensas" v={contract.expensas > 0 ? fmt(contract.expensas) : 'A cargo del inquilino'} />
             <ResumenRow k="Depósito" v={contract.depositAmount != null ? fmt(contract.depositAmount) : '—'} />
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-slate shrink-0">Comisión</dt>
+              <dd className="w-24"><CommissionPctEditor contractId={contract.id} pct={contract.commissionPct} /></dd>
+            </div>
             {contract.rentFacturadoNeto != null && (
               <div className="pt-2 mt-1 border-t border-line space-y-2">
                 <p className="text-[11px] text-slate uppercase tracking-wider">Alquiler en dos partes</p>
