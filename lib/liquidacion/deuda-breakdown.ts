@@ -112,20 +112,26 @@ export async function buildDeudaBreakdownsBulk(
   const allPeriods = [period, ...priors]
   const contractIds = contracts.map(c => c.id)
 
+  // Fetch every transaction in the window (all types) so we can tell which
+  // (contract, period) pairs were actually LOADED. RENT_IN + RENT_NF_IN feed
+  // the cobrado sum; the presence of ANY transaction marks the period as
+  // tracked, so we don't invent debt for months that were never imported.
   const { data: txns } = await supabase
     .from('transactions')
     .select('contract_id, amount, period, transaction_types!inner(code)')
     .in('contract_id', contractIds)
     .in('period', allPeriods)
-    // N/F (RENT_NF_IN) is real rent too, so it counts toward what was cobrado
-    // when computing this-period + carryover deuda.
-    .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
 
-  // Bucket: (contractId|period) → sum
-  const cobradoByKey = new Map<string, number>()
+  const cobradoByKey = new Map<string, number>()   // RENT_IN + RENT_NF_IN only
+  const trackedKeys  = new Set<string>()           // any transaction → period was loaded
   for (const t of (txns ?? []) as any[]) {
-    const key = `${t.contract_id}|${t.period}`
-    cobradoByKey.set(key, (cobradoByKey.get(key) ?? 0) + Number(t.amount))
+    const key   = `${t.contract_id}|${t.period}`
+    trackedKeys.add(key)
+    const ttRaw = t.transaction_types
+    const code  = Array.isArray(ttRaw) ? ttRaw[0]?.code : ttRaw?.code
+    if (code === 'RENT_IN' || code === 'RENT_NF_IN') {
+      cobradoByKey.set(key, (cobradoByKey.get(key) ?? 0) + Number(t.amount))
+    }
   }
 
   for (const c of contracts) {
@@ -135,6 +141,10 @@ export async function buildDeudaBreakdownsBulk(
     const carryover: DeudaCarryoverEntry[] = []
     for (const p of priors) {
       if (c.startDate && p < c.startDate) continue
+      // Skip prior months that were never loaded (no transactions at all).
+      // Assuming full rent owed for un-imported months invented large phantom
+      // debt (e.g. a contract loaded only from May showed Mar/Apr fully unpaid).
+      if (!trackedKeys.has(`${c.id}|${p}`)) continue
       const cobrado = cobradoByKey.get(`${c.id}|${p}`) ?? 0
       const deuda   = Math.max(0, c.currentRent - cobrado)
       carryover.push({
