@@ -482,7 +482,7 @@ export async function getCollectionHealth(period?: string): Promise<CollectionHe
       supabase
         .from('transactions')
         .select('amount, contract_id, transaction_types!inner(code)')
-        .eq(TT_CODE, 'RENT_IN')
+        .in(TT_CODE, ['RENT_IN', 'RENT_NF_IN'])   // N/F is rent too
         .eq('period', p),
       supabase
         .from('transactions')

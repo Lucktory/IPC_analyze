@@ -17,6 +17,10 @@ export interface ContractDetail {
   currentRent:     number
   initialRent:     number
   expensas:        number
+  /** Two-part commercial rent (null = ordinary contract, no facturado/N-F split). */
+  rentFacturadoNeto: number | null
+  rentNoFacturado:   number
+  rentIvaRate:       number
   currency:        string
   cadence:         string
   indexer:         string
@@ -39,7 +43,8 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
   const { data } = await supabase
     .from('contracts')
     .select(`
-      id, contract_number, status, current_rent, initial_rent, expensas, currency, cadence, indexer,
+      id, contract_number, status, current_rent, initial_rent, expensas,
+      rent_facturado_neto, rent_no_facturado, rent_iva_rate, currency, cadence, indexer,
       start_date, end_date, next_adjustment_date, payment_day, commission_pct, deposit_amount, deposit_status, notes,
       contract_landlords(ownership_pct, landlords(id, name, dni_or_cuit)),
       contract_tenants(is_primary, share_pct, tenants(id, name, phone, dni)),
@@ -58,6 +63,9 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     currentRent:     Number(c.current_rent),
     initialRent:     Number(c.initial_rent),
     expensas:        Number(c.expensas ?? 0),
+    rentFacturadoNeto: c.rent_facturado_neto != null ? Number(c.rent_facturado_neto) : null,
+    rentNoFacturado:   Number(c.rent_no_facturado ?? 0),
+    rentIvaRate:       Number(c.rent_iva_rate ?? 0),
     currency:        c.currency,
     cadence:         c.cadence,
     indexer:         c.indexer,
@@ -106,7 +114,7 @@ export async function getContractPaymentHistory(contractId: string, months = 5):
     .from('transactions')
     .select('period, amount, bank_date, transaction_types!inner(code)')
     .eq('contract_id', contractId)
-    .eq('transaction_types.code', 'RENT_IN')
+    .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])   // N/F is rent too
 
   const byPeriod = new Map<string, { amount: number; cobrado: boolean }>()
   for (const t of (data ?? []) as any[]) {
@@ -193,7 +201,7 @@ export async function getEmbudoForContract(
   for (const tx of (data ?? []) as any[]) {
     const code = tx.transaction_types.code as string
     const amount = Number(tx.amount)
-    if (code === 'RENT_IN' || code === 'OTHER_IN') {
+    if (code === 'RENT_IN' || code === 'RENT_NF_IN' || code === 'OTHER_IN') {
       embudo.rent += amount
     } else if (RECOVERY_TYPES.has(code)) {
       recoveryMap.set(code, (recoveryMap.get(code) ?? 0) + amount)

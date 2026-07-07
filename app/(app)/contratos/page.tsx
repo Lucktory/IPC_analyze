@@ -98,7 +98,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap shrink-0">
         <div className="flex-1 min-w-[220px]">
-          <AutoSearchInput initialValue={filters.q ?? ''} placeholder="Buscar por propietario o inquilino…" resetParams={['pagina']} />
+          <AutoSearchInput initialValue={filters.q ?? ''} placeholder="Buscar por N° de contrato, propietario o inquilino…" resetParams={['pagina']} />
         </div>
 
         <details className="relative">

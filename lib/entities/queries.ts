@@ -57,7 +57,7 @@ export async function listLandlords(period?: string): Promise<LandlordRow[]> {
         contract_id,
         transaction_types!inner(code)
       `)
-      .eq('transaction_types.code', 'RENT_IN')
+      .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])   // N/F is rent too
       .eq('period', p),
   ])
 
@@ -189,7 +189,7 @@ export async function listTenants(period?: string): Promise<TenantRow[]> {
     supabase
       .from('transactions')
       .select('contract_id, amount, transaction_types!inner(code)')
-      .eq('transaction_types.code', 'RENT_IN')
+      .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])   // N/F is rent too
       .eq('period', p),
   ])
 
@@ -544,7 +544,7 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
       .from('transactions')
       .select(`contract_id, bank_date, transaction_types!inner(code)`)
       .eq('period', auditPeriod)
-      .eq('transaction_types.code', 'RENT_IN'),
+      .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN']),   // N/F is rent too
     // Per-contract notes for the audit period
     supabase
       .from('contract_period_notes')
@@ -668,7 +668,9 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
     const q = filters.q.trim().toLowerCase()
     rows = rows.filter(c =>
       c.primaryTenant.toLowerCase().includes(q) ||
-      c.primaryLandlord.toLowerCase().includes(q),
+      c.primaryLandlord.toLowerCase().includes(q) ||
+      (c.contractNumber ?? '').toLowerCase().includes(q) ||
+      (c.propertyAddress ?? '').toLowerCase().includes(q),
     )
   }
   if (filters.pendientes) {
@@ -852,7 +854,7 @@ export async function listTransactions(period?: string): Promise<TransactionRow[
     //   OK:       complete
     const reasons: string[] = []
     let urgency: UrgencyTier = 'ok'
-    const isRevenueLike = code === 'RENT_IN' || code === 'OTHER_IN' || code === 'EXPENSAS_IN'
+    const isRevenueLike = code === 'RENT_IN' || code === 'RENT_NF_IN' || code === 'OTHER_IN' || code === 'EXPENSAS_IN'
     if (isRevenueLike && !t.contract_id) {
       urgency = 'critical'
       reasons.push('Sin contrato asignado — no se puede liquidar')

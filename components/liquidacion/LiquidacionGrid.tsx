@@ -566,9 +566,9 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       upcomingAdjustment={r.hasUpcomingAdjustment && r.daysUntilAdjustment != null
                         ? { days: r.daysUntilAdjustment }
                         : null}
-                      onlyTypes={['RENT_IN']}
+                      onlyTypes={['RENT_IN', 'RENT_NF_IN']}
                       defaultNewLineType="RENT_IN"
-                      popoverTitle="Alquiler — Sólo cobros de RENT_IN"
+                      popoverTitle="Alquiler — cobros c/factura (RENT_IN) + s/factura (N/F)"
                       cellBgClass={aumentoClass}
                       buttonTitle={r.periodHasAumento
                         ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
@@ -607,7 +607,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       total={extrasSum}
                       adjustmentAmount={r.adjustmentAmount}
                       cobrado={cobrado}
-                      excludeTypes={['RENT_IN']}
+                      excludeTypes={['RENT_IN', 'RENT_NF_IN']}
                       defaultNewLineType="RECUPERO_ABL_IN"
                       popoverTitle="Extras — Recuperos del período (sin alquiler)"
                       cellBgClass={

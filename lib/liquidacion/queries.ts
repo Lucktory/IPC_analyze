@@ -723,12 +723,12 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     if (typ.direction === 'IN')      entry.movTotalIn  += amt
     else if (typ.direction === 'OUT') entry.movTotalOut += amt
 
-    if (typ.code === 'RENT_IN') {
+    if (typ.code === 'RENT_IN' || typ.code === 'RENT_NF_IN') {
       if (typ.affects_liquidacion) entry.ingresos += amt
       if (t.bank_date && (!entry.fechaBanco || t.bank_date > entry.fechaBanco)) {
         entry.fechaBanco = t.bank_date
       }
-      // RENT_IN is always part of the Ingresos breakdown.
+      // RENT_IN + RENT_NF_IN (N/F) are always part of the Ingresos breakdown.
       entry.ingresosLines.push({
         transactionId: t.id, typeCode: typ.code, typeLabel: typ.label,
         amount: amt, description: t.description ?? null, bankDate: t.bank_date,
@@ -999,8 +999,10 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       // Sorted: rent first, then by amount desc — most relevant lines
       // visible first when the popover opens.
       ingresosLines: a.ingresosLines.sort((x, y) => {
-        if (x.typeCode === 'RENT_IN' && y.typeCode !== 'RENT_IN') return -1
-        if (x.typeCode !== 'RENT_IN' && y.typeCode === 'RENT_IN') return 1
+        const xRent = x.typeCode === 'RENT_IN' || x.typeCode === 'RENT_NF_IN'
+        const yRent = y.typeCode === 'RENT_IN' || y.typeCode === 'RENT_NF_IN'
+        if (xRent && !yRent) return -1
+        if (!xRent && yRent) return 1
         return y.amount - x.amount
       }),
       // Phase 9C: pre-compute the Alquiler / Extras split so the grid
@@ -1014,7 +1016,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           let alquiler = 0
           let extrasRecuperos = 0
           for (const line of a.ingresosLines) {
-            if (line.typeCode === 'RENT_IN') alquiler       += line.amount
+            if (line.typeCode === 'RENT_IN' || line.typeCode === 'RENT_NF_IN') alquiler += line.amount
             else                              extrasRecuperos += line.amount
           }
           return { alquilerSum: alquiler, extrasSum: extrasRecuperos + adjustment }

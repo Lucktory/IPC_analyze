@@ -231,6 +231,13 @@ create table contracts (
   current_rent numeric(12,2) not null,
   initial_rent numeric(12,2) not null,
   expensas numeric(12,2) default 0,
+  -- Two-part commercial rent (2026-07-06): some contracts bill a facturado
+  -- part (with factura; +IVA when RI, 0 when Monotributo) plus a "no facturado"
+  -- (N/F) part paid without invoice. Both are real rent. When the split is
+  -- used, current_rent holds the full total; these break it down and drive
+  -- the aumento (applied to each part) + the liquidacion N/F line (RENT_NF_IN).
+  rent_facturado_neto numeric(14,2),
+  rent_no_facturado   numeric(14,2) not null default 0,
   currency text default 'ARS' check (currency in ('ARS','USD')),
   indexer text default 'IPC_GENERAL' check (indexer in ('IPC_GENERAL','ICL','CASA_PROPIA','FIXED')),
   cadence text default 'trimestral' check (cadence in ('mensual','bimestral','trimestral','cuatrimestral','semestral','anual')),
@@ -655,9 +662,10 @@ insert into banks (name, short_code) values
   ('Banco Comafi',         'COMAFI'),
   ('Mercado Pago',         'MP');
 
--- Transaction types (21 codes covering everything Alejandro records)
+-- Transaction types (22 codes covering everything Alejandro records)
 insert into transaction_types (code, label, direction, category, affects_liquidacion) values
   ('RENT_IN',              'Alquiler cobrado',              'IN',  'rent',       true),
+  ('RENT_NF_IN',           'Alquiler s/factura (N/F)',      'IN',  'rent',       true),
   ('EXPENSAS_IN',          'Expensas cobradas',             'IN',  'expense',    true),
   ('DEPOSIT_IN',           'Depósito de garantía',          'IN',  'deposit',    false),
   ('LATE_FEE_IN',          'Recargo por mora',              'IN',  'rent',       true),

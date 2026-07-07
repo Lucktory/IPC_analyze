@@ -32,6 +32,7 @@ import { INGRESOS_LINE_TYPES } from '@/lib/liquidacion/ingresos-line-types'
 // transaction_types.label values so the popover and the dropdown agree.
 const TYPE_LABELS: Record<string, string> = {
   RENT_IN:               'Alquiler',
+  RENT_NF_IN:            'Alquiler s/factura (N/F)',
   EXPENSAS_IN:           'Expensas',
   LATE_FEE_IN:           'Mora / recargo',
   RECUPERO_ABL_IN:       'Recupero ABL',

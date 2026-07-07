@@ -92,6 +92,64 @@ export async function updateContractCommissionIncludesIva(
 // Recurring charges now live in `contract_recurring_charges` with N rows
 // per contract — see lib/contract/recurring-charges.ts for the CRUD.)
 
+// ── Aplicar aumento (IPC increase) — scales BOTH rent parts ─────────────────
+// Per Alejandro: "los aumentos de contratos se deben calcular por cada una de
+// esas partes también." For a two-part contract (facturado + N/F) the same
+// factor is applied to each part independently; IVA re-derives from
+// rent_iva_rate and current_rent becomes the new total. Ordinary contracts
+// just scale current_rent. Records an adjustments row for the audit trail.
+export async function applyContractAumento(contractId: string, pct: number): Promise<InlineResult> {
+  if (!isFinite(pct) || pct <= -100) {
+    return { ok: false, error: 'El porcentaje de aumento es inválido.' }
+  }
+  const supabase = await createSupabaseServer()
+  const { data: c, error: cErr } = await supabase
+    .from('contracts')
+    .select('current_rent, rent_facturado_neto, rent_no_facturado, rent_iva_rate')
+    .eq('id', contractId)
+    .maybeSingle()
+  if (cErr) return dbFailure(cErr)
+  if (!c) return { ok: false, error: 'Contrato no encontrado.' }
+
+  const round2  = (n: number) => Math.round(n * 100) / 100
+  const factor  = 1 + pct / 100
+  const oldRent = Number((c as any).current_rent ?? 0)
+  const neto    = (c as any).rent_facturado_neto
+
+  const update: Record<string, unknown> = { last_adjustment_date: new Date().toISOString().slice(0, 10) }
+  let newRent: number
+  if (neto != null) {
+    // Two-part contract: scale facturado neto AND N/F by the same factor.
+    const ivaRate = Number((c as any).rent_iva_rate ?? 0)
+    const newNeto = round2(Number(neto) * factor)
+    const newNf   = round2(Number((c as any).rent_no_facturado ?? 0) * factor)
+    newRent = round2(newNeto * (1 + ivaRate / 100) + newNf)
+    update.rent_facturado_neto = newNeto
+    update.rent_no_facturado   = newNf
+    update.current_rent        = newRent
+  } else {
+    newRent = round2(oldRent * factor)
+    update.current_rent = newRent
+  }
+
+  const { error: upErr } = await supabase.from('contracts').update(update).eq('id', contractId)
+  if (upErr) return dbFailure(upErr)
+
+  // Best-effort audit row — a failed insert must not undo the applied aumento.
+  const { error: adjErr } = await supabase.from('adjustments').insert({
+    contract_id: contractId,
+    applied_at:  (update.last_adjustment_date as string),
+    old_rent:    oldRent,
+    new_rent:    newRent,
+    factor:      Math.round(factor * 1e6) / 1e6,
+    cpi_values:  { manual_pct: pct },
+  })
+  if (adjErr) console.warn('[applyContractAumento] adjustment audit insert failed:', adjErr.message)
+
+  revalidate(contractId)
+  return { ok: true, error: null }
+}
+
 // ── Vigencia (start_date / end_date) ────────────────────────────────────────
 export async function updateContractVigencia(
   contractId: string,

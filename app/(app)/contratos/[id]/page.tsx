@@ -11,6 +11,7 @@ import { getNoteForPeriod } from '@/lib/contract/notes'
 import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { MovimientosPanel } from '@/components/shared/MovimientosPanel'
 import { RecurringChargesEditor } from '@/components/contract/RecurringChargesEditor'
+import { AplicarAumentoControl } from '@/components/contract/AplicarAumentoControl'
 import { DeudaBreakdownPanel } from '@/components/shared/DeudaBreakdownPanel'
 import { getDeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
 import { ValidationIssueRow } from '@/components/shared/ValidationIssueRow'
@@ -149,6 +150,17 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
         ))}
       </section>
 
+      {/* Aumento — scales both parts for two-part contracts */}
+      <div className="flex justify-end">
+        <AplicarAumentoControl
+          contractId={contract.id}
+          currentRent={contract.currentRent}
+          rentFacturadoNeto={contract.rentFacturadoNeto}
+          rentNoFacturado={contract.rentNoFacturado}
+          rentIvaRate={contract.rentIvaRate}
+        />
+      </div>
+
       {/* People + resumen band */}
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Propietarios */}
@@ -199,6 +211,23 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
             <ResumenRow k="Destino" v={contract.property ? cap(contract.property.propertyType) : '—'} />
             <ResumenRow k="Expensas" v={contract.expensas > 0 ? fmt(contract.expensas) : 'A cargo del inquilino'} />
             <ResumenRow k="Depósito" v={contract.depositAmount != null ? fmt(contract.depositAmount) : '—'} />
+            {contract.rentFacturadoNeto != null && (
+              <div className="pt-2 mt-1 border-t border-line space-y-2">
+                <p className="text-[11px] text-slate uppercase tracking-wider">Alquiler en dos partes</p>
+                <ResumenRow k="Facturado (neto)" v={fmt(contract.rentFacturadoNeto)} mono />
+                {contract.rentIvaRate > 0 && (
+                  <ResumenRow k={`IVA (${contract.rentIvaRate}%)`} v={fmt(contract.rentFacturadoNeto * contract.rentIvaRate / 100)} mono />
+                )}
+                <ResumenRow k="Facturado c/IVA" v={fmt(contract.rentFacturadoNeto * (1 + contract.rentIvaRate / 100))} mono />
+                <ResumenRow k="No facturado (N/F)" v={fmt(contract.rentNoFacturado)} mono />
+                <div className="flex items-start justify-between gap-3 pt-1.5 border-t border-line">
+                  <dt className="text-ink font-medium shrink-0">Total alquiler</dt>
+                  <dd className="text-ink text-right font-semibold tabular-nums">
+                    {fmt(contract.rentFacturadoNeto * (1 + contract.rentIvaRate / 100) + contract.rentNoFacturado)}
+                  </dd>
+                </div>
+              </div>
+            )}
           </dl>
           <div className="mt-4 pt-3 border-t border-line">
             <div className="flex items-center justify-between text-[12px] mb-1.5">

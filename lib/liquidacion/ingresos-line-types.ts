@@ -13,6 +13,7 @@
 
 export const INGRESOS_LINE_TYPES = [
   'RENT_IN',
+  'RENT_NF_IN',
   'EXPENSAS_IN',
   'LATE_FEE_IN',
   'RECUPERO_ABL_IN',

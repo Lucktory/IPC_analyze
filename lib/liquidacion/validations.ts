@@ -317,7 +317,7 @@ function checkPaymentOverdue(r: ValidatableRow): ValidationIssue | null {
 function checkRentAmountVariance(r: ValidatableRow): ValidationIssue | null {
   if (r.currentRent <= 0) return null
   const rentInSum = r.ingresosLines
-    .filter(l => l.typeCode === 'RENT_IN')
+    .filter(l => l.typeCode === 'RENT_IN' || l.typeCode === 'RENT_NF_IN')
     .reduce((s, l) => s + l.amount, 0)
   if (rentInSum <= 0) return null              // not yet recorded
   if (rentInSum <= r.currentRent) return null  // underpayment → Deuda handles it

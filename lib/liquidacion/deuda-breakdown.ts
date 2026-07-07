@@ -117,7 +117,9 @@ export async function buildDeudaBreakdownsBulk(
     .select('contract_id, amount, period, transaction_types!inner(code)')
     .in('contract_id', contractIds)
     .in('period', allPeriods)
-    .eq('transaction_types.code', 'RENT_IN')
+    // N/F (RENT_NF_IN) is real rent too, so it counts toward what was cobrado
+    // when computing this-period + carryover deuda.
+    .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
 
   // Bucket: (contractId|period) → sum
   const cobradoByKey = new Map<string, number>()
