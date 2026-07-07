@@ -37,6 +37,26 @@ export async function updateLandlord(
   return { ok: true, error: null }
 }
 
+// Single-field patch for inline editing on the detail page (email / phone /
+// CUIT). Whitelisted so only these columns can be written this way.
+const LANDLORD_FIELD_COLUMN = { email: 'email', phone: 'phone', cuit: 'dni_or_cuit' } as const
+
+export async function updateLandlordField(
+  id:    string,
+  field: keyof typeof LANDLORD_FIELD_COLUMN,
+  value: string,
+): Promise<UpdateLandlordResult> {
+  const col = LANDLORD_FIELD_COLUMN[field]
+  if (!col) return { ok: false, error: 'Campo inválido.' }
+  const v = value.trim() || null
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase.from('landlords').update({ [col]: v }).eq('id', id)
+  if (error) return dbFailure(error)
+  revalidatePath('/propietarios')
+  revalidatePath(`/propietarios/${id}`)
+  return { ok: true, error: null }
+}
+
 /**
  * Standalone create for the planilla's "+ Nuevo X" modal — does NOT redirect.
  * Returns the new id so the caller (NewContractModal) can pre-select the

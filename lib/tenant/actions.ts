@@ -35,6 +35,25 @@ export async function updateTenant(
   return { ok: true, error: null }
 }
 
+// Single-field patch for inline editing on the detail page (email/phone/dni).
+const TENANT_FIELD_COLUMN = { email: 'email', phone: 'phone', dni: 'dni' } as const
+
+export async function updateTenantField(
+  id:    string,
+  field: keyof typeof TENANT_FIELD_COLUMN,
+  value: string,
+): Promise<UpdateTenantResult> {
+  const col = TENANT_FIELD_COLUMN[field]
+  if (!col) return { ok: false, error: 'Campo inválido.' }
+  const v = value.trim() || null
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase.from('tenants').update({ [col]: v }).eq('id', id)
+  if (error) return dbFailure(error)
+  revalidatePath('/inquilinos')
+  revalidatePath(`/inquilinos/${id}`)
+  return { ok: true, error: null }
+}
+
 /**
  * Standalone create for the planilla's "+ Nuevo X" modal — does NOT redirect.
  * Returns the new id so the caller can pre-select the tenant.

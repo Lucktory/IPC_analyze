@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, CreditCard, FileText, DollarSign, CircleCheck, Wallet, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { EditTenantForm } from '@/components/tenant/EditTenantForm'
+import { TenantContactFields } from '@/components/tenant/TenantContactFields'
 import { getTenantDetail } from '@/lib/tenant/queries'
 import { getContractDetail, getContractPaymentHistory } from '@/lib/contract/queries'
 import { getDeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
@@ -90,11 +91,12 @@ export default async function TenantDetailPage({ params }: PageProps) {
         {/* Left */}
         <div className="space-y-4 lg:flex-1 lg:min-h-0 lg:overflow-auto lg:pr-1">
           <Card title="Datos de contacto">
-            <dl className="space-y-2.5 text-[12px]">
-              <Field k="DNI" v={tenant.dni ?? '—'} mono />
-              <Field k="Teléfono" v={tenant.phone ?? '—'} mono />
-              <Field k="Email" v={tenant.email ?? '—'} />
-            </dl>
+            <TenantContactFields
+              tenantId={tenant.id}
+              dni={tenant.dni}
+              phone={tenant.phone}
+              email={tenant.email}
+            />
           </Card>
 
           <Card title="Garantía / Depósito">

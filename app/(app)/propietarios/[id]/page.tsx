@@ -4,6 +4,7 @@ import { ArrowLeft, CreditCard, ShieldCheck, FileText, Building2, Coins, Chevron
 import { Badge } from '@/components/ui/Badge'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { EditLandlordForm } from '@/components/landlord/EditLandlordForm'
+import { LandlordContactFields } from '@/components/landlord/LandlordContactFields'
 import { getLandlordDetail, getLandlordPeriodStats } from '@/lib/landlord/queries'
 import { getDashboardPeriod } from '@/lib/dashboard/queries'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
@@ -82,13 +83,14 @@ export default async function LandlordDetailPage({ params }: PageProps) {
         {/* Left column */}
         <div className="space-y-4 lg:flex-1 lg:min-h-0 lg:overflow-auto lg:pr-1">
           <Card title="Datos de contacto">
-            <dl className="space-y-2.5 text-[12px]">
-              <Field k="Email" v={landlord.email ?? '—'} />
-              {landlord.altEmails.length > 0 && <Field k="Emails alternativos" v={landlord.altEmails.join(', ')} />}
-              <Field k="Teléfono" v={landlord.phone ?? '—'} mono />
-              <Field k="CUIT" v={landlord.dniOrCuit ?? '—'} mono />
-              <Field k="Condición" v={tax.label} />
-            </dl>
+            <LandlordContactFields
+              landlordId={landlord.id}
+              email={landlord.email}
+              phone={landlord.phone}
+              cuit={landlord.dniOrCuit}
+              altEmails={landlord.altEmails}
+              condicionLabel={tax.label}
+            />
           </Card>
 
           <Card title="Propiedades" sub={`${properties.length} · ${ocupadas} ocupadas`}>
