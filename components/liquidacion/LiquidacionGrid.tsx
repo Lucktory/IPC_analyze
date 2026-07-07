@@ -321,6 +321,10 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               const aumentoClass    = r.periodHasAumento ? ALQUILER_AUMENTO_CELL_CLASS : ''
               const alquilerSum     = Number.isFinite(r.alquilerSum) ? r.alquilerSum : 0
               const extrasSum       = Number.isFinite(r.extrasSum)   ? r.extrasSum   : 0
+              // Two-part rent (N/F): show the facturado / N-F split under the
+              // Alquiler amount so the encargada records BOTH parts.
+              const isNF            = r.rentFacturadoNeto != null
+              const nfFactCiva      = isNF ? (r.rentFacturadoNeto as number) * (1 + r.rentIvaRate / 100) : 0
 
               // Row background priority (high → low):
               //   1. Validation ERROR        → pale red tint   (most urgent)
@@ -570,15 +574,26 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       defaultNewLineType="RENT_IN"
                       popoverTitle="Alquiler — cobros c/factura (RENT_IN) + s/factura (N/F)"
                       cellBgClass={aumentoClass}
-                      buttonTitle={r.periodHasAumento
-                        ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
-                        : undefined}
+                      buttonTitle={isNF
+                        ? `Alquiler en dos partes — Facturado c/IVA ${fmtMoney(nfFactCiva)} + N/F ${fmtMoney(r.rentNoFacturado)} = ${fmtMoney(nfFactCiva + r.rentNoFacturado)}`
+                        : r.periodHasAumento
+                          ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
+                          : undefined}
                       // Light-gray expected current_rent until the cobro
-                      // arrives. No ABL / extras merged — those live in
-                      // the Recargos column next door.
-                      displayOverride={alquilerSum === 0 && r.currentRent > 0
-                        ? <span className="tabular-nums">{fmtMoney(r.currentRent)}</span>
-                        : undefined}
+                      // arrives. For N/F contracts, show the facturado / N-F
+                      // split under the amount so BOTH parts get recorded.
+                      displayOverride={isNF
+                        ? (
+                          <span className="block leading-tight">
+                            <span className="tabular-nums">{fmtMoney(alquilerSum > 0 ? alquilerSum : r.currentRent)}</span>
+                            <span className="block text-[9px] text-slate normal-case font-normal tabular-nums whitespace-nowrap">
+                              F {fmtMoney(nfFactCiva).slice(1)} · NF {fmtMoney(r.rentNoFacturado).slice(1)}
+                            </span>
+                          </span>
+                        )
+                        : (alquilerSum === 0 && r.currentRent > 0
+                            ? <span className="tabular-nums">{fmtMoney(r.currentRent)}</span>
+                            : undefined)}
                     />
                   </Td>
 

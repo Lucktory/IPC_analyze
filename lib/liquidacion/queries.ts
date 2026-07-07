@@ -350,6 +350,10 @@ export interface LiquidacionGridRow {
 
   // ── Current contract rent (used to compute DEUDA) ──
   currentRent:       number
+  // ── Two-part rent (N/F). rentFacturadoNeto null = ordinary contract. ──
+  rentFacturadoNeto: number | null
+  rentNoFacturado:   number
+  rentIvaRate:       number
 
   // ── Pre-computed Deuda breakdown (current period + last 3 carryover
   //    periods + intereses estimate). Null when the bulk fetch couldn't
@@ -650,6 +654,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       .from('contracts')
       .select(`
         id, status, contract_number, lfa_code, expensas, current_rent,
+        rent_facturado_neto, rent_no_facturado, rent_iva_rate,
         cadence, start_date, end_date, payment_day,
         created_at, updated_at, commission_pct, commission_includes_iva,
         late_interest_enabled, late_interest_rate,
@@ -981,6 +986,9 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       sentAt:        liq?.sent_at ?? null,
       paidAt:        liq?.paid_at ?? null,
       currentRent,
+      rentFacturadoNeto: c.rent_facturado_neto != null ? Number(c.rent_facturado_neto) : null,
+      rentNoFacturado:   Number(c.rent_no_facturado ?? 0),
+      rentIvaRate:       Number(c.rent_iva_rate ?? 0),
       deudaBreakdown,
       recurringCharges: recurringChargesByContract.get(c.id) ?? null,
       eventsSummary,
