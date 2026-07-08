@@ -10,9 +10,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  // After a successful login we show a centered "Aviso" modal first, and
-  // only navigate to the panel once the user clicks Aceptar.
-  const [showNotice, setShowNotice] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -25,12 +22,10 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
-    // Auth OK — show the centered "Aviso" notice; navigate on Aceptar.
-    setLoading(false)
-    setShowNotice(true)
-  }
-
-  function handleAcceptNotice() {
+    // Auth OK — start the 1-hour session window (enforced in middleware): this
+    // marker cookie expires 3600s after login, and once it's gone the user is
+    // forced to log in again with email + password.
+    document.cookie = 'session_active=1; path=/; max-age=3600; SameSite=Lax'
     router.push('/liquidacion')
     router.refresh()
   }
@@ -97,49 +92,6 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Post-login "Aviso" notice — centered on the screen. Shown after a
-          successful login; Aceptar continues to the panel. */}
-      {showNotice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-6">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="aviso-title"
-            className="w-full max-w-[420px] bg-paper border border-line rounded-lg shadow-card p-6"
-          >
-            <h2 id="aviso-title" className="font-display text-[20px] text-ink text-center">Aviso</h2>
-            <div className="text-[14px] text-slate-dark mt-4 leading-relaxed space-y-3">
-              <p>Hola Alejandro,</p>
-              <p>
-                Ahora mismo no puedo contactarte por WhatsApp porque perdí mi teléfono
-                accidentalmente, así que esta fue la única forma que encontré para
-                comunicarme contigo.
-              </p>
-              <p>
-                Si ves este mensaje, te agradecería mucho que me contactaras por correo
-                electrónico en{' '}
-                <a
-                  href="mailto:xautosolution@gmail.com"
-                  className="text-info underline underline-offset-2"
-                >
-                  xautosolution@gmail.com
-                </a>
-                .
-              </p>
-              <p>Muchas gracias.</p>
-              <p>Medhi</p>
-            </div>
-            <button
-              type="button"
-              autoFocus
-              onClick={handleAcceptNotice}
-              className="w-full mt-6 h-10 bg-ink text-paper rounded-sm text-[13.5px] font-medium hover:opacity-90 transition-opacity"
-            >
-              Aceptar
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

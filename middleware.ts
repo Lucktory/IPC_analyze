@@ -36,6 +36,24 @@ export async function middleware(request: NextRequest) {
 
   const isLogin = request.nextUrl.pathname === '/login'
 
+  // ── 1-hour hard session window ────────────────────────────────────────────
+  // `session_active` is a non-secret marker cookie the login page sets with
+  // max-age=3600. The browser drops it 1 hour after login, so an authenticated
+  // request that no longer carries it means the hour has elapsed → clear the
+  // Supabase auth cookies and force a fresh login (email + password). This is
+  // independent of Supabase's own token lifetime / auto-refresh.
+  if (user && !isLogin && !request.cookies.has('session_active')) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    const redirect = NextResponse.redirect(url)
+    for (const c of request.cookies.getAll()) {
+      if (c.name.startsWith('sb-') && c.name.includes('auth-token')) {
+        redirect.cookies.set(c.name, '', { maxAge: 0, path: '/' })
+      }
+    }
+    return redirect
+  }
+
   if (!user && !isLogin) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
