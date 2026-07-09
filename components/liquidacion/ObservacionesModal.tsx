@@ -288,20 +288,21 @@ function HonorariosSection({
           ))}
         </ul>
       )}
-      <div className="grid grid-cols-[1fr_130px_auto] gap-2 items-center mt-2">
-        <input
-          type="text" value={draft.description}
-          onChange={e => onDraft({ ...draft, description: e.target.value })}
-          onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
-          placeholder="Honorarios (renovación / contrato nuevo)…"
-          className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
-        />
+      {/* Monto first (it's the essential field for honorarios); descripción optional. */}
+      <div className="grid grid-cols-[150px_1fr_auto] gap-2 items-center mt-2">
         <input
           type="number" value={draft.amount} step="0.01" min={0}
           onChange={e => onDraft({ ...draft, amount: e.target.value })}
           onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
           placeholder="Monto"
-          className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+          className="h-8 px-2 rounded border border-info/60 bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+        />
+        <input
+          type="text" value={draft.description}
+          onChange={e => onDraft({ ...draft, description: e.target.value })}
+          onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
+          placeholder="Descripción (opcional) — renovación / contrato nuevo"
+          className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
         />
         <button
           type="button" onClick={onAdd} disabled={pending}
