@@ -29,7 +29,7 @@ import {
 } from '@/lib/contract/events-types'
 import type { EventsSummary } from '@/lib/contract/events-bulk'
 import {
-  addContractEvent, updateContractEvent, cancelContractEvent,
+  addContractEvent, addHonorarioInstallments, updateContractEvent, cancelContractEvent,
 } from '@/lib/contract/events'
 
 interface Props {
@@ -72,7 +72,7 @@ const LABEL_EN_RECIBO = 'En el recibo'
 
 export function ObservacionesModal({ open, onClose, contractId, period, summary, contractLabel }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft())
-  const [honDraft, setHonDraft] = useState({ description: '', amount: '' })
+  const [honDraft, setHonDraft] = useState({ description: '', amount: '', cuotas: '1', includesIva: false })
   const [error, setError] = useState<string | null>(null)
   const [pending, startTx] = useTransition()
   const router = useRouter()
@@ -118,20 +118,22 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
   function handleAddHonorario() {
     setError(null)
     const amount = Number(honDraft.amount)
+    const cuotas = Number(honDraft.cuotas)
     if (!(amount > 0)) { setError('Ingresá el monto de los honorarios.'); return }
     startTx(async () => {
-      const res = await addContractEvent({
+      // Honorarios = agency income, split into cuotas (one HONORARIOS event per
+      // month; future cuotas surface as reminders). NOT an ADJUSTMENT_KIND, so
+      // it never enters the owner's receipt/transfer.
+      const res = await addHonorarioInstallments({
         contractId,
-        kind:            EVENT_KIND.HONORARIOS,
-        description:     honDraft.description.trim() || 'Honorarios inmobiliaria',
-        amountLandlord:  0,
-        // Agency income. HONORARIOS is not an ADJUSTMENT_KIND, so this never
-        // enters the owner's receipt/transfer — it only feeds the agency tally.
-        amountTenant:    amount,
-        appliesToPeriod: period,
+        total:       amount,
+        cuotas:      cuotas >= 1 ? cuotas : 1,
+        startPeriod: period,
+        includesIva: honDraft.includesIva,
+        description: honDraft.description.trim() || null,
       })
       if (!res.ok) { setError(res.error); return }
-      setHonDraft({ description: '', amount: '' })
+      setHonDraft({ description: '', amount: '', cuotas: '1', includesIva: false })
       router.refresh()
     })
   }
@@ -258,56 +260,98 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
 // ── Honorarios section — agency income (ingreso de la inmobiliaria) ─────────
 // Separate from arreglos/ajustes: honorarios are the inmobiliaria's one-time
 // fee (renovación / nuevo contrato) and never touch the owner's receipt.
+interface HonDraft { description: string; amount: string; cuotas: string; includesIva: boolean }
+
 function HonorariosSection({
   items, draft, onDraft, onAdd, onRemove, pending,
 }: {
   items:    ContractEvent[]
-  draft:    { description: string; amount: string }
-  onDraft:  (d: { description: string; amount: string }) => void
+  draft:    HonDraft
+  onDraft:  (d: HonDraft) => void
   onAdd:    () => void
   onRemove: (id: string) => void
   pending:  boolean
 }) {
+  const total    = Number(draft.amount)
+  const cuotas   = Math.max(1, Math.trunc(Number(draft.cuotas)) || 1)
+  const perCuota = total > 0 ? total / cuotas : 0
+  const withIva  = (n: number) => draft.includesIva ? n * 1.21 : n
+
   return (
     <section className="border border-info/30 bg-info/5 rounded p-2.5">
       <p className="label-cap text-info mb-1.5 flex items-center gap-1.5">
         <span className="inline-block w-2 h-2 rounded-full bg-info" /> Honorarios · ingreso inmobiliaria
       </p>
       {items.length === 0 ? (
-        <p className="text-[12px] text-slate italic px-1">Sin honorarios cargados este mes.</p>
+        <p className="text-[12px] text-slate italic px-1">Sin honorarios cargados.</p>
       ) : (
         <ul className="space-y-1">
-          {items.map(e => (
-            <li key={e.id} className="flex items-center justify-between gap-2 border-b border-line py-1">
-              <span className="text-[12.5px] text-ink truncate min-w-0">{e.description || 'Honorarios'}</span>
-              <span className="flex items-center gap-2 shrink-0">
-                <span className="text-[12px] tabular-nums font-medium text-info">{fmtSignedMoney(magnitudeOf(e))}</span>
-                <button type="button" onClick={() => onRemove(e.id)} title="Eliminar" className="text-slate hover:text-danger px-1">×</button>
-              </span>
-            </li>
-          ))}
+          {items.map(e => {
+            const neto = magnitudeOf(e)
+            return (
+              <li key={e.id} className="flex items-center justify-between gap-2 border-b border-line py-1">
+                <span className="text-[12.5px] text-ink truncate min-w-0">{e.description || 'Honorarios'}</span>
+                <span className="flex items-center gap-2 shrink-0">
+                  {e.includesIva && (
+                    <span className="text-[9px] px-1 py-0.5 rounded bg-info/15 text-info" title={`Total con IVA: ${fmtSignedMoney(neto * 1.21)}`}>+IVA</span>
+                  )}
+                  <span className="text-[12px] tabular-nums font-medium text-info">{fmtSignedMoney(neto)}</span>
+                  <button type="button" onClick={() => onRemove(e.id)} title="Eliminar" className="text-slate hover:text-danger px-1">×</button>
+                </span>
+              </li>
+            )
+          })}
         </ul>
       )}
-      {/* Monto first (it's the essential field for honorarios); descripción optional. */}
-      <div className="grid grid-cols-[150px_1fr_auto] gap-2 items-center mt-2">
-        <input
-          type="number" value={draft.amount} step="0.01" min={0}
-          onChange={e => onDraft({ ...draft, amount: e.target.value })}
-          onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
-          placeholder="Monto"
-          className="h-8 px-2 rounded border border-info/60 bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
-        />
-        <input
-          type="text" value={draft.description}
-          onChange={e => onDraft({ ...draft, description: e.target.value })}
-          onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
-          placeholder="Descripción (opcional) — renovación / contrato nuevo"
-          className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
-        />
-        <button
-          type="button" onClick={onAdd} disabled={pending}
-          className="h-8 px-3 rounded bg-info text-white text-[12px] font-medium hover:opacity-90 disabled:opacity-60"
-        >Agregar</button>
+
+      {/* Add: monto total (neto) + cuotas + IVA, then descripción. */}
+      <div className="mt-2 space-y-1.5">
+        <div className="grid grid-cols-[130px_84px_1fr] gap-2 items-center">
+          <input
+            type="number" value={draft.amount} step="0.01" min={0}
+            onChange={e => onDraft({ ...draft, amount: e.target.value })}
+            onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
+            placeholder="Monto (neto)"
+            title="Monto total de los honorarios (neto, sin IVA)"
+            className="h-8 px-2 rounded border border-info/60 bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+          />
+          <input
+            type="number" value={draft.cuotas} step="1" min={1} max={12}
+            onChange={e => onDraft({ ...draft, cuotas: e.target.value })}
+            onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
+            placeholder="Cuotas"
+            title="Cantidad de cuotas (1 = pago único)"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+          />
+          <select
+            value={draft.includesIva ? '1' : '0'}
+            onChange={e => onDraft({ ...draft, includesIva: e.target.value === '1' })}
+            className="h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info"
+          >
+            <option value="0">Sin IVA</option>
+            <option value="1">Con IVA 21%</option>
+          </select>
+        </div>
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+          <input
+            type="text" value={draft.description}
+            onChange={e => onDraft({ ...draft, description: e.target.value })}
+            onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
+            placeholder="Descripción (opcional) — renovación / contrato nuevo"
+            className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
+          />
+          <button
+            type="button" onClick={onAdd} disabled={pending}
+            className="h-8 px-3 rounded bg-info text-white text-[12px] font-medium hover:opacity-90 disabled:opacity-60"
+          >Agregar</button>
+        </div>
+        {total > 0 && (
+          <p className="text-[10.5px] text-slate italic px-0.5">
+            {cuotas > 1
+              ? `→ ${cuotas} cuotas de ${fmtSignedMoney(perCuota)}${draft.includesIva ? ` (con IVA ${fmtSignedMoney(withIva(perCuota))})` : ''}, desde este mes`
+              : `→ pago único${draft.includesIva ? ` · con IVA: ${fmtSignedMoney(withIva(total))}` : ''}`}
+          </p>
+        )}
       </div>
     </section>
   )

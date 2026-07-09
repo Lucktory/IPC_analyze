@@ -402,6 +402,10 @@ create table contract_events (
   -- Phase 11 (v2): payer is NOT binary. Split allowed (mitad y mitad, 70/30, etc.).
   amount_landlord     numeric(14,2) default 0,
   amount_tenant       numeric(14,2) default 0,
+  -- Honorarios only: true = the (neto) amount also charges 21% IVA on top.
+  -- Stored amount is NETO (agency income); IVA = amount*0.21, total con IVA =
+  -- amount*1.21 (both DERIVED, not stored). Mirrors commission_includes_iva.
+  includes_iva        boolean not null default false,
   -- When the discount/charge lands in a liquidación. Drives the day-of-month
   -- deferral rule (repair before payment_day → this period, after → next period).
   applies_to_period   date,

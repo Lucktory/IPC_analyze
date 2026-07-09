@@ -54,6 +54,9 @@ export interface ContractEvent {
   appliesToPeriod: string | null
   status:          EventStatus
   occurredAt:      string | null
+  /** Honorarios only: true = the amount carries 21% IVA (RI). Derived portion
+   *  = amount * 0.21 / 1.21. Ignored for arreglos/ajustes. */
+  includesIva:     boolean
 }
 
 /** contract_events table name + the column list every query selects. Kept
@@ -61,7 +64,7 @@ export interface ContractEvent {
  *  them — a 'use server' module may only export async functions. */
 export const EVENTS_TABLE = 'contract_events'
 export const EVENT_COLUMNS =
-  'id, contract_id, kind, description, amount_landlord, amount_tenant, applies_to_period, status, occurred_at'
+  'id, contract_id, kind, description, amount_landlord, amount_tenant, includes_iva, applies_to_period, status, occurred_at'
 
 /** DB row (snake_case) → app ContractEvent. id is a bigserial, surfaced as a
  *  string to avoid precision loss. */
@@ -76,6 +79,7 @@ export function mapEventRow(r: any): ContractEvent {
     appliesToPeriod: r.applies_to_period ?? null,
     status:          (r.status ?? EVENT_STATUS.PENDING) as EventStatus,
     occurredAt:      r.occurred_at ?? null,
+    includesIva:     r.includes_iva === true,
   }
 }
 
