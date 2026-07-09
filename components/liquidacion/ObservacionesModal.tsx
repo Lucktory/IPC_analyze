@@ -29,7 +29,8 @@ import {
 } from '@/lib/contract/events-types'
 import type { EventsSummary } from '@/lib/contract/events-bulk'
 import {
-  addContractEvent, addHonorarioInstallments, updateContractEvent, cancelContractEvent,
+  addContractEvent, addHonorarioInstallments, payoffHonorarioBalance,
+  updateContractEvent, cancelContractEvent,
 } from '@/lib/contract/events'
 
 interface Props {
@@ -93,6 +94,7 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
   const esteMes    = allEsteMes.filter(e => e.kind !== EVENT_KIND.HONORARIOS)
   const pendientes = allPendientes.filter(e => e.kind !== EVENT_KIND.HONORARIOS)
   const honorarios = [...allEsteMes, ...allPendientes].filter(e => e.kind === EVENT_KIND.HONORARIOS)
+  const hasFutureHonorarios = honorarios.some(e => e.appliesToPeriod != null && e.appliesToPeriod > period)
 
   function handleAdd() {
     setError(null)
@@ -134,6 +136,15 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
       })
       if (!res.ok) { setError(res.error); return }
       setHonDraft({ description: '', amount: '', cuotas: '1', includesIva: false })
+      router.refresh()
+    })
+  }
+
+  function handlePayoffHonorarios() {
+    setError(null)
+    startTx(async () => {
+      const res = await payoffHonorarioBalance(contractId, period)
+      if (!res.ok) { setError(res.error); return }
       router.refresh()
     })
   }
@@ -246,6 +257,8 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
             onDraft={setHonDraft}
             onAdd={handleAddHonorario}
             onRemove={remove}
+            onPayoff={handlePayoffHonorarios}
+            hasFuture={hasFutureHonorarios}
             pending={pending}
           />
 
@@ -263,14 +276,16 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
 interface HonDraft { description: string; amount: string; cuotas: string; includesIva: boolean }
 
 function HonorariosSection({
-  items, draft, onDraft, onAdd, onRemove, pending,
+  items, draft, onDraft, onAdd, onRemove, onPayoff, hasFuture, pending,
 }: {
-  items:    ContractEvent[]
-  draft:    HonDraft
-  onDraft:  (d: HonDraft) => void
-  onAdd:    () => void
-  onRemove: (id: string) => void
-  pending:  boolean
+  items:     ContractEvent[]
+  draft:     HonDraft
+  onDraft:   (d: HonDraft) => void
+  onAdd:     () => void
+  onRemove:  (id: string) => void
+  onPayoff:  () => void
+  hasFuture: boolean
+  pending:   boolean
 }) {
   const total    = Number(draft.amount)
   const cuotas   = Math.max(1, Math.trunc(Number(draft.cuotas)) || 1)
@@ -302,6 +317,16 @@ function HonorariosSection({
             )
           })}
         </ul>
+      )}
+
+      {hasFuture && (
+        <button
+          type="button" onClick={onPayoff} disabled={pending}
+          title="Adelantar todas las cuotas futuras a este mes y cancelarlas (pago anticipado del saldo)"
+          className="mt-1.5 text-[11px] text-info hover:underline font-medium disabled:opacity-60"
+        >
+          → Cobrar saldo restante ahora
+        </button>
       )}
 
       {/* Add: monto total (neto) + cuotas + IVA, then descripción. */}

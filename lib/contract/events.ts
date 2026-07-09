@@ -148,6 +148,58 @@ export async function addHonorarioInstallments(args: {
   return { ok: true, error: null }
 }
 
+// ── Cobrar saldo restante (early payoff of honorarios cuotas) ────────────────
+// The exception Alejandro described: a plan of N cuotas gets paid off early.
+// Consolidates every FUTURE (pending) honorarios cuota for the contract into a
+// single "saldo adelantado" honorario in the current period, and cancels those
+// future cuotas — so this month reflects the full amount collected and the
+// upcoming reminders disappear. Past + current cuotas are untouched.
+export async function payoffHonorarioBalance(
+  contractId:    string,
+  currentPeriod: string,
+): Promise<EventResult> {
+  if (!isValidPeriod(currentPeriod)) {
+    return { ok: false, error: 'Período inválido (YYYY-MM-01).' }
+  }
+  const supabase = await createSupabaseServer()
+
+  const { data: future, error: fetchErr } = await supabase
+    .from(EVENTS_TABLE)
+    .select('id, amount_tenant, includes_iva')
+    .eq('contract_id', contractId)
+    .eq('kind', EVENT_KIND.HONORARIOS)
+    .neq('status', EVENT_STATUS.CANCELLED)
+    .gt('applies_to_period', currentPeriod)
+  if (fetchErr) return dbFailure(fetchErr)
+
+  const rows = (future ?? []) as any[]
+  if (rows.length === 0) return { ok: false, error: 'No hay cuotas futuras para adelantar.' }
+
+  const saldo       = rows.reduce((s, r) => s + Number(r.amount_tenant ?? 0), 0)
+  const includesIva = rows.some(r => r.includes_iva === true)
+
+  const { error: insErr } = await supabase.from(EVENTS_TABLE).insert({
+    contract_id:       contractId,
+    kind:              EVENT_KIND.HONORARIOS,
+    description:       `Honorarios — saldo adelantado (${rows.length} cuota${rows.length > 1 ? 's' : ''})`,
+    amount_landlord:   0,
+    amount_tenant:     Math.round(saldo * 100) / 100,
+    includes_iva:      includesIva,
+    applies_to_period: currentPeriod,
+    status:            EVENT_STATUS.PENDING,
+  })
+  if (insErr) return dbFailure(insErr)
+
+  const { error: cancelErr } = await supabase
+    .from(EVENTS_TABLE)
+    .update({ status: EVENT_STATUS.CANCELLED })
+    .in('id', rows.map(r => r.id))
+  if (cancelErr) return dbFailure(cancelErr)
+
+  revalidate(contractId)
+  return { ok: true, error: null }
+}
+
 // ── Update ────────────────────────────────────────────────────────────────
 export type EventPatch = Partial<{
   description:     string | null
