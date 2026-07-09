@@ -18,6 +18,7 @@ import { getReconciliationByDestination } from '@/lib/reconciliation/queries'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
 import { listPropertyOptions } from '@/lib/property/queries'
+import { getHonorariosForPeriod, type HonorariosPeriod } from '@/lib/contract/events-bulk'
 import { LiquidacionGrid } from '@/components/liquidacion/LiquidacionGrid'
 import { EmptyGridDiagnostic } from '@/components/liquidacion/EmptyGridDiagnostic'
 import { HighlightScroller } from '@/components/liquidacion/HighlightScroller'
@@ -85,7 +86,8 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
   }
 
   const needsGrid = view === 'grilla' || view === 'resumen'
-  const [periods, allRows, txns, buckets, landlordOptions, tenantOptions, propertyOptions] = await Promise.all([
+  const EMPTY_HON: HonorariosPeriod = { total: 0, lines: [] }
+  const [periods, allRows, txns, buckets, landlordOptions, tenantOptions, propertyOptions, honorarios] = await Promise.all([
     safe('listTransactionPeriods',    [],   () => listTransactionPeriods()),
     safe('getLiquidacionGridForPeriod', [], () => needsGrid              ? getLiquidacionGridForPeriod(period)   : Promise.resolve([])),
     safe('listTransactions',          [],   () => view === 'movimientos' ? listTransactions(period)               : Promise.resolve([])),
@@ -93,6 +95,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
     safe('listLandlordOptions',       [],   () => view === 'grilla'      ? listLandlordOptions()                  : Promise.resolve([])),
     safe('listTenantOptions',         [],   () => view === 'grilla'      ? listTenantOptions()                    : Promise.resolve([])),
     safe('listPropertyOptions',       [],   () => view === 'grilla'      ? listPropertyOptions()                  : Promise.resolve([])),
+    safe('getHonorariosForPeriod',    EMPTY_HON, () => view === 'resumen' ? getHonorariosForPeriod(period)        : Promise.resolve(EMPTY_HON)),
   ])
 
   // When the grid returns zero rows, fetch the diagnostic snapshot so the
@@ -261,7 +264,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
             <LiquidacionGrid rows={rows} totals={sumGridTotals(rows)} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
           </>
         )}
-        {view === 'resumen'     && <div className="h-full overflow-auto"><ResumenView    rows={allRows} period={period} /></div>}
+        {view === 'resumen'     && <div className="h-full overflow-auto"><ResumenView    rows={allRows} period={period} honorarios={honorarios} /></div>}
         {view === 'movimientos' && <div className="h-full overflow-auto"><MovimientosView txns={txns}   period={period} /></div>}
         {view === 'destinos'    && <div className="h-full overflow-auto"><DestinosView   buckets={buckets} period={period} /></div>}
       </div>

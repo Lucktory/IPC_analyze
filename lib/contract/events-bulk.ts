@@ -17,7 +17,7 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import {
-  EVENTS_TABLE, EVENT_COLUMNS, EVENT_STATUS, ADJUSTMENT_KINDS,
+  EVENTS_TABLE, EVENT_COLUMNS, EVENT_STATUS, EVENT_KIND, ADJUSTMENT_KINDS,
   mapEventRow, reminderBucket, ownerTransferEffect, eventPartyLabel,
   type ContractEvent,
 } from './events-types'
@@ -142,4 +142,39 @@ export async function buildReceiptAjustes(
   if (legacyAdjustment !== 0) lines.push({ label: 'Ajuste', amount: legacyAdjustment })
   const total = lines.reduce((sum, l) => sum + l.amount, 0)
   return { lines, total }
+}
+
+// ── Honorarios for a period — AGENCY income (ingreso de la inmobiliaria) ─────
+// One-time fee charged on renovación / nuevo contrato. Stored as HONORARIOS
+// contract_events (amount on amount_tenant). This never touches any owner's
+// liquidación; it only feeds the "Ingresos de la inmobiliaria" summary.
+
+export interface HonorariosLine {
+  contractId:     string
+  contractNumber: string | null
+  description:    string
+  amount:         number
+}
+export interface HonorariosPeriod {
+  total: number
+  lines: HonorariosLine[]
+}
+
+export async function getHonorariosForPeriod(period: string): Promise<HonorariosPeriod> {
+  const supabase = await createSupabaseServer()
+  const { data } = await supabase
+    .from(EVENTS_TABLE)
+    .select('contract_id, description, amount_landlord, amount_tenant, contracts(contract_number)')
+    .eq('kind', EVENT_KIND.HONORARIOS)
+    .eq('applies_to_period', period)
+    .neq('status', EVENT_STATUS.CANCELLED)
+
+  const lines: HonorariosLine[] = ((data ?? []) as any[]).map(r => ({
+    contractId:     r.contract_id,
+    contractNumber: (r.contracts as any)?.contract_number ?? null,
+    description:    (r.description ?? '').trim() || 'Honorarios',
+    amount:         Number(r.amount_tenant ?? 0) + Number(r.amount_landlord ?? 0),
+  }))
+  const total = lines.reduce((s, l) => s + l.amount, 0)
+  return { total, lines }
 }

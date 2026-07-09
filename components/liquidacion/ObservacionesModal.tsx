@@ -72,6 +72,7 @@ const LABEL_EN_RECIBO = 'En el recibo'
 
 export function ObservacionesModal({ open, onClose, contractId, period, summary, contractLabel }: Props) {
   const [draft, setDraft] = useState<Draft>(emptyDraft())
+  const [honDraft, setHonDraft] = useState({ description: '', amount: '' })
   const [error, setError] = useState<string | null>(null)
   const [pending, startTx] = useTransition()
   const router = useRouter()
@@ -84,8 +85,14 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
   }, [open, onClose])
 
   if (!open) return null
-  const esteMes    = summary?.esteMes ?? []
-  const pendientes = summary?.pendientes ?? []
+  const allEsteMes    = summary?.esteMes ?? []
+  const allPendientes = summary?.pendientes ?? []
+  // Honorarios are AGENCY income, not owner-transfer arreglos. Split them out so
+  // they get their own section and never mix into the receipt/transfer math
+  // (which upstream already ignores non-adjustment kinds anyway).
+  const esteMes    = allEsteMes.filter(e => e.kind !== EVENT_KIND.HONORARIOS)
+  const pendientes = allPendientes.filter(e => e.kind !== EVENT_KIND.HONORARIOS)
+  const honorarios = [...allEsteMes, ...allPendientes].filter(e => e.kind === EVENT_KIND.HONORARIOS)
 
   function handleAdd() {
     setError(null)
@@ -104,6 +111,27 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
       })
       if (!res.ok) { setError(res.error); return }
       setDraft(emptyDraft())
+      router.refresh()
+    })
+  }
+
+  function handleAddHonorario() {
+    setError(null)
+    const amount = Number(honDraft.amount)
+    if (!(amount > 0)) { setError('Ingresá el monto de los honorarios.'); return }
+    startTx(async () => {
+      const res = await addContractEvent({
+        contractId,
+        kind:            EVENT_KIND.HONORARIOS,
+        description:     honDraft.description.trim() || 'Honorarios inmobiliaria',
+        amountLandlord:  0,
+        // Agency income. HONORARIOS is not an ADJUSTMENT_KIND, so this never
+        // enters the owner's receipt/transfer — it only feeds the agency tally.
+        amountTenant:    amount,
+        appliesToPeriod: period,
+      })
+      if (!res.ok) { setError(res.error); return }
+      setHonDraft({ description: '', amount: '' })
       router.refresh()
     })
   }
@@ -208,11 +236,79 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
             </div>
           </div>
 
+          {/* Honorarios — ingreso de la inmobiliaria (una sola vez, al renovar
+              o hacer un contrato nuevo). No entra en la liquidación del dueño. */}
+          <HonorariosSection
+            items={honorarios}
+            draft={honDraft}
+            onDraft={setHonDraft}
+            onAdd={handleAddHonorario}
+            onRemove={remove}
+            pending={pending}
+          />
+
           {error && <div className="text-[11.5px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">{error}</div>}
         </div>
       </div>
     </div>,
     document.body,
+  )
+}
+
+// ── Honorarios section — agency income (ingreso de la inmobiliaria) ─────────
+// Separate from arreglos/ajustes: honorarios are the inmobiliaria's one-time
+// fee (renovación / nuevo contrato) and never touch the owner's receipt.
+function HonorariosSection({
+  items, draft, onDraft, onAdd, onRemove, pending,
+}: {
+  items:    ContractEvent[]
+  draft:    { description: string; amount: string }
+  onDraft:  (d: { description: string; amount: string }) => void
+  onAdd:    () => void
+  onRemove: (id: string) => void
+  pending:  boolean
+}) {
+  return (
+    <section className="border border-info/30 bg-info/5 rounded p-2.5">
+      <p className="label-cap text-info mb-1.5 flex items-center gap-1.5">
+        <span className="inline-block w-2 h-2 rounded-full bg-info" /> Honorarios · ingreso inmobiliaria
+      </p>
+      {items.length === 0 ? (
+        <p className="text-[12px] text-slate italic px-1">Sin honorarios cargados este mes.</p>
+      ) : (
+        <ul className="space-y-1">
+          {items.map(e => (
+            <li key={e.id} className="flex items-center justify-between gap-2 border-b border-line py-1">
+              <span className="text-[12.5px] text-ink truncate min-w-0">{e.description || 'Honorarios'}</span>
+              <span className="flex items-center gap-2 shrink-0">
+                <span className="text-[12px] tabular-nums font-medium text-info">{fmtSignedMoney(magnitudeOf(e))}</span>
+                <button type="button" onClick={() => onRemove(e.id)} title="Eliminar" className="text-slate hover:text-danger px-1">×</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="grid grid-cols-[1fr_130px_auto] gap-2 items-center mt-2">
+        <input
+          type="text" value={draft.description}
+          onChange={e => onDraft({ ...draft, description: e.target.value })}
+          onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
+          placeholder="Honorarios (renovación / contrato nuevo)…"
+          className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
+        />
+        <input
+          type="number" value={draft.amount} step="0.01" min={0}
+          onChange={e => onDraft({ ...draft, amount: e.target.value })}
+          onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
+          placeholder="Monto"
+          className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+        />
+        <button
+          type="button" onClick={onAdd} disabled={pending}
+          className="h-8 px-3 rounded bg-info text-white text-[12px] font-medium hover:opacity-90 disabled:opacity-60"
+        >Agregar</button>
+      </div>
+    </section>
   )
 }
 

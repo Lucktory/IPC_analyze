@@ -18,6 +18,7 @@
 import { useState } from 'react'
 import { fmtSignedMoney } from '@/lib/format'
 import { ObservacionesModal } from './ObservacionesModal'
+import { EVENT_KIND } from '@/lib/contract/events-types'
 import type { EventsSummary } from '@/lib/contract/events-bulk'
 
 interface Props {
@@ -32,12 +33,16 @@ interface Props {
 export function InlineObservacionCell({ contractId, period, summary, contractLabel }: Props) {
   const [open, setOpen] = useState(false)
 
-  const esteMes    = summary?.esteMes.length ?? 0
-  const pendientes = summary?.pendientes.length ?? 0
+  // Honorarios (agency income) are counted separately from arreglos so the
+  // rojo/negro counts keep matching the owner-effect money shown below.
+  const isHon      = (e: { kind: string }) => e.kind === EVENT_KIND.HONORARIOS
+  const esteMes    = (summary?.esteMes ?? []).filter(e => !isHon(e)).length
+  const pendientes = (summary?.pendientes ?? []).filter(e => !isHon(e)).length
+  const honCount   = [...(summary?.esteMes ?? []), ...(summary?.pendientes ?? [])].filter(isHon).length
   const cobrado    = summary?.adjustmentEffect    ?? 0   // confirmed → in the receipt
   const aCobrar    = summary?.esteMesACobrarTotal ?? 0   // este mes, unconfirmed
   const pendTotal  = summary?.pendientesTotal     ?? 0   // future months
-  const hasAny     = esteMes > 0 || pendientes > 0
+  const hasAny     = esteMes > 0 || pendientes > 0 || honCount > 0
 
   return (
     <>
@@ -59,6 +64,11 @@ export function InlineObservacionCell({ contractId, period, summary, contractLab
               {pendientes > 0 && (
                 <span className="inline-flex items-center gap-1 text-ink" title={`${pendientes} pendiente(s)`}>
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-ink" />{pendientes}
+                </span>
+              )}
+              {honCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-info" title={`${honCount} honorario(s) — ingreso inmobiliaria`}>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-info" />{honCount}
                 </span>
               )}
             </span>

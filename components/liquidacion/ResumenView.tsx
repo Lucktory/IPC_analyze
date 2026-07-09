@@ -10,15 +10,17 @@
 // ============================================================================
 
 import type { LiquidacionGridRow } from '@/lib/liquidacion/queries'
+import type { HonorariosPeriod } from '@/lib/contract/events-bulk'
 import { periodLabel } from '@/lib/period'
 import { fmtMoney } from '@/lib/format'
 
 interface Props {
-  rows:   LiquidacionGridRow[]
-  period: string
+  rows:       LiquidacionGridRow[]
+  period:     string
+  honorarios: HonorariosPeriod
 }
 
-export function ResumenView({ rows, period }: Props) {
+export function ResumenView({ rows, period, honorarios }: Props) {
   const totalIngresos     = rows.reduce((s, r) => s + r.ingresos,      0)
   const totalAdmi         = rows.reduce((s, r) => s + r.admi,          0)
   const totalOtros        = rows.reduce((s, r) => s + r.otros,         0)
@@ -71,6 +73,43 @@ export function ResumenView({ rows, period }: Props) {
           hint={`${pctNeto.toFixed(1)}% del cobrado · ${transferidos} transferencias hechas`}
           tone="info"
         />
+      </div>
+
+      {/* ── Ingresos de la inmobiliaria — administración (mensual) + honorarios (una vez) ── */}
+      <div className="bg-paper border border-line border-l-2 border-l-info rounded shadow-card p-5">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="font-display text-[15px] font-medium text-ink">Ingresos de la inmobiliaria</h2>
+          <p className="text-[12px] text-slate">{periodLabel(period)}</p>
+        </div>
+        <dl className="space-y-2 text-[13px] max-w-[460px]">
+          <div className="flex items-center justify-between">
+            <dt className="text-slate">Administración (mensual)</dt>
+            <dd className="tabular-nums text-ink">{fmtMoney(totalAdmi)}</dd>
+          </div>
+          <div className="flex items-center justify-between">
+            <dt className="text-slate">Honorarios (una vez · {honorarios.lines.length})</dt>
+            <dd className="tabular-nums text-ink">{fmtMoney(honorarios.total)}</dd>
+          </div>
+          <div className="flex items-center justify-between border-t border-line pt-2">
+            <dt className="text-ink font-medium">Total ingreso inmobiliaria</dt>
+            <dd className="tabular-nums text-info font-semibold">{fmtMoney(totalAdmi + honorarios.total)}</dd>
+          </div>
+        </dl>
+        {honorarios.lines.length > 0 && (
+          <ul className="mt-3 pt-3 border-t border-line space-y-1 max-w-[460px]">
+            {honorarios.lines.map((l, i) => (
+              <li key={i} className="flex items-center justify-between gap-3 text-[11.5px]">
+                <span className="text-slate-dark truncate min-w-0">
+                  {l.contractNumber && <span className="tabular-nums text-slate">{l.contractNumber} · </span>}{l.description}
+                </span>
+                <span className="tabular-nums text-slate shrink-0">{fmtMoney(l.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-[11px] text-slate mt-3 italic">
+          Los honorarios se cargan desde la celda Observaciones del contrato, en el mes de la renovación / contrato nuevo. No entran en la liquidación del dueño.
+        </p>
       </div>
 
       {/* ── Horizontal stacked bar — proportional view of where the cobro went ── */}
