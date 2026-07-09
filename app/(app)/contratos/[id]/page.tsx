@@ -12,6 +12,7 @@ import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { MovimientosPanel } from '@/components/shared/MovimientosPanel'
 import { RecurringChargesEditor } from '@/components/contract/RecurringChargesEditor'
 import { AplicarAumentoControl } from '@/components/contract/AplicarAumentoControl'
+import { ContractStatusControl } from '@/components/contract/ContractStatusControl'
 import { InlineParticipantsCell } from '@/components/liquidacion/InlineParticipantsCell'
 import { CommissionPctEditor } from '@/components/contract/CommissionPctEditor'
 import { listLandlordOptions } from '@/lib/landlord/queries'
@@ -129,7 +130,10 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
           <h1 className="text-[22px] font-semibold text-ink tracking-tight">
             Contrato · {primaryTenant?.name ?? '(sin inquilino)'}
           </h1>
-          <RowStatusBadge status={contract.status} urgency={audit.urgency} hasRent={embudo.rent > 0} hasNote={!!note.body.trim()} />
+          <div className="flex flex-col items-end gap-1.5">
+            <RowStatusBadge status={contract.status} urgency={audit.urgency} hasRent={embudo.rent > 0} hasNote={!!note.body.trim()} />
+            <ContractStatusControl contractId={contract.id} status={contract.status} />
+          </div>
         </div>
         <p className="text-[13px] text-slate-dark mt-1">
           {contract.property?.address ?? '(sin dirección)'}{contract.property?.city ? ` · ${contract.property.city}` : ''} · Propietario: {topLandlord?.name ?? '—'}

@@ -175,6 +175,51 @@ export async function updateContractVigencia(
   return { ok: true, error: null }
 }
 
+// ── Rescindir / reactivar contrato ──────────────────────────────────────────
+// Alejandro: "A veces puedo perder una propiedad — porque el dueño se la quiere
+// llevar, o porque yo no la quiero tener mas." Rescindir flips the contract to
+// 'rescinded': it drops off the active planilla, the dashboard counts it as
+// rescinded, and the "Rescindido" badge shows on the detail + list. Fully
+// reversible via reactivar (status back to 'active'). The vigencia end_date is
+// left untouched so reactivar is a clean undo — the exact termination date, if
+// the office wants to record it, is set with the existing vigencia editor.
+const CONTRACT_STATUS = { ACTIVE: 'active', RESCINDED: 'rescinded' } as const
+
+// Status changes ripple beyond the two paths `revalidate` covers: the contract
+// leaves/returns to the /liquidacion planilla, the /contratos list, and the
+// /dashboard counts. Revalidate all four so no stale view lingers.
+function revalidateStatus(contractId: string) {
+  revalidatePath('/liquidacion')
+  revalidatePath('/contratos')
+  revalidatePath(`/contratos/${contractId}`)
+  revalidatePath('/dashboard')
+}
+
+export async function rescindContract(contractId: string): Promise<InlineResult> {
+  const supabase = await createSupabaseServer()
+  const { data: existing, error: readErr } = await supabase
+    .from('contracts').select('status').eq('id', contractId).maybeSingle()
+  if (readErr) return dbFailure(readErr)
+  if (!existing) return { ok: false, error: 'No se encontró el contrato.' }
+  if ((existing as { status: string }).status === CONTRACT_STATUS.RESCINDED) {
+    return { ok: true, error: null }   // already rescinded — idempotent
+  }
+  const { error } = await supabase
+    .from('contracts').update({ status: CONTRACT_STATUS.RESCINDED }).eq('id', contractId)
+  if (error) return dbFailure(error)
+  revalidateStatus(contractId)
+  return { ok: true, error: null }
+}
+
+export async function reactivateContract(contractId: string): Promise<InlineResult> {
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase
+    .from('contracts').update({ status: CONTRACT_STATUS.ACTIVE }).eq('id', contractId)
+  if (error) return dbFailure(error)
+  revalidateStatus(contractId)
+  return { ok: true, error: null }
+}
+
 // ============================================================================
 // Per-cell transaction upsert.
 //
