@@ -67,8 +67,8 @@ export function InlineObservacionCell({ contractId, period, summary, contractLab
                 </span>
               )}
               {honCount > 0 && (
-                <span className="inline-flex items-center gap-1 text-info" title={`${honCount} honorario(s) — ingreso inmobiliaria`}>
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-info" />{honCount}
+                <span className="inline-flex items-center gap-1.5 text-info text-[13px] font-semibold" title={`${honCount} honorario(s) — ingreso inmobiliaria`}>
+                  <span className="inline-block w-3 h-3 rounded-full bg-info" />{honCount}
                 </span>
               )}
             </span>
