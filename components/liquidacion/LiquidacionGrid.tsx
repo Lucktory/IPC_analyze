@@ -122,6 +122,11 @@ const W = {
   // Per Alejandro 2026-06-20: Alquiler stays pure, recargos go HERE.
   recargos: 100,
   extras: 85,
+  // Honorarios — agency leasing fee (one-time, charged on new/renewed
+  // contract). Its own column between Extras and Transferencia per Alejandro
+  // ("una zona entre alquileres y transferencias"). Agency income; it does
+  // NOT flow into Transferencia. Bottom of the column carries the total.
+  honorarios: 95,
   ingresos: 95, transf: 105, otros: 80,
   // Movs. — net of every transaction on the contract+period (IN - OUT).
   // Two-line label: amount on top, "N mov." underneath. Click opens the
@@ -248,7 +253,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
 
   const tableMinWidth =
     W.obs + W.lfa + W.fbanco + W.prop + W.expensas + W.inq + W.pct + W.cadencia +
-    W.contrato + W.deuda + W.periodo + W.alquiler + W.recargos + W.extras + W.transf + W.otros +
+    W.contrato + W.deuda + W.periodo + W.alquiler + W.recargos + W.extras + W.honorarios + W.transf + W.otros +
     W.movim + W.diatransf + W.admi + W.iva + W.galicia + W.fr509 + W.fr516 + W.estado + W.mail + W.check
 
   return (
@@ -268,7 +273,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <th colSpan={4} className="text-center px-2 py-1.5 border-r border-line" style={{ position: 'sticky', left: 0, zIndex: 24, width: G_CTRL_W, minWidth: G_CTRL_W, backgroundColor: CREAM2 }}>Control</th>
               <th colSpan={1} className="text-center px-2 py-1.5 border-r border-line" style={{ position: 'sticky', left: G_CTRL_W, zIndex: 24, width: W.prop, minWidth: W.prop, backgroundColor: CREAM2 }}>Propietario</th>
               <th colSpan={7} className="text-center px-2 py-1.5 border-r border-line">Contrato</th>
-              <th colSpan={7} className="text-center px-2 py-1.5 border-r border-line">Cobros del período</th>
+              <th colSpan={8} className="text-center px-2 py-1.5 border-r border-line">Cobros del período</th>
               <th colSpan={2} className="text-center px-2 py-1.5 border-r border-line">Comisión</th>
               <th colSpan={3} className="text-center px-2 py-1.5 border-r border-line">Distribución bancaria</th>
               <th colSpan={2} className="text-center px-2 py-1.5">Cierre</th>
@@ -290,6 +295,8 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               {/* 11 */}<Th width={W.alquiler}  align="right">Alquiler</Th>
               {/* 11b */}<Th width={W.recargos} align="right">Recargos</Th>
               {/* 12 */}<Th width={W.extras}    align="right">Extras</Th>
+              {/* 12b — Honorarios (agency fee) between Extras and Transferencia */}
+              <Th width={W.honorarios} align="right">Honorarios</Th>
               {/* 12 */}<Th width={W.transf}    align="right">Transferencia</Th>
               {/* 13 */}<Th width={W.otros}     align="right">Otros</Th>
               {/* 13b */}<Th width={W.movim}    align="right">Movs.</Th>
@@ -321,6 +328,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               const aumentoClass    = r.periodHasAumento ? ALQUILER_AUMENTO_CELL_CLASS : ''
               const alquilerSum     = Number.isFinite(r.alquilerSum) ? r.alquilerSum : 0
               const extrasSum       = Number.isFinite(r.extrasSum)   ? r.extrasSum   : 0
+              const honorariosTotal = Number.isFinite(r.honorariosTotal) ? r.honorariosTotal : 0
               // Two-part rent (N/F): show the facturado / N-F split under the
               // Alquiler amount so the encargada records BOTH parts.
               const isNF            = r.rentFacturadoNeto != null
@@ -654,6 +662,21 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     />
                   </Td>
 
+                  {/* 12b. HONORARIOS — agency leasing fee (one-time, on new /
+                       renewed contract). Read-only here; cargados/editados
+                       desde la Observación (HonorariosSection). Blue to tie it
+                       to the honorarios indicator in the Observación cell. It
+                       is agency income — deliberately NOT part of Transferencia
+                       (the owner's rendición). Column total sits in the footer. */}
+                  <Td width={W.honorarios} align="right">
+                    {honorariosTotal > 0
+                      ? <span
+                          className="tabular-nums text-info font-semibold"
+                          title="Honorarios de la inmobiliaria (se cargan desde Observacion)"
+                        >{fmtMoney(honorariosTotal)}</span>
+                      : <span className="text-slate">—</span>}
+                  </Td>
+
                   {/* 12. TRANSFERENCIA — editable; persists LANDLORD_PAYOUT.
                        Neto al propietario: highlighted green like the mockup. */}
                   <Td width={W.transf} align="right">
@@ -842,6 +865,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               <Tf width={W.alquiler}  align="right" tabular>{footerMoney(totals.alquiler)}</Tf>
               <Tf width={W.recargos}  align="right" />{/* per-row totals only */}
               <Tf width={W.extras}    align="right" tabular>{footerMoney(totals.extras)}</Tf>
+              <Tf width={W.honorarios} align="right" tabular><span className="text-info font-semibold">{footerMoney(totals.honorarios)}</span></Tf>
               <Tf width={W.transf}    align="right" tabular><span className="text-success font-semibold">{footerMoney(totals.transferencia)}</span></Tf>
               <Tf width={W.otros}     align="right" tabular>{footerMoney(totals.otros)}</Tf>
               <Tf width={W.movim}     align="right"    />

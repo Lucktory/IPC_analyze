@@ -19,6 +19,7 @@ import { COMMISSION_IVA_RATE, type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
 import { buildEventsSummariesBulk, buildReceiptAjustes, type EventsSummary, type AjusteLine } from '@/lib/contract/events-bulk'
+import { EVENT_KIND } from '@/lib/contract/events-types'
 import { getArgentinaToday } from '@/lib/period'
 
 export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown, RecurringChargesSummary, AjusteLine }
@@ -37,6 +38,8 @@ export interface LiquidacionGridTotals {
   alquiler:      number
   /** Phase 9C: sum of (non-RENT_IN IN + adjustment_amount) across all rows. */
   extras:        number
+  /** Sum of the Honorarios column (agency leasing fee) across all rows. */
+  honorarios:    number
   transferencia: number
   otros:         number
   admi:          number
@@ -50,7 +53,7 @@ export interface LiquidacionGridTotals {
 }
 
 const ZERO_TOTALS: LiquidacionGridTotals = {
-  expensas: 0, deuda: 0, ingresos: 0, alquiler: 0, extras: 0,
+  expensas: 0, deuda: 0, ingresos: 0, alquiler: 0, extras: 0, honorarios: 0,
   transferencia: 0, otros: 0,
   admi: 0, iva: 0, admGalicia: 0, admFrances509: 0, admFrances516: 0,
 }
@@ -64,6 +67,7 @@ export function sumGridTotals(rows: LiquidacionGridRow[]): LiquidacionGridTotals
       t.ingresos      += Number(r.ingresos      ?? 0) || 0
       t.alquiler      += Number(r.alquilerSum   ?? 0) || 0
       t.extras        += Number(r.extrasSum     ?? 0) || 0
+      t.honorarios    += Number(r.honorariosTotal ?? 0) || 0
       t.transferencia += Number(r.transferencia ?? 0) || 0
       t.otros         += Number(r.otros         ?? 0) || 0
       t.admi          += Number(r.admi          ?? 0) || 0
@@ -276,6 +280,13 @@ export interface LiquidacionGridRow {
   //                a discount sits in adjustment_amount).
   alquilerSum:   number
   extrasSum:     number
+
+  // ── Honorarios (agency leasing fee) — one-time income charged this period,
+  //    shown as its OWN column between Alquiler/Extras and Transferencia.
+  //    Sum of the este-mes (rojo) HONORARIOS events' neto amount. This is
+  //    agency income only — it NEVER enters `transferencia` (the owner's
+  //    rendición). Matches the "Ingresos de la inmobiliaria" resumen total. ──
+  honorariosTotal: number
 
   // ── Transfer side (light gray until diaTransf set, then dark gray) ──
   diaTransf:     string | null   // max(LANDLORD_PAYOUT.bank_date)
@@ -922,6 +933,13 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     const eventsSummary = eventsByContract.get(c.id) ?? null
     const adjustment    = Number(liq?.adjustment_amount ?? 0) + (eventsSummary?.adjustmentEffect ?? 0)
 
+    // Honorarios column = sum of the este-mes (rojo) HONORARIOS events' neto
+    // amount. Agency income only — deliberately NOT folded into `adjustment`
+    // or `transferencia`; it stands alone in its own column + bottom total.
+    const honorariosTotal = (eventsSummary?.esteMes ?? [])
+      .filter(e => e.kind === EVENT_KIND.HONORARIOS)
+      .reduce((s, e) => s + (Number(e.amountTenant) || 0), 0)
+
     // Transferencia = collected − comisión − gastos + ajustes = the recibo neto.
     // Per Alejandro: this number must be identical in the recibo, in this
     // column, and in the actual transfer. The actual LANDLORD_PAYOUT (a.payout)
@@ -959,6 +977,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       fechaBanco:    a.fechaBanco,
       ingresos:      a.ingresos,
       deuda,
+      honorariosTotal,
       diaTransf:     a.diaTransf,
       transferencia,
       otros:         a.otros,
