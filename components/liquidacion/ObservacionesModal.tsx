@@ -188,7 +188,7 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
         <div className="px-5 py-3 border-b border-line sticky top-0 bg-paper z-10 flex items-center justify-between">
           <div>
             <h2 className="font-display text-[15px] font-medium text-ink">Observaciones · {periodLabel(period)}</h2>
-            {contractLabel && <p className="text-[11.5px] text-slate mt-0.5">{contractLabel}</p>}
+            {contractLabel && <p className="text-[12.5px] text-slate mt-0.5">{contractLabel}</p>}
           </div>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="text-slate hover:text-ink text-[18px] leading-none px-2 py-1">×</button>
         </div>
@@ -209,19 +209,19 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
 
           {/* Add */}
           <div className="bg-cream/40 border border-line rounded p-2">
-            <p className="text-[10px] uppercase tracking-wider text-slate-dark font-medium mb-1.5">+ Agregar</p>
+            <p className="text-[11px] uppercase tracking-wider text-slate-dark font-medium mb-1.5">+ Agregar</p>
             <div className="grid grid-cols-[1fr_110px_110px_110px_auto] gap-2 items-center">
               <input
                 type="text" value={draft.description}
                 onChange={e => setDraft(s => ({ ...s, description: e.target.value }))}
                 onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
                 placeholder="Arreglo, ajuste…"
-                className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
+                className="h-8 px-2 rounded border border-line bg-paper text-[13.5px] outline-none focus:border-info"
               />
               <select
                 value={draft.party}
                 onChange={e => setDraft(s => ({ ...s, party: e.target.value as EventParty }))}
-                className="h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info"
+                className="h-8 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info"
               >
                 <option value={EVENT_PARTY.LANDLORD}>Al dueño</option>
                 <option value={EVENT_PARTY.TENANT}>Al inquilino</option>
@@ -231,20 +231,20 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
                 onChange={e => setDraft(s => ({ ...s, amount: e.target.value }))}
                 onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
                 placeholder="Monto"
-                className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+                className="h-8 px-2 rounded border border-line bg-paper text-[13.5px] text-right tabular-nums outline-none focus:border-info"
               />
               <select
                 value={draft.cuando}
                 onChange={e => setDraft(s => ({ ...s, cuando: e.target.value as Draft['cuando'] }))}
                 title="Cuándo se descuenta/suma"
-                className="h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info"
+                className="h-8 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info"
               >
                 <option value="este">Este mes</option>
                 <option value="proximo">Mes que viene</option>
               </select>
               <button
                 type="button" onClick={handleAdd} disabled={pending}
-                className="h-8 px-3 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 disabled:opacity-60"
+                className="h-8 px-3 rounded bg-info text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-60"
               >Agregar</button>
             </div>
           </div>
@@ -262,7 +262,7 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
             pending={pending}
           />
 
-          {error && <div className="text-[11.5px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">{error}</div>}
+          {error && <div className="text-[12.5px] text-danger bg-danger/10 border border-danger/30 rounded px-3 py-2">{error}</div>}
         </div>
       </div>
     </div>,
@@ -298,20 +298,20 @@ function HonorariosSection({
         <span className="inline-block w-2 h-2 rounded-full bg-info" /> Honorarios · ingreso inmobiliaria
       </p>
       {items.length === 0 ? (
-        <p className="text-[12px] text-slate italic px-1">Sin honorarios cargados.</p>
+        <p className="text-[13px] text-slate italic px-1">Sin honorarios cargados.</p>
       ) : (
         <ul className="space-y-1">
           {items.map(e => {
             const neto = magnitudeOf(e)
             return (
               <li key={e.id} className="flex items-center justify-between gap-2 border-b border-line py-1">
-                <span className="text-[12.5px] text-ink truncate min-w-0">{e.description || 'Honorarios'}</span>
+                <span className="text-[13.5px] text-ink truncate min-w-0">{e.description || 'Honorarios'}</span>
                 <span className="flex items-center gap-2 shrink-0">
                   {e.includesIva && (
-                    <span className="text-[9px] px-1 py-0.5 rounded bg-info/15 text-info" title={`Total con IVA: ${fmtSignedMoney(neto * 1.21)}`}>+IVA</span>
+                    <span className="text-[10px] px-1 py-0.5 rounded bg-info/15 text-info" title={`Total con IVA: ${fmtSignedMoney(neto * 1.21)}`}>+IVA</span>
                   )}
-                  <span className="text-[12px] tabular-nums font-medium text-info">{fmtSignedMoney(neto)}</span>
-                  <button type="button" onClick={() => onRemove(e.id)} title="Eliminar" className="text-slate hover:text-danger px-1">×</button>
+                  <span className="text-[13px] tabular-nums font-medium text-info">{fmtSignedMoney(neto)}</span>
+                  <button type="button" onClick={() => onRemove(e.id)} title="Eliminar" className="text-slate hover:text-danger hover:bg-danger/10 rounded text-[20px] leading-none px-2 py-0.5 -my-0.5">×</button>
                 </span>
               </li>
             )
@@ -323,7 +323,7 @@ function HonorariosSection({
         <button
           type="button" onClick={onPayoff} disabled={pending}
           title="Adelantar todas las cuotas futuras a este mes y cancelarlas (pago anticipado del saldo)"
-          className="mt-1.5 text-[11px] text-info hover:underline font-medium disabled:opacity-60"
+          className="mt-1.5 text-[12px] text-info hover:underline font-medium disabled:opacity-60"
         >
           → Cobrar saldo restante ahora
         </button>
@@ -338,7 +338,7 @@ function HonorariosSection({
             onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
             placeholder="Monto (neto)"
             title="Monto total de los honorarios (neto, sin IVA)"
-            className="h-8 px-2 rounded border border-info/60 bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-info/60 bg-paper text-[13.5px] text-right tabular-nums outline-none focus:border-info"
           />
           <input
             type="number" value={draft.cuotas} step="1" min={1} max={12}
@@ -346,12 +346,12 @@ function HonorariosSection({
             onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
             placeholder="Cuotas"
             title="Cantidad de cuotas (1 = pago único)"
-            className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] text-right tabular-nums outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[13.5px] text-right tabular-nums outline-none focus:border-info"
           />
           <select
             value={draft.includesIva ? '1' : '0'}
             onChange={e => onDraft({ ...draft, includesIva: e.target.value === '1' })}
-            className="h-8 px-2 rounded border border-line bg-paper text-[12px] outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info"
           >
             <option value="0">Sin IVA</option>
             <option value="1">Con IVA 21%</option>
@@ -363,15 +363,15 @@ function HonorariosSection({
             onChange={e => onDraft({ ...draft, description: e.target.value })}
             onKeyDown={e => { if (e.key === 'Enter') onAdd() }}
             placeholder="Descripción (opcional) — renovación / contrato nuevo"
-            className="h-8 px-2 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
+            className="h-8 px-2 rounded border border-line bg-paper text-[13.5px] outline-none focus:border-info"
           />
           <button
             type="button" onClick={onAdd} disabled={pending}
-            className="h-8 px-3 rounded bg-info text-white text-[12px] font-medium hover:opacity-90 disabled:opacity-60"
+            className="h-8 px-3 rounded bg-info text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-60"
           >Agregar</button>
         </div>
         {total > 0 && (
-          <p className="text-[10.5px] text-slate italic px-0.5">
+          <p className="text-[11.5px] text-slate italic px-0.5">
             {cuotas > 1
               ? `→ ${cuotas} cuotas de ${fmtSignedMoney(perCuota)}${draft.includesIva ? ` (con IVA ${fmtSignedMoney(withIva(perCuota))})` : ''}, desde este mes`
               : `→ pago único${draft.includesIva ? ` · con IVA: ${fmtSignedMoney(withIva(total))}` : ''}`}
@@ -401,7 +401,7 @@ function ReminderSection({
         <span className={`inline-block w-2 h-2 rounded-full ${dot}`} /> {title}
       </p>
       {items.length === 0 ? (
-        <p className="text-[12px] text-slate italic px-1">{emptyText}</p>
+        <p className="text-[13px] text-slate italic px-1">{emptyText}</p>
       ) : (
         <ul className="space-y-1">
           {items.map(e => (
@@ -409,7 +409,7 @@ function ReminderSection({
           ))}
         </ul>
       )}
-      {footer && <p className="text-[10.5px] text-slate mt-1 px-1 italic">{footer}</p>}
+      {footer && <p className="text-[11.5px] text-slate mt-1 px-1 italic">{footer}</p>}
     </section>
   )
 }
@@ -465,12 +465,12 @@ function ReminderItem({
         onChange={e => setDesc(e.target.value)}
         onBlur={commitDescription}
         placeholder="Descripción"
-        className="min-w-0 bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1"
+        className="min-w-0 bg-transparent text-[13.5px] outline-none focus:bg-cream/40 rounded px-1"
       />
       <select
         value={party}
         onChange={e => { const p = e.target.value as EventParty; setParty(p); commitAmounts(p, amount) }}
-        className="h-7 px-1.5 rounded border border-line bg-paper text-[11.5px] outline-none focus:border-info"
+        className="h-7 px-1.5 rounded border border-line bg-paper text-[12.5px] outline-none focus:border-info"
       >
         <option value={EVENT_PARTY.LANDLORD}>Al dueño</option>
         <option value={EVENT_PARTY.TENANT}>Al inquilino</option>
@@ -480,13 +480,13 @@ function ReminderItem({
         onChange={e => setAmount(e.target.value)}
         onBlur={e => commitAmounts(party, e.target.value)}
         placeholder="Monto"
-        className="h-7 px-1.5 rounded border border-line bg-paper text-[12px] text-right tabular-nums outline-none focus:border-info"
+        className="h-7 px-1.5 rounded border border-line bg-paper text-[13px] text-right tabular-nums outline-none focus:border-info"
       />
       <div className="flex items-center gap-2 justify-end">
-        <span className={`text-[11px] tabular-nums font-medium ${effectClass} whitespace-nowrap`}>
+        <span className={`text-[12px] tabular-nums font-medium ${effectClass} whitespace-nowrap`}>
           {fmtSignedMoney(effect)}
           {tone === 'negro' && event.appliesToPeriod && (
-            <span className="text-[10px] text-slate ml-1">· {periodLabel(event.appliesToPeriod)}</span>
+            <span className="text-[11px] text-slate ml-1">· {periodLabel(event.appliesToPeriod)}</span>
           )}
         </span>
         {tone === 'rojo' && (
@@ -496,14 +496,14 @@ function ReminderItem({
             title={confirmed ? 'Marcar como a cobrar' : 'Marcar como cobrado (entra al recibo)'}
             className={
               confirmed
-                ? 'text-[10px] px-1.5 py-0.5 rounded bg-success/10 border border-success/40 text-success whitespace-nowrap'
-                : 'text-[10px] px-1.5 py-0.5 rounded border border-line text-slate hover:border-success hover:text-success whitespace-nowrap'
+                ? 'text-[11px] px-1.5 py-0.5 rounded bg-success/10 border border-success/40 text-success whitespace-nowrap'
+                : 'text-[11px] px-1.5 py-0.5 rounded border border-line text-slate hover:border-success hover:text-success whitespace-nowrap'
             }
           >
             {confirmed ? `✓ ${LABEL_COBRADO}` : LABEL_A_COBRAR}
           </button>
         )}
-        <button type="button" onClick={() => onRemove(event.id)} title="Eliminar" className="text-slate hover:text-danger px-1">×</button>
+        <button type="button" onClick={() => onRemove(event.id)} title="Eliminar" className="text-slate hover:text-danger hover:bg-danger/10 rounded text-[20px] leading-none px-2 py-0.5 -my-0.5">×</button>
       </div>
     </li>
   )
