@@ -7,7 +7,6 @@
 import { Info, ArrowUp, ArrowDown, Calendar } from 'lucide-react'
 import {
   getDashboardKpis,
-  getCommissionByDestination,
   getTopLandlords,
   getPropertyTypeBreakdown,
   getContractsByCadence,
@@ -19,7 +18,6 @@ import {
 } from '@/lib/dashboard/queries'
 import { buildPeriodTabs } from '@/lib/period'
 import { fmtMoney } from '@/lib/format'
-import { fmtCompactARS } from '@/components/charts/theme'
 import { PeriodSelect }         from '@/components/charts/panel/PeriodSelect'
 import { DashboardCard }        from '@/components/charts/panel/DashboardCard'
 import { DonutPanel }           from '@/components/charts/panel/DonutPanel'
@@ -134,9 +132,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const dashPeriod = validReq ?? latestPeriod
   const selectorPeriods = buildPeriodTabs(dataPeriods, dashPeriod, 3)
 
-  const [kpis, commByBank, topLandlords, propTypes, cadence, incomeTrend, opTrends, health] = await Promise.all([
+  const [kpis, topLandlords, propTypes, cadence, incomeTrend, opTrends, health] = await Promise.all([
     getDashboardKpis(dashPeriod),
-    getCommissionByDestination(dashPeriod),
     getTopLandlords(5, dashPeriod),
     getPropertyTypeBreakdown(),
     getContractsByCadence(),
@@ -148,6 +145,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // KPI deltas + sparkline series from the trend queries
   const incomeVals = incomeTrend.map(p => p.value)
   const commVals   = opTrends.map(p => p.comisiones)
+  const honVals    = opTrends.map(p => p.honorarios)
+  // Current-month split for the "Ingresos de la inmobiliaria" footer — the
+  // last trend point is the selected period, so the chart's last point and
+  // the footer totals agree.
+  const lastOp     = opTrends[opTrends.length - 1]
+  const currAdm    = lastOp?.comisiones ?? 0
+  const currHon    = lastOp?.honorarios ?? 0
   const n = incomeVals.length
   const incomeDelta = n >= 2 ? pctChange(incomeVals[n - 1], incomeVals[n - 2]) : null
   const m = commVals.length
@@ -160,7 +164,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const saludStatus: 'ok' | 'warning' | 'critical' = saludPct >= 80 ? 'ok' : saludPct >= 50 ? 'warning' : 'critical'
 
   // Donut / bar items
-  const commItems     = commByBank.map((b, i) => ({ label: b.label, value: b.total, color: ROTATION[i % ROTATION.length] }))
   const propItems     = propTypes.map((p, i) => ({ label: p.type, value: p.count, color: ROTATION[i % ROTATION.length] }))
   const landlordItems = topLandlords.map(l => ({ label: l.name, value: l.revenue, color: BLUE }))
   const cadenceTotal  = cadence.reduce((s, c) => s + c.count, 0)
@@ -203,10 +206,39 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </div>
           </DashboardCard>
 
-          <DashboardCard title="Comisión por banco" fill>
-            <div className="h-[180px] lg:h-full">
-              <DonutPanel items={commItems} totalUnit="Total" fill valueFormat="money"
-                          centerText={fmtCompactARS(commItems.reduce((s, i) => s + i.value, 0)).replace('$ ', '')} />
+          {/* Ingresos de la inmobiliaria — Administración (comisión mensual) +
+              Honorarios (fee de alquiler, one-time) juntos, en distintos
+              colores, over the last 6 months. Per Alejandro: "en el dashboard
+              podemos unirlo con administraciones con distintos colores." The
+              footer shows the current-month split + total. */}
+          <DashboardCard title="Ingresos de la inmobiliaria" subtitle="Administración + Honorarios · 6 meses" fill>
+            <div className="lg:h-full flex flex-col">
+              <div className="h-[150px] lg:flex-1 lg:min-h-0">
+                <StackedAreaChart
+                  xLabels={opTrends.map(p => p.label)}
+                  series={[
+                    { name: 'Administración', color: EMERALD, values: commVals },
+                    { name: 'Honorarios',     color: VIOLET,  values: honVals },
+                  ]}
+                  height="100%"
+                />
+              </div>
+              <div className="mt-2 pt-2 border-t border-line flex items-center justify-between gap-2 text-[12px] shrink-0">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: EMERALD }} />
+                  <span className="text-slate">Adm.</span>
+                  <span className="tabular-nums text-ink truncate">{fmtMoney(currAdm)}</span>
+                </span>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: VIOLET }} />
+                  <span className="text-slate">Hon.</span>
+                  <span className="tabular-nums text-ink truncate">{fmtMoney(currHon)}</span>
+                </span>
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-slate">Total</span>
+                  <span className="tabular-nums font-semibold text-ink">{fmtMoney(currAdm + currHon)}</span>
+                </span>
+              </div>
             </div>
           </DashboardCard>
 

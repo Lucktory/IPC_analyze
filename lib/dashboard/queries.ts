@@ -23,6 +23,7 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { getCurrentPeriod, getRecentPeriods, periodAxisLabel } from '@/lib/period'
+import { EVENTS_TABLE, EVENT_KIND, EVENT_STATUS } from '@/lib/contract/events-types'
 
 // ── Filter primitives — applied to the joined transaction_types row.
 //    Centralized so a single typo can't desync the dashboard from the
@@ -370,6 +371,11 @@ export interface OperationalTrendPoint {
   label:      string
   ingresos:   number
   comisiones: number
+  /** Agency leasing fee (honorarios) charged this period — one-time income,
+   *  separate from the monthly commission. Sum of the period's HONORARIOS
+   *  events (amount_tenant, neto). Feeds the "Ingresos de la inmobiliaria"
+   *  card that plots Administracion + Honorarios together. */
+  honorarios: number
   pagos:      number   // tx count
 }
 
@@ -390,7 +396,7 @@ export async function getOperationalTrends(months = 6, anchor?: string): Promise
     // RENT_IN. This mirrors "how many cobros came in this month" rather
     // than the narrower "how many tenants paid rent" (that question is
     // answered by getCollectionHealth.paidCount).
-    const [ingresosRes, commRes] = await Promise.all([
+    const [ingresosRes, commRes, honRes] = await Promise.all([
       supabase
         .from('transactions')
         .select('amount, period, transaction_types!inner(direction, affects_liquidacion)')
@@ -402,10 +408,19 @@ export async function getOperationalTrends(months = 6, anchor?: string): Promise
         .select('amount, period, transaction_types!inner(code)')
         .eq(TT_CODE, 'COMMISSION_OUT')
         .in('period', periods),
+      // Honorarios (agency leasing fee) live in contract_events, keyed by
+      // applies_to_period (not transactions.period). amount_tenant = neto.
+      supabase
+        .from(EVENTS_TABLE)
+        .select('amount_tenant, applies_to_period')
+        .eq('kind', EVENT_KIND.HONORARIOS)
+        .neq('status', EVENT_STATUS.CANCELLED)
+        .in('applies_to_period', periods),
     ])
 
     const ingresos   = new Map<string, number>(periods.map(p => [p, 0]))
     const comisiones = new Map<string, number>(periods.map(p => [p, 0]))
+    const honorarios = new Map<string, number>(periods.map(p => [p, 0]))
     const pagos      = new Map<string, number>(periods.map(p => [p, 0]))
 
     for (const row of (ingresosRes.data ?? []) as { amount: number | string; period: string }[]) {
@@ -415,12 +430,16 @@ export async function getOperationalTrends(months = 6, anchor?: string): Promise
     for (const row of (commRes.data ?? []) as { amount: number | string; period: string }[]) {
       comisiones.set(row.period, (comisiones.get(row.period) ?? 0) + Number(row.amount))
     }
+    for (const row of (honRes.data ?? []) as { amount_tenant: number | string; applies_to_period: string }[]) {
+      honorarios.set(row.applies_to_period, (honorarios.get(row.applies_to_period) ?? 0) + Number(row.amount_tenant))
+    }
 
     return periods.map(p => ({
       period:     p,
       label:      periodAxisLabel(p),
       ingresos:   ingresos  .get(p) ?? 0,
       comisiones: comisiones.get(p) ?? 0,
+      honorarios: honorarios.get(p) ?? 0,
       pagos:      pagos     .get(p) ?? 0,
     }))
   } catch (err) {
