@@ -703,6 +703,8 @@ export interface PropertyRow {
   city:          string | null
   propertyType:  string
   isVacant:      boolean       // address ends with "(vacante)" OR no contract
+  /** In the agency's portfolio (properties.is_active). false = dada de baja. */
+  isActive:      boolean
   hasContract:   boolean
   /** Legacy single-tenant (primary) — kept for backwards compat. */
   tenant:        string | null
@@ -725,7 +727,7 @@ export async function listProperties(): Promise<PropertyRow[]> {
     supabase
       .from('properties')
       .select(`
-        id, address, unit, city, property_type,
+        id, address, unit, city, property_type, is_active,
         property_landlords(ownership_pct, landlords(id, name))
       `)
       .order('address'),
@@ -779,10 +781,14 @@ export async function listProperties(): Promise<PropertyRow[]> {
       rent   = Number(contract.current_rent)
     }
 
-    // Urgency — vacante = critical, matches the orange Vacante badge.
+    const isActive = p.is_active !== false
+
+    // Urgency — vacante = critical, matches the orange Vacante badge. An
+    // inactive property (dada de baja) is out of the portfolio, so its vacancy
+    // is not something to act on: no urgency.
     const reasons: string[] = []
     let urgency: UrgencyTier = 'ok'
-    if (isVacant) {
+    if (isVacant && isActive) {
       urgency = 'critical'
       reasons.push('Propiedad vacante')
     }
@@ -794,6 +800,7 @@ export async function listProperties(): Promise<PropertyRow[]> {
       city:         displayCity(p.city),
       propertyType: p.property_type,
       isVacant,
+      isActive,
       hasContract:  !!contract,
       tenant,
       landlord,

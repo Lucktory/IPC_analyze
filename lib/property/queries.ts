@@ -77,6 +77,9 @@ export interface PropertyDetail {
   rooms:        number | null
   surfaceM2:    number | null
   notes:        string | null
+  /** Whether the property is still in the agency's portfolio. false = dada de
+   *  baja (Alejandro no longer manages it). Drives the baja/reactivar control. */
+  isActive:     boolean
   landlords:    { id: string; name: string; ownershipPct: number; cuit: string | null }[]
   contracts:    PropertyContract[]
 }
@@ -86,7 +89,7 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
   const { data } = await supabase
     .from('properties')
     .select(`
-      id, address, unit, city, province, property_type, rooms, surface_m2, notes,
+      id, address, unit, city, province, property_type, rooms, surface_m2, notes, is_active,
       property_landlords(ownership_pct, landlords(id, name, dni_or_cuit)),
       contracts(
         id, current_rent, status, cadence, start_date, end_date, payment_day, deposit_amount, deposit_status,
@@ -141,6 +144,7 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
     rooms:        p.rooms ?? null,
     surfaceM2:    p.surface_m2 != null ? Number(p.surface_m2) : null,
     notes:        p.notes ?? null,
+    isActive:     p.is_active !== false,
     landlords,
     contracts,
   }

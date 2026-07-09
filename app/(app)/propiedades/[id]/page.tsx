@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/Badge'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { getPropertyDetail } from '@/lib/property/queries'
 import { EditPropertyForm } from '@/components/property/EditPropertyForm'
+import { PropertyStatusControl } from '@/components/property/PropertyStatusControl'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
@@ -69,7 +70,15 @@ export default async function PropertyDetailPage({ params }: PageProps) {
             <ArrowLeft size={14} /> Volver
           </Link>
         </div>
-        <h1 className="text-[22px] font-semibold text-ink tracking-tight mt-2">Propiedad · {fullAddr}</h1>
+        <div className="flex items-start justify-between gap-3 flex-wrap mt-2">
+          <h1 className="text-[22px] font-semibold text-ink tracking-tight flex items-center gap-2">
+            Propiedad · {fullAddr}
+            {!prop.isActive && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate/15 text-slate-dark align-middle">Inactiva</span>
+            )}
+          </h1>
+          <PropertyStatusControl propertyId={prop.id} isActive={prop.isActive} />
+        </div>
       </header>
 
       {/* KPI cards */}

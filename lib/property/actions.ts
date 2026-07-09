@@ -133,6 +133,29 @@ export async function updateProperty(
   return { ok: true, error: null }
 }
 
+// ── Dar de baja / reactivar una propiedad ───────────────────────────────────
+// Alejandro: "A veces puedo perder una propiedad — porque el dueño se la quiere
+// llevar, o porque yo no la quiero tener mas." Dar de baja flips is_active to
+// false: it leaves the active portfolio (list default + stats) and its vacancy
+// stops raising urgency. Fully reversible via reactivar. Nothing else is
+// touched (contracts, owners), so reactivar is a clean undo.
+async function setPropertyActive(id: string, active: boolean): Promise<UpdatePropertyResult> {
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase.from('properties').update({ is_active: active }).eq('id', id)
+  if (error) return dbFailure(error)
+  revalidatePath('/propiedades')
+  revalidatePath(`/propiedades/${id}`)
+  return { ok: true, error: null }
+}
+
+export async function deactivateProperty(id: string): Promise<UpdatePropertyResult> {
+  return setPropertyActive(id, false)
+}
+
+export async function reactivateProperty(id: string): Promise<UpdatePropertyResult> {
+  return setPropertyActive(id, true)
+}
+
 /** Create a new property. Redirects to the detail page on success. */
 export async function createProperty(formData: FormData): Promise<UpdatePropertyResult> {
   const fields = {

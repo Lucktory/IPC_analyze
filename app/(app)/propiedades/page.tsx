@@ -30,12 +30,18 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
   const q      = (sp.q ?? '').trim().toLowerCase()
 
   const all = await listProperties()
+  // Properties dadas de baja leave the active portfolio: they don't count in
+  // the stats and are hidden from the default list. estado='inactivas' shows
+  // exactly those (to reactivate them).
+  const activeProps     = all.filter(p => p.isActive)
+  const inactiveProps   = all.filter(p => !p.isActive)
+  const viewingInactive = estado === 'inactivas'
 
-  const total    = all.length
-  const ocupadas = all.filter(p => !p.isVacant).length
+  const total    = activeProps.length
+  const ocupadas = activeProps.filter(p => !p.isVacant).length
   const vacantes = total - ocupadas
   const typeCounts: Record<string, number> = {}
-  for (const p of all) typeCounts[p.propertyType] = (typeCounts[p.propertyType] ?? 0) + 1
+  for (const p of activeProps) typeCounts[p.propertyType] = (typeCounts[p.propertyType] ?? 0) + 1
   const viviendas = typeCounts.vivienda ?? 0
   const locales   = typeCounts.local ?? 0
   const donutItems = TYPE_ORDER.filter(t => typeCounts[t]).map(t => ({
@@ -43,9 +49,11 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
     pct: total > 0 ? Math.round((typeCounts[t] / total) * 100) : 0,
   }))
 
-  let rows = all
-  if (estado === 'ocupadas')      rows = rows.filter(p => !p.isVacant)
-  else if (estado === 'vacantes') rows = rows.filter(p => p.isVacant)
+  let rows = viewingInactive ? inactiveProps : activeProps
+  if (!viewingInactive) {
+    if (estado === 'ocupadas')      rows = rows.filter(p => !p.isVacant)
+    else if (estado === 'vacantes') rows = rows.filter(p => p.isVacant)
+  }
   if (tipoF !== 'todos') rows = rows.filter(p => p.propertyType === tipoF)
   if (q) {
     rows = rows.filter(p =>
@@ -115,6 +123,17 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
             </div>
           </div>
         </details>
+        {/* Inactivas toggle — only when there are dadas de baja. */}
+        {(inactiveProps.length > 0 || viewingInactive) && (
+          <Link
+            href={viewingInactive ? buildHref({ estado: 'todos' }) : buildHref({ estado: 'inactivas' })}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[13px] transition-colors shrink-0 ${
+              viewingInactive ? 'border-info text-info bg-info/5' : 'border-line text-slate-dark bg-paper hover:border-info/40'
+            }`}
+          >
+            {viewingInactive ? '← Ver activas' : `Inactivas (${inactiveProps.length})`}
+          </Link>
+        )}
         <Link href="/propiedades/nuevo" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-info text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0">
           <Plus size={16} /> Nueva propiedad
         </Link>
@@ -162,9 +181,11 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
                       <td className="px-4 py-3 text-slate-dark truncate max-w-[160px]">{p.tenant ?? <span className="text-slate/50">—</span>}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-ink whitespace-nowrap">{p.currentRent > 0 ? fmt(p.currentRent) : <span className="text-slate/50">—</span>}</td>
                       <td className="px-4 py-3">
-                        {p.isVacant
-                          ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-warn/15 text-warn">Vacante</span>
-                          : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-success/15 text-success">Ocupada</span>}
+                        {!p.isActive
+                          ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate/15 text-slate-dark">Inactiva</span>
+                          : p.isVacant
+                            ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-warn/15 text-warn">Vacante</span>
+                            : <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-success/15 text-success">Ocupada</span>}
                       </td>
                       <td className="px-4 py-3 text-right"><ChevronRight size={16} className="text-slate/50 inline" /></td>
                     </ClickableRow>
