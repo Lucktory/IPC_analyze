@@ -7,7 +7,7 @@ import { getSection } from '@/lib/sections'
 interface NavItem {
   to: string
   label: string
-  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile' | 'sheet' | 'bell' | 'funnel' | 'shield'
+  icon: 'dashboard' | 'contracts' | 'tenants' | 'owners' | 'properties' | 'payments' | 'banks' | 'reconcile' | 'sheet' | 'bell' | 'funnel' | 'shield' | 'help'
 }
 
 const mainItems: NavItem[] = [
@@ -24,6 +24,7 @@ const mainItems: NavItem[] = [
   { to: '/movimientos',  label: 'Movimientos',   icon: 'payments'   },
   { to: '/bancos',       label: 'Bancos',        icon: 'banks'      },
   { to: '/conciliacion', label: 'Conciliación',  icon: 'reconcile'  },
+  { to: '/ayuda',        label: 'Ayuda',         icon: 'help'       },
 ]
 
 function NavIcon({ name }: { name: NavItem['icon'] }) {
@@ -137,6 +138,14 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
         <svg {...common} strokeLinejoin="round">
           <path d="M10 2.5 L16 4.5 V10 a6 6 0 0 1 -6 6 a6 6 0 0 1 -6 -6 V4.5 Z" />
           <path d="M7 10 L9.5 12 L13 8" />
+        </svg>
+      )
+    case 'help':
+      return (
+        <svg {...common} strokeLinejoin="round">
+          <circle cx="10" cy="10" r="7.5" />
+          <path d="M7.8 8 a2.3 2.3 0 1 1 3.2 2.1 c-0.7 0.3 -1 0.8 -1 1.5" />
+          <circle cx="10" cy="14" r="0.7" fill="currentColor" stroke="none" />
         </svg>
       )
   }
