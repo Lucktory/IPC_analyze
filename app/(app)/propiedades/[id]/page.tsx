@@ -77,7 +77,11 @@ export default async function PropertyDetailPage({ params }: PageProps) {
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate/15 text-slate-dark align-middle">Inactiva</span>
             )}
           </h1>
-          <PropertyStatusControl propertyId={prop.id} isActive={prop.isActive} />
+          <PropertyStatusControl
+            propertyId={prop.id}
+            isActive={prop.isActive}
+            activeContractCount={prop.contracts.filter(c => c.status === 'active').length}
+          />
         </div>
       </header>
 

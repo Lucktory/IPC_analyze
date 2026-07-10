@@ -737,10 +737,14 @@ export async function listProperties(): Promise<PropertyRow[]> {
         id, property_id, current_rent, status,
         contract_tenants(is_primary, share_pct, tenants(id, name))
       `)
-      .neq('status', 'rescinded'),
+      .eq('status', 'active'),
   ])
 
-  // Map property_id → contract details (for active contract info)
+  // Map property_id → its ACTIVE contract (tenant / rent / ocupada). Only active
+  // contracts count as "occupied": a property whose only contract is ended/draft
+  // is vacant. (Previously this fetched every non-rescinded contract and the map
+  // was last-write-wins, so a property with an old ended contract could show the
+  // stale tenant instead of going vacant once the active one was rescinded.)
   const contractByProp = new Map<string, any>()
   for (const c of (contractsRes.data ?? []) as any[]) {
     contractByProp.set(c.property_id, c)

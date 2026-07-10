@@ -213,6 +213,15 @@ export async function rescindContract(contractId: string): Promise<InlineResult>
 
 export async function reactivateContract(contractId: string): Promise<InlineResult> {
   const supabase = await createSupabaseServer()
+  const { data: existing, error: readErr } = await supabase
+    .from('contracts').select('status').eq('id', contractId).maybeSingle()
+  if (readErr) return dbFailure(readErr)
+  if (!existing) return { ok: false, error: 'No se encontró el contrato.' }
+  // Only a rescinded contract needs reactivar. Guarding avoids silently flipping
+  // an ended/draft/suspended contract to active (mirrors rescindContract).
+  if ((existing as { status: string }).status !== CONTRACT_STATUS.RESCINDED) {
+    return { ok: true, error: null }
+  }
   const { error } = await supabase
     .from('contracts').update({ status: CONTRACT_STATUS.ACTIVE }).eq('id', contractId)
   if (error) return dbFailure(error)

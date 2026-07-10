@@ -255,7 +255,9 @@ export interface PropertyTypeBreakdown {
 export async function getPropertyTypeBreakdown(): Promise<PropertyTypeBreakdown[]> {
   try {
     const supabase = await createSupabaseServer()
-    const { data } = await supabase.from('properties').select('property_type')
+    // Active portfolio only — matches /propiedades (dadas de baja don't count),
+    // so the dashboard "Tipo de propiedad" donut and the properties page agree.
+    const { data } = await supabase.from('properties').select('property_type').neq('is_active', false)
     const counts = new Map<string, number>()
     for (const row of data ?? []) {
       const t = (row as any).property_type as string
@@ -527,7 +529,11 @@ export async function getCollectionHealth(period?: string): Promise<CollectionHe
     const pendingAmount   = Math.max(0, expectedAmount - rentCollected)
 
     const collectionRateByCount  = totalContracts > 0 ? (paidCount     / totalContracts) * 100 : 0
-    const collectionRateByAmount = expectedAmount > 0 ? (rentCollected / expectedAmount) * 100 : 0
+    // Clamp at 100: expectedAmount is active-contracts-only while rentCollected
+    // counts every RENT_IN in the period, so a mid-period rescind (or a stale
+    // end_date) can leave collected > expected. Without the clamp the "Pendiente"
+    // legend (100 - rate) would render a negative percentage.
+    const collectionRateByAmount = expectedAmount > 0 ? Math.min(100, (rentCollected / expectedAmount) * 100) : 0
 
     // Pick the lower of the two for the status — both should be high to be healthy.
     const worstRate = Math.min(collectionRateByCount, collectionRateByAmount)

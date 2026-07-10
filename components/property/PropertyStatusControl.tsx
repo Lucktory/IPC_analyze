@@ -18,9 +18,13 @@ import {
 interface Props {
   propertyId: string
   isActive:   boolean
+  /** How many ACTIVE contracts this property still has. If > 0, the baja
+   *  confirm warns that those contracts keep billing on the planilla — the
+   *  encargada should rescindir them too (dar de baja is property-level only). */
+  activeContractCount?: number
 }
 
-export function PropertyStatusControl({ propertyId, isActive }: Props) {
+export function PropertyStatusControl({ propertyId, isActive, activeContractCount = 0 }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
@@ -68,6 +72,13 @@ export function PropertyStatusControl({ propertyId, isActive }: Props) {
       <p className="text-[12px] text-ink">
         ¿Dar de baja esta propiedad? Dejará de contarse en tu cartera activa. Podés reactivarla después.
       </p>
+      {activeContractCount > 0 && (
+        <p className="text-[11px] text-warn bg-warn/10 border border-warn/30 rounded px-2 py-1.5">
+          Ojo: esta propiedad tiene {activeContractCount} contrato{activeContractCount > 1 ? 's' : ''} activo
+          {activeContractCount > 1 ? 's' : ''} que va{activeContractCount > 1 ? 'n' : ''} a seguir facturando en
+          la planilla. Si perdiste la propiedad, conviene rescindir{activeContractCount > 1 ? 'los' : 'lo'} también.
+        </p>
+      )}
       {error && <p className="text-[11px] text-danger">{error}</p>}
       <div className="flex items-center justify-end gap-1.5">
         <button

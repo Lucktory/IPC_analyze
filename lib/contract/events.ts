@@ -178,7 +178,7 @@ export async function payoffHonorarioBalance(
   const saldo       = rows.reduce((s, r) => s + Number(r.amount_tenant ?? 0), 0)
   const includesIva = rows.some(r => r.includes_iva === true)
 
-  const { error: insErr } = await supabase.from(EVENTS_TABLE).insert({
+  const { data: inserted, error: insErr } = await supabase.from(EVENTS_TABLE).insert({
     contract_id:       contractId,
     kind:              EVENT_KIND.HONORARIOS,
     description:       `Honorarios — saldo adelantado (${rows.length} cuota${rows.length > 1 ? 's' : ''})`,
@@ -187,14 +187,21 @@ export async function payoffHonorarioBalance(
     includes_iva:      includesIva,
     applies_to_period: currentPeriod,
     status:            EVENT_STATUS.PENDING,
-  })
+  }).select('id').single()
   if (insErr) return dbFailure(insErr)
 
   const { error: cancelErr } = await supabase
     .from(EVENTS_TABLE)
     .update({ status: EVENT_STATUS.CANCELLED })
     .in('id', rows.map(r => r.id))
-  if (cancelErr) return dbFailure(cancelErr)
+  if (cancelErr) {
+    // Not a real DB transaction: the saldo was inserted but the future cuotas
+    // couldn't be cancelled. Roll back the saldo so we never leave BOTH the
+    // consolidated saldo AND the still-live future cuotas (which would double
+    // the honorarios). Fail cleanly instead of corrupting the total.
+    await supabase.from(EVENTS_TABLE).delete().eq('id', (inserted as { id: unknown }).id)
+    return dbFailure(cancelErr)
+  }
 
   revalidate(contractId)
   return { ok: true, error: null }

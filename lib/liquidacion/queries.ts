@@ -285,7 +285,12 @@ export interface LiquidacionGridRow {
   //    shown as its OWN column between Alquiler/Extras and Transferencia.
   //    Sum of the este-mes (rojo) HONORARIOS events' neto amount. This is
   //    agency income only — it NEVER enters `transferencia` (the owner's
-  //    rendición). Matches the "Ingresos de la inmobiliaria" resumen total. ──
+  //    rendición). NOTE: this grid is active-contracts-only, whereas the
+  //    "Ingresos de la inmobiliaria" resumen (getHonorariosForPeriod) counts
+  //    honorarios on ANY contract — so if a honorario lands in a period where
+  //    its contract is rescinded/finished, the resumen counts it and this
+  //    column does not. In practice honorarios are charged while the contract
+  //    is active, so the two normally agree. ──
   honorariosTotal: number
 
   // ── Transfer side (light gray until diaTransf set, then dark gray) ──
