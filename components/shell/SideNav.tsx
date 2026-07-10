@@ -172,22 +172,25 @@ export function SideNav({
 
   return (
     <>
-      <div className={`h-14 flex items-center gap-3 border-b border-nav-text/10 ${collapsed ? 'lg:justify-center lg:px-2 px-5' : 'px-5'}`}>
-        <div className="h-7 w-7 rounded bg-nav-text/10 flex items-center justify-center font-display font-semibold text-nav-text text-[14px] shrink-0">
-          {initial}
-        </div>
-        <div className={`flex-col leading-tight min-w-0 flex ${hideAtCollapsed}`}>
-          <span className="font-display font-medium text-[15px] text-nav-text tracking-tight truncate">
-            {displayName}
+      <div className={`h-[68px] flex items-center gap-2.5 border-b border-nav-text/10 ${collapsed ? 'lg:justify-center lg:px-2 px-5' : 'px-5'}`}>
+        <span className="shrink-0 text-info">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
+            <path d="M5 28 V13.5 L16 5 L27 13.5 V28 Z" />
+            <path d="M11.5 28 V19 H20.5 V28" />
+          </svg>
+        </span>
+        <div className={`flex-col leading-none min-w-0 flex ${hideAtCollapsed}`}>
+          <span className="font-display font-semibold text-[19px] text-nav-text tracking-tight truncate">
+            Pampa
           </span>
-          <span className="text-[9px] text-nav-text/50 uppercase tracking-[0.18em] mt-0.5">
-            Pampa Administración
+          <span className="text-[10px] text-nav-text/50 uppercase tracking-[0.2em] mt-1">
+            Administración
           </span>
         </div>
       </div>
 
       <nav className={`flex-1 pt-4 pb-4 overflow-y-auto overflow-x-hidden ${collapsed ? 'lg:px-2 px-3' : 'px-3'}`}>
-        <ul className="space-y-0.5">
+        <ul className="space-y-1">
           {mainItems.map((item) => {
             const active = isActive(item.to)
             const section = getSection(item.to)
@@ -197,26 +200,23 @@ export function SideNav({
                   href={item.to}
                   onClick={onNavigate}
                   title={collapsed ? item.label : undefined}
+                  // Active item = bold FILLED pill in the section's colour (keeps
+                  // the app's per-section identity while adopting the reference's
+                  // solid-pill look). White text/icon reads on every section hue,
+                  // in both light and dark.
+                  style={active ? { backgroundColor: section.color } : undefined}
                   className={[
-                    'relative flex items-center gap-3 py-2 rounded text-[13px] font-medium transition-colors',
-                    collapsed ? 'lg:justify-center lg:px-2 pl-3 pr-3' : 'pl-3 pr-3',
+                    'flex items-center gap-3.5 py-2.5 rounded-lg text-[15px] font-medium transition-colors',
+                    collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3',
                     active
-                      ? 'bg-nav-text/[0.08] text-nav-text'
-                      : 'text-nav-text/60 hover:bg-nav-text/[0.04] hover:text-nav-text',
+                      ? 'text-white shadow-sm'
+                      : 'text-nav-text/60 hover:bg-nav-text/[0.05] hover:text-nav-text',
                   ].join(' ')}
                 >
-                  {/* 3px section-color accent on active items — mirrors the TopBar stripe */}
-                  {active && (
-                    <span
-                      aria-hidden
-                      className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r"
-                      style={{ backgroundColor: section.color }}
-                    />
-                  )}
                   <span
                     className={[
-                      'w-4 h-4 shrink-0 flex items-center justify-center transition-colors',
-                      active ? 'text-nav-text' : 'text-nav-text/50',
+                      'w-[22px] h-[22px] shrink-0 flex items-center justify-center transition-colors',
+                      active ? 'text-white' : 'text-nav-text/45',
                     ].join(' ')}
                   >
                     <NavIcon name={item.icon} />
@@ -228,31 +228,35 @@ export function SideNav({
           })}
         </ul>
 
-        <p className={`px-3 pt-7 pb-2 text-[10px] font-medium uppercase tracking-[0.16em] text-nav-text/40 ${hideAtCollapsed}`}>
+        <p className={`px-3 pt-6 pb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-nav-text/40 ${hideAtCollapsed}`}>
           Configuración
         </p>
-        <ul className="space-y-0.5">
+        <ul className="space-y-1">
           <li>
             <span
               title={collapsed ? 'Usuarios' : undefined}
-              className={`flex items-center gap-3 py-2 rounded text-[13px] font-medium text-nav-text/35 cursor-not-allowed select-none ${collapsed ? 'lg:justify-center lg:px-2 pl-3 pr-3' : 'pl-3 pr-3'}`}
+              className={`flex items-center gap-3.5 py-2.5 rounded-lg text-[15px] font-medium text-nav-text/35 cursor-not-allowed select-none ${collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3'}`}
             >
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="w-4 h-4 shrink-0">
-                <circle cx="10" cy="7.5" r="3" />
-                <path d="M3 17 Q3 12 10 12 Q17 12 17 17" />
-              </svg>
+              <span className="w-[22px] h-[22px] shrink-0 flex items-center justify-center">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="w-full h-full">
+                  <circle cx="10" cy="7.5" r="3" />
+                  <path d="M3 17 Q3 12 10 12 Q17 12 17 17" />
+                </svg>
+              </span>
               <span className={hideAtCollapsed}>Usuarios</span>
             </span>
           </li>
           <li>
             <span
               title={collapsed ? 'Reglas IPC' : undefined}
-              className={`flex items-center gap-3 py-2 rounded text-[13px] font-medium text-nav-text/35 cursor-not-allowed select-none ${collapsed ? 'lg:justify-center lg:px-2 pl-3 pr-3' : 'pl-3 pr-3'}`}
+              className={`flex items-center gap-3.5 py-2.5 rounded-lg text-[15px] font-medium text-nav-text/35 cursor-not-allowed select-none ${collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3'}`}
             >
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
-                <circle cx="10" cy="10" r="6" />
-                <path d="M10 7 V10 L12 11.5" />
-              </svg>
+              <span className="w-[22px] h-[22px] shrink-0 flex items-center justify-center">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+                  <circle cx="10" cy="10" r="6" />
+                  <path d="M10 7 V10 L12 11.5" />
+                </svg>
+              </span>
               <span className={hideAtCollapsed}>Reglas IPC</span>
             </span>
           </li>
@@ -277,11 +281,15 @@ export function SideNav({
         </button>
       )}
 
-      <footer className={`py-4 border-t border-nav-text/10 text-[10.5px] text-nav-text/45 leading-relaxed ${collapsed ? 'lg:hidden px-5' : 'px-5'}`}>
-        <p className="text-nav-text/80 font-medium">Pampa Administración</p>
-        <p className="mt-0.5">IPC-ANALYZE</p>
-        <p className="mt-2 text-nav-text/35 tabular-nums">v0.1.0</p>
-      </footer>
+      <div className={`border-t border-nav-text/10 py-3 flex items-center gap-3 ${collapsed ? 'lg:justify-center lg:px-2 px-5' : 'px-5'}`}>
+        <div className="h-9 w-9 rounded-full bg-info/15 flex items-center justify-center font-display font-semibold text-info text-[14px] shrink-0">
+          {initial}
+        </div>
+        <div className={`flex-col leading-tight min-w-0 flex ${hideAtCollapsed}`}>
+          <span className="font-medium text-[14px] text-nav-text truncate">{displayName}</span>
+          <span className="text-[11px] text-nav-text/50 truncate">Sesión activa</span>
+        </div>
+      </div>
     </>
   )
 }
