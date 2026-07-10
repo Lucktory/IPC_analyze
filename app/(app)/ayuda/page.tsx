@@ -12,12 +12,12 @@ const CHAPTERS: Chapter[] = [
   { n: 1, title: 'Crear un contrato',              desc: 'Dar de alta un contrato nuevo, campo por campo.',            href: '/ayuda/crear-contrato', tint: '#0F766E' },
   { n: 2, title: 'Editar un contrato',             desc: 'Planilla y ficha: %, participantes, vigencia, aumento, recargos.', href: '/ayuda/editar-contrato', tint: '#0F766E' },
   { n: 3, title: 'Cargar el mes',                  desc: 'Cobros y Observaciones (arreglos / ajustes).',               href: '/ayuda/cargar-el-mes', tint: '#0891B2' },
-  { n: 4, title: 'Honorarios',                     desc: 'Fee de la inmobiliaria: cuotas, IVA y saldo.',               tint: '#7C3AED' },
-  { n: 5, title: 'Comisión y transferencia',       desc: 'ADMI, bancos, y enviar la liquidación al dueño.',            tint: '#16A34A' },
-  { n: 6, title: 'Rescindir / reactivar contrato', desc: 'Terminar un contrato y volver atrás si hace falta.',          tint: '#DC2626' },
-  { n: 7, title: 'Dar de baja / reactivar propiedad', desc: 'Sacar una propiedad de la cartera (reversible).',          tint: '#16A34A' },
-  { n: 8, title: 'Diagnóstico y errores',          desc: 'Qué mirar cuando algo no cierra, y cómo resolverlo.',         tint: '#475569' },
-  { n: 9, title: 'Referencia y glosario',          desc: 'Columnas de la planilla, términos y preguntas.',             tint: '#64748B' },
+  { n: 4, title: 'Honorarios',                     desc: 'Fee de la inmobiliaria: cuotas, IVA y saldo.',               href: '/ayuda/honorarios', tint: '#7C3AED' },
+  { n: 5, title: 'Comisión y transferencia',       desc: 'ADMI, bancos, y enviar la liquidación al dueño.',            href: '/ayuda/comision-transferencia', tint: '#16A34A' },
+  { n: 6, title: 'Rescindir / reactivar contrato', desc: 'Terminar un contrato y volver atrás si hace falta.',          href: '/ayuda/rescindir-contrato', tint: '#DC2626' },
+  { n: 7, title: 'Dar de baja / reactivar propiedad', desc: 'Sacar una propiedad de la cartera (reversible).',          href: '/ayuda/dar-de-baja-propiedad', tint: '#16A34A' },
+  { n: 8, title: 'Diagnóstico y errores',          desc: 'Qué mirar cuando algo no cierra, y cómo resolverlo.',         href: '/ayuda/diagnostico', tint: '#475569' },
+  { n: 9, title: 'Referencia y glosario',          desc: 'Columnas de la planilla, términos y preguntas.',             href: '/ayuda/referencia', tint: '#64748B' },
 ]
 
 export default function AyudaPage() {
