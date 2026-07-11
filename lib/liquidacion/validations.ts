@@ -69,6 +69,7 @@ export type ValidationCode =
   | 'BANK_DATES_OUT_OF_ORDER'
   | 'ADMI_DESTINATIONS_UNCLASSIFIED'
   | 'COMMISSION_PCT_DEVIATION'
+  | 'COMMISSION_NOT_RECORDED'
   | 'RENT_AMOUNT_VARIANCE'
   | 'PAYMENT_OVERDUE'
   // ── Data integrity Tier 1 (Thread A2a — 2026-06-18) ──
@@ -625,6 +626,23 @@ export function validateRow(
   push(checkBillingIvaMismatch(r))
   // ── Recurring charges (2026-06-20) ──
   push(checkRecurringChargeNotRecorded(r))
+
+  // Commission MISSING entirely: income + a configured % but ADMI = 0 means the
+  // commission was never recorded, so the owner's transfer doesn't discount it
+  // (a silent over-payment to the dueño). The deviation check below only runs
+  // when admi > 0, so it skips exactly this case — this rule catches it.
+  if (contractPct != null && contractPct > 0 && r.ingresos > 0 && r.admi === 0) {
+    const ivaFactor    = commissionIncludesIva ? 1 + COMMISSION_IVA_RATE : 1
+    const expectedAdmi = (r.ingresos * contractPct / 100) * ivaFactor
+    issues.push({
+      code:     'COMMISSION_NOT_RECORDED',
+      severity: 'warning',
+      message:  `Hay ingresos cobrados (${fmtMoney(r.ingresos)}) pero no se registró la comisión (ADMI = $0). Esperado ~${fmtMoney(expectedAdmi)} al ${contractPct}%. Calculala o cargala en el banco.`,
+      expected: expectedAdmi,
+      actual:   0,
+      diff:     expectedAdmi,
+    })
+  }
 
   // Commission deviation check is special: it needs the contract pct
   // which isn't on the row itself. Inline it here when caller provides it.

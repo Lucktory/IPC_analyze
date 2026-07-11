@@ -36,6 +36,7 @@ const CODE_LABEL: Record<ValidationCode, string> = {
   BANK_DATES_OUT_OF_ORDER:           'Fechas bancarias fuera de orden',
   ADMI_DESTINATIONS_UNCLASSIFIED:    'ADMI sin clasificar',
   COMMISSION_PCT_DEVIATION:          'Comisión efectiva difiere',
+  COMMISSION_NOT_RECORDED:           'Ingresos sin comisión registrada',
   RENT_AMOUNT_VARIANCE:              'Variación de alquiler',
   PAYMENT_OVERDUE:                   'Alquiler vencido (recargo por mora)',
   CONTRACT_EXPIRED_BUT_ACTIVE:       'Contrato vencido — sigue activo',
