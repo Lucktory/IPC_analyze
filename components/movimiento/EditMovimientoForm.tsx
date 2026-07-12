@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateTransaction, deleteTransaction } from '@/lib/transaction/actions'
+import { MANAGED_TYPE_CODES } from '@/lib/transaction/managed-rows'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
 import { FormField } from '@/components/ui/FormField'
 import { FormError } from '@/components/ui/FormError'
@@ -58,8 +59,14 @@ export function EditMovimientoForm({ initial, types, contracts, bankAccounts }: 
     })
   }
 
-  const inTypes  = types.filter(t => t.direction === 'IN').sort((a, b) => a.label.localeCompare(b.label))
-  const outTypes = types.filter(t => t.direction === 'OUT').sort((a, b) => a.label.localeCompare(b.label))
+  // Managed types (commission / rent / payout) are owned by dedicated planilla
+  // cells; this generic editor must not be able to retag a row INTO them (the
+  // server also rejects it). Keep the row's own current type visible so the
+  // form isn't misleading when it happens to be a managed row.
+  const managed  = (MANAGED_TYPE_CODES as readonly string[])
+  const selectable = types.filter(t => !managed.includes(t.code) || t.code === initial.typeCode)
+  const inTypes  = selectable.filter(t => t.direction === 'IN').sort((a, b) => a.label.localeCompare(b.label))
+  const outTypes = selectable.filter(t => t.direction === 'OUT').sort((a, b) => a.label.localeCompare(b.label))
 
   return (
     <form ref={formRef} action={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">

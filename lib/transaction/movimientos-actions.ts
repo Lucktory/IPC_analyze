@@ -21,6 +21,7 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
+import { isManagedRow, managedRowMessage, stripOtrosMarker } from '@/lib/transaction/managed-rows'
 
 export interface Movimiento {
   id:          string
@@ -95,6 +96,8 @@ export async function addMovimiento(
   }
   const supabase = await createSupabaseServer()
   const typeCode = DEFAULT_TYPE_FOR_DIRECTION[direction]
+  // A free-text razon must never forge the OTROS cell's reserved marker.
+  description = stripOtrosMarker(description)
 
   const [typeRes, contractRes] = await Promise.all([
     supabase.from('transaction_types').select('id, code, label, direction').eq('code', typeCode).maybeSingle(),
@@ -149,9 +152,22 @@ export async function updateMovimiento(
 ): Promise<SimpleResult> {
   const supabase = await createSupabaseServer()
 
+  // Guard: the Movimientos modal is a generic editor. It must NOT touch a row
+  // owned by a dedicated cell (commission / rent / payout / OTROS cell) — doing
+  // so used to retag the row and double the ADMI. Reject and point to the cell.
+  const { data: existingRow } = await supabase
+    .from('transactions')
+    .select('contract_id, description, transaction_types!inner(code)')
+    .eq('id', id)
+    .maybeSingle()
+  const existingCode = (existingRow as any)?.transaction_types?.code as string | undefined
+  if (existingRow && isManagedRow(existingCode ?? '', (existingRow as any).description)) {
+    return { ok: false, error: managedRowMessage(existingCode ?? '') }
+  }
+
   const updates: Record<string, unknown> = {}
   if ('bankDate' in patch)    updates.bank_date   = patch.bankDate
-  if ('description' in patch) updates.description = patch.description
+  if ('description' in patch) updates.description = stripOtrosMarker(patch.description ?? null)
   if ('amount' in patch) {
     if (!isFinite(patch.amount as number) || (patch.amount as number) <= 0) {
       return { ok: false, error: 'El monto debe ser mayor a 0.' }
@@ -173,9 +189,7 @@ export async function updateMovimiento(
 
   if (Object.keys(updates).length === 0) return { ok: true, error: null }
 
-  const { data: existing } = await supabase
-    .from('transactions').select('contract_id').eq('id', id).maybeSingle()
-  const contractId = (existing as any)?.contract_id as string | null
+  const contractId = (existingRow as any)?.contract_id as string | null
 
   const { error } = await supabase.from('transactions').update(updates).eq('id', id)
   if (error) return dbFailure(error)
@@ -188,8 +202,18 @@ export async function updateMovimiento(
 export async function deleteMovimiento(id: string): Promise<SimpleResult> {
   const supabase = await createSupabaseServer()
   const { data: existing } = await supabase
-    .from('transactions').select('contract_id').eq('id', id).maybeSingle()
+    .from('transactions')
+    .select('contract_id, description, transaction_types!inner(code)')
+    .eq('id', id)
+    .maybeSingle()
   const contractId = (existing as any)?.contract_id as string | null
+
+  // A managed row (commission / rent / payout / OTROS cell) must be cleared from
+  // its own cell, not deleted here — deleting it would bypass its single writer.
+  const existingCode = (existing as any)?.transaction_types?.code as string | undefined
+  if (existing && isManagedRow(existingCode ?? '', (existing as any).description)) {
+    return { ok: false, error: managedRowMessage(existingCode ?? '') }
+  }
 
   const { error } = await supabase.from('transactions').delete().eq('id', id)
   if (error) {

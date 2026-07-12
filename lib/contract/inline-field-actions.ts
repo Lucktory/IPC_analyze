@@ -14,17 +14,11 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
+import { normalizeLfa } from '@/lib/contract/lfa'
 
 export interface InlineResult {
   ok:    boolean
   error: string | null
-}
-
-const ALLOWED_LFA = ['L', 'F', 'A', 'FL', 'D'] as const
-type AllowedLfa = typeof ALLOWED_LFA[number]
-
-function isLfa(s: string): s is AllowedLfa {
-  return (ALLOWED_LFA as readonly string[]).includes(s)
 }
 
 function revalidate(contractId: string) {
@@ -35,11 +29,9 @@ function revalidate(contractId: string) {
 // ── LFA code ────────────────────────────────────────────────────────────────
 export async function updateContractLfa(contractId: string, lfa: string | null): Promise<InlineResult> {
   const supabase = await createSupabaseServer()
-  const value = lfa?.trim().toUpperCase() ?? null
-  if (value !== null && !isLfa(value)) {
-    return { ok: false, error: `LFA inválido. Valores aceptados: ${ALLOWED_LFA.join(' / ')}.` }
-  }
-  const { error } = await supabase.from('contracts').update({ lfa_code: value }).eq('id', contractId)
+  const norm = normalizeLfa(lfa)
+  if (!norm.ok) return { ok: false, error: norm.error }
+  const { error } = await supabase.from('contracts').update({ lfa_code: norm.value }).eq('id', contractId)
   if (error) return dbFailure(error)
   revalidate(contractId)
   return { ok: true, error: null }

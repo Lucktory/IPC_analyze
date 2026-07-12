@@ -21,6 +21,7 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
+import { normalizeLfa } from '@/lib/contract/lfa'
 
 export interface JunctionResult {
   ok:    boolean
@@ -110,6 +111,8 @@ export async function createContractFromGrid(input: CreateFromGridInput): Promis
     if (!ALLOWED_CADENCES.includes(input.cadence)) {
       return { ok: false, error: 'Cadencia inválida.' }
     }
+    const lfaNorm = normalizeLfa(input.lfaCode)
+    if (!lfaNorm.ok) return { ok: false, error: lfaNorm.error }
 
     // ── Validate the landlord / tenant arrays ─────────────────────────────
     if (!Array.isArray(input.landlords) || input.landlords.length === 0) {
@@ -218,7 +221,7 @@ export async function createContractFromGrid(input: CreateFromGridInput): Promis
         end_date:          input.endDate,
         payment_day:       5,
         status:            'active',
-        lfa_code:          input.lfaCode,
+        lfa_code:          lfaNorm.value,
         commission_pct:    input.commissionPct,
       })
       .select('id').single()

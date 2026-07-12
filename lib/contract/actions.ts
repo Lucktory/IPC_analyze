@@ -5,6 +5,7 @@ import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure }            from '@/lib/db-errors'
 import { isPctSum100, pctSum }  from '@/lib/shared'
+import { normalizeLfa }         from '@/lib/contract/lfa'
 
 export interface SaveNoteResult {
   ok:    boolean
@@ -67,7 +68,7 @@ export async function createContract(formData: FormData): Promise<CreateContract
   const currency        = String(formData.get('currency')        ?? 'ARS').trim()
   const indexer         = String(formData.get('indexer')         ?? 'IPC_GENERAL').trim()
   const paymentDay      = Number(String(formData.get('payment_day') ?? '5').trim() || '5')
-  const lfaCode         = String(formData.get('lfa_code')        ?? '').trim() || null
+  const lfaNorm         = normalizeLfa(String(formData.get('lfa_code') ?? ''))
   let   contractNumber  = String(formData.get('contract_number') ?? '').trim() || null
 
   if (!propertyId) return { ok: false, error: 'Seleccioná una propiedad.' }
@@ -83,6 +84,7 @@ export async function createContract(formData: FormData): Promise<CreateContract
   if (!isFinite(paymentDay) || paymentDay < 1 || paymentDay > 31) {
     return { ok: false, error: 'Día de pago debe ser entre 1 y 31.' }
   }
+  if (!lfaNorm.ok) return { ok: false, error: lfaNorm.error }
 
   const supabase = await createSupabaseServer()
 
@@ -125,7 +127,7 @@ export async function createContract(formData: FormData): Promise<CreateContract
       end_date:          endDate,
       payment_day:       paymentDay,
       status:            'active',
-      lfa_code:          lfaCode,
+      lfa_code:          lfaNorm.value,
     })
     .select('id')
     .single()

@@ -24,6 +24,7 @@ import {
   deleteMovimiento,
   type Movimiento,
 } from '@/lib/transaction/movimientos-actions'
+import { isManagedRow, managedRowMessage } from '@/lib/transaction/managed-rows'
 
 interface Props {
   contractId: string
@@ -149,22 +150,31 @@ export function MovimientosPanel({ contractId, period }: Props) {
             {loaded && rows.length === 0 && (
               <tr><td colSpan={5} className="p-4 text-center text-slate italic">No hay movimientos en este período.</td></tr>
             )}
-            {rows.map(r => (
-              <tr key={r.id} className="border-b border-line hover:bg-cream/30">
+            {rows.map(r => {
+              // A managed row (commission / rent / payout / OTROS cell) is owned
+              // by a dedicated planilla cell. Show it for context but make it
+              // read-only here — editing it would give the row a second writer
+              // (the server rejects such edits anyway). Hint points to the cell.
+              const locked = isManagedRow(r.typeCode, r.description)
+              const lockHint = locked ? managedRowMessage(r.typeCode) : `${r.typeCode} — ${r.typeLabel}`
+              return (
+              <tr key={r.id} className={`border-b border-line hover:bg-cream/30 ${locked ? 'opacity-70' : ''}`} title={locked ? lockHint : undefined}>
                 <td className="px-2 py-1">
                   <input
                     type="date"
                     value={r.bankDate ?? ''}
+                    disabled={locked}
                     onChange={e => patchRow(r.id, { bankDate: e.target.value || null })}
-                    className="w-full bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1"
+                    className="w-full bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </td>
                 <td className="px-2 py-1">
                   <select
                     value={r.direction}
+                    disabled={locked}
                     onChange={e => patchRow(r.id, { direction: e.target.value as 'IN' | 'OUT' })}
-                    title={`${r.typeCode} — ${r.typeLabel}`}
-                    className={`w-full bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1 ${r.direction === 'IN' ? 'text-success' : 'text-danger'}`}
+                    title={lockHint}
+                    className={`w-full bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1 disabled:opacity-60 disabled:cursor-not-allowed ${r.direction === 'IN' ? 'text-success' : 'text-danger'}`}
                   >
                     <option value="IN">Entrada</option>
                     <option value="OUT">Salida</option>
@@ -175,38 +185,45 @@ export function MovimientosPanel({ contractId, period }: Props) {
                     type="number"
                     defaultValue={r.amount}
                     step="0.01"
+                    disabled={locked}
                     onBlur={e => {
                       const v = Number(e.target.value)
                       if (isFinite(v) && v > 0 && v !== r.amount) patchRow(r.id, { amount: v })
                     }}
                     onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-                    className="w-full bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1 text-right tabular-nums"
+                    className="w-full bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1 text-right tabular-nums disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </td>
                 <td className="px-2 py-1">
                   <input
                     type="text"
                     defaultValue={r.description ?? ''}
+                    disabled={locked}
                     onBlur={e => {
                       const v = e.target.value.trim() || null
                       if (v !== r.description) patchRow(r.id, { description: v })
                     }}
                     onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                     placeholder="(sin descripción)"
-                    className="w-full bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1"
+                    className="w-full bg-transparent text-[12.5px] outline-none focus:bg-cream/40 rounded px-1 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </td>
                 <td className="px-1 py-1 text-center">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(r.id)}
-                    title="Eliminar movimiento"
-                    disabled={pending}
-                    className="text-slate hover:text-danger transition-colors px-1 disabled:opacity-50"
-                  >×</button>
+                  {locked ? (
+                    <span title={lockHint} className="text-slate/60 px-1 cursor-help">🔒</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(r.id)}
+                      title="Eliminar movimiento"
+                      disabled={pending}
+                      className="text-slate hover:text-danger transition-colors px-1 disabled:opacity-50"
+                    >×</button>
+                  )}
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
           {rows.length > 0 && (
             <tfoot className="bg-cream-2 border-t border-line text-[11.5px]">

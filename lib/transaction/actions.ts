@@ -24,6 +24,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { updateContractCommissionPct } from '@/lib/contract/inline-field-actions'
 import { COMMISSION_IVA_RATE } from '@/lib/liquidacion/thresholds'
+import { isManagedRow, managedRowMessage, stripOtrosMarker, OTROS_CELL_MARKER, OTROS_CELL_ILIKE } from '@/lib/transaction/managed-rows'
 
 export interface TransactionResult {
   ok:    boolean
@@ -141,7 +142,7 @@ export async function createTransaction(formData: FormData): Promise<CreateTrans
   const bankDateRaw   = String(formData.get('bank_date')   ?? '').trim()
   const contractIdRaw = String(formData.get('contract_id') ?? '').trim()
   const bankAccountIdRaw = String(formData.get('bank_account_id') ?? '').trim()
-  const description   = String(formData.get('description') ?? '').trim() || null
+  const description   = stripOtrosMarker(String(formData.get('description') ?? '').trim() || null)
 
   // Basic validation
   if (!typeCode)            return { ok: false, error: 'Tipo es obligatorio.' }
@@ -487,11 +488,68 @@ export async function setRentBankDate(
 }
 
 // ============================================================================
-// setOtrosCell — the planilla OTROS cell (OTHER_OUT). The cell owns a single
-// row tagged with its own "Otros descuentos" label and only ever touches THAT
-// row, so it can never overwrite an itemised salida logged in the Movimientos
-// modal (which carries its own description). Amount 0 clears the cell's row.
-// (Itemised otros are still edited from Movimientos, and both sum into `otros`.)
+// setLandlordPayoutBankDate — the DIA TRANSFERENCIA cell (LANDLORD_PAYOUT).
+// Stamps the transfer date on the existing payout row WITHOUT touching its
+// amount; only creates a payout row (seeded with the computed transferencia)
+// when none exists. Mirrors setRentBankDate: it fixes the clobber where marking
+// the date used to overwrite a manually-entered partial payout with the
+// computed figure (and silently clear the TRANSFERENCIA_IMBALANCE flag).
+// upsertCellTransaction stays the sole writer of the payout AMOUNT.
+// ============================================================================
+export async function setLandlordPayoutBankDate(
+  contractId:     string,
+  period:         string,
+  bankDate:       string | null,
+  fallbackAmount: number,   // computed transferencia — used only when creating
+): Promise<TransactionResult> {
+  if (bankDate && !/^\d{4}-\d{2}-\d{2}$/.test(bankDate)) {
+    return { ok: false, error: 'Fecha bancaria inválida.' }
+  }
+  const supabase = await createSupabaseServer()
+  const { data: typeRow } = await supabase
+    .from('transaction_types').select('id').eq('code', 'LANDLORD_PAYOUT').maybeSingle()
+  if (!typeRow) return { ok: false, error: 'Tipo LANDLORD_PAYOUT no encontrado.' }
+  const typeId = (typeRow as any).id
+
+  const { data: rows } = await supabase
+    .from('transactions').select('id')
+    .eq('contract_id', contractId).eq('period', period).eq('transaction_type_id', typeId)
+    .order('created_at', { ascending: false }).limit(1)
+
+  if (rows && rows.length > 0) {
+    const { error } = await supabase.from('transactions')
+      .update({ bank_date: bankDate }).eq('id', (rows[0] as any).id)   // amount preserved
+    if (error) return dbFailure(error)
+  } else {
+    if (!isFinite(fallbackAmount) || fallbackAmount <= 0) {
+      return { ok: false, error: 'No hay transferencia para registrar en este contrato.' }
+    }
+    const { data: contract } = await supabase
+      .from('contracts').select('administration_id').eq('id', contractId).maybeSingle()
+    const { error } = await supabase.from('transactions').insert({
+      administration_id:   (contract as any)?.administration_id,
+      contract_id:         contractId,
+      transaction_type_id: typeId,
+      amount:              fallbackAmount,
+      period,
+      bank_date:           bankDate,
+    })
+    if (error) return dbFailure(error)
+  }
+  revalidatePath('/liquidacion')
+  revalidatePath(`/contratos/${contractId}`)
+  return { ok: true, error: null }
+}
+
+// ============================================================================
+// setOtrosCell — the planilla OTROS cell (OTHER_OUT). The cell owns exactly one
+// row, identified by the reserved OTROS_CELL_MARKER in its description (NOT a
+// user-typable label). It only ever touches that row, so it can never adopt,
+// overwrite, or delete an itemised salida logged in Movimientos (whose free
+// text never carries the marker). Amount 0 clears the cell's row. Both the cell
+// row and any Movs salidas sum into `otros`. Imported deduction rows are given
+// the marker by the one-time migration so the cell edits them in place instead
+// of inserting a duplicate.
 // ============================================================================
 export async function setOtrosCell(
   contractId: string,
@@ -507,7 +565,7 @@ export async function setOtrosCell(
   const { data: rows } = await supabase
     .from('transactions').select('id')
     .eq('contract_id', contractId).eq('period', period).eq('transaction_type_id', typeId)
-    .ilike('description', 'Otros descuentos%')
+    .ilike('description', OTROS_CELL_ILIKE)
     .order('created_at', { ascending: false })
   const list = (rows ?? []) as any[]
   const survivor = list[0] ?? null
@@ -538,7 +596,7 @@ export async function setOtrosCell(
       amount,
       period,
       bank_date:           null,
-      description:         'Otros descuentos',
+      description:         `Otros descuentos ${OTROS_CELL_MARKER}`,
     })
     if (error) return dbFailure(error)
   }
@@ -573,6 +631,23 @@ export async function updateTransaction(
     .from('transaction_types').select('id').eq('code', typeCode).maybeSingle()
   if (typeErr)   return dbFailure(typeErr)
   if (!typeRow)  return { ok: false, error: `Tipo "${typeCode}" no encontrado.` }
+
+  // Guard: this generic editor must not create, retag, or re-key a row owned by
+  // a dedicated cell writer. Editing the existing managed row here (or turning
+  // any row INTO a managed type) would give COMMISSION_OUT/etc. a second writer
+  // and double the ADMI. Route those edits to the owning planilla cell.
+  const { data: existingRow } = await supabase
+    .from('transactions')
+    .select('description, transaction_types!inner(code)')
+    .eq('id', id)
+    .maybeSingle()
+  const existingCode = (existingRow as any)?.transaction_types?.code as string | undefined
+  if (existingRow && isManagedRow(existingCode ?? '', (existingRow as any).description)) {
+    return { ok: false, error: managedRowMessage(existingCode ?? '') }
+  }
+  if (isManagedRow(typeCode, description)) {
+    return { ok: false, error: managedRowMessage(typeCode) }
+  }
 
   const { error } = await supabase
     .from('transactions')
