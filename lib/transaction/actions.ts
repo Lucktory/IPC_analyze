@@ -267,34 +267,43 @@ export async function generateCommissionForPeriod(
   const commissionAmount =
     Math.round((totalCobrado * pct / 100) * ivaFactor * 100) / 100  // 2-decimal precision
 
-  // Consolidate first: a contract's commission for a period is ONE row. If
-  // duplicate COMMISSION_OUT rows exist (bad import / manual fragments), the
-  // upsert below would only touch the most-recent one and leave the others,
-  // inflating ADMI. Collapse to a single row so the recompute is always exact
-  // and the recorded commission reflects the rate change, nothing stale.
+  // A contract's commission for a period is ONE row. Read the existing rows
+  // (most-recent first) to: (a) consolidate any duplicates to a single row so
+  // ADMI isn't inflated, and (b) when the caller did NOT pass a destination,
+  // PRESERVE the bank the surviving row was already tagged to. This matters
+  // because the upsert below overwrites the description, so a plain recompute
+  // (e.g. the detail-page "Calcular comisión" button) would otherwise strip a
+  // classified commission's Galicia/BBVA marker back to unclassified.
   const { data: commType } = await supabase
     .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
+  let effectiveDestination = destination
   if (commType) {
-    const { data: dupes } = await supabase
-      .from('transactions').select('id')
+    const { data: existing } = await supabase
+      .from('transactions').select('id, description')
       .eq('contract_id', contractId).eq('period', period)
       .eq('transaction_type_id', (commType as any).id)
       .order('created_at', { ascending: false })
-    if (dupes && dupes.length > 1) {
-      const extras = dupes.slice(1).map((r: any) => r.id)   // keep most-recent, drop the rest
+    if (existing && existing.length > 1) {
+      const extras = existing.slice(1).map((r: any) => r.id)   // keep most-recent, drop the rest
       const { error: delErr } = await supabase.from('transactions').delete().in('id', extras)
       if (delErr) return dbFailure(delErr)
     }
+    if (!effectiveDestination && existing && existing.length > 0) {
+      const d = ((existing[0] as any).description ?? '') as string
+      effectiveDestination =
+        d.includes('ADM_GALICIA')      ? 'ADM_GALICIA' :
+        d.includes('ADM_FRANCES_50_9') ? 'ADM_FRANCES_50_9' :
+        d.includes('ADM_FRANCES_51_6') ? 'ADM_FRANCES_51_6' : undefined
+    }
   }
 
-  // Use the upsert helper — it preserves existing description if any.
   return upsertTransactionByContractPeriod({
     contractId,
     period,
     typeCode:    'COMMISSION_OUT',
     bankDate:    null,   // not yet transferred when computed
     amount:      commissionAmount,
-    description: `Comisión ${pct}%${includesIva ? ' + IVA' : ''} sobre total cobrado${destination ? ` · ${destination}` : ''}`,
+    description: `Comisión ${pct}%${includesIva ? ' + IVA' : ''} sobre total cobrado${effectiveDestination ? ` · ${effectiveDestination}` : ''}`,
   })
 }
 
@@ -318,6 +327,9 @@ export async function updateCommissionPctAndRecalc(
   const upd = await updateContractCommissionPct(contractId, pct)
   if (!upd.ok) return { ok: false, error: upd.error }
 
+  // generateCommissionForPeriod preserves the existing bank marker when no
+  // destination is passed, so editing the % keeps the commission's Galicia/BBVA
+  // classification instead of un-classifying it.
   const gen = await generateCommissionForPeriod(contractId, period)
   if (!gen.ok && gen.code === 'NO_INCOME') {
     return { ok: true, error: null, code: 'NO_INCOME' }
