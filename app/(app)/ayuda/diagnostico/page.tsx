@@ -79,7 +79,7 @@ export default function DiagnosticoPage() {
       {/* advertencias */}
       <GuideCard title="3. Advertencias (amarillo) — para revisar" tint="#CA8A04">
         <IssueTable>
-          <IssueRow dice="Hay ingresos pero no hay comisión (ADMI = 0)">Cargaste el cobro pero falta registrar la comisión. Calculala («Calcular comisión» en la ficha de liquidación) o cargala en el banco (Galicia / BBVA). Si no, al dueño se le transfiere de más.</IssueRow>
+          <IssueRow dice="Hay ingresos pero no hay comisión (ADMI = 0)">Cargaste el cobro pero falta registrar la comisión, así que al dueño se le transferiría de más. En la celda <strong className="text-ink">ADMI</strong> tocá <strong className="text-ink">«Calcular»</strong> para generarla sola (ingresos × %), o cargala a mano en el banco (Galicia / BBVA).</IssueRow>
           <IssueRow dice="Alquiler vencido hace N días">Cobralo, o si corresponde, cargá el recargo por mora.</IssueRow>
           <IssueRow dice="Suma de % de propietarios / inquilinos ≠ 100%">Ajustá los porcentajes desde la ficha hasta que sumen 100.</IssueRow>
           <IssueRow dice="Contrato sin % de comisión">Cargá el % en la columna <strong className="text-ink">Pct</strong> (o en la ficha).</IssueRow>
