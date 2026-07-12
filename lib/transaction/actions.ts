@@ -267,43 +267,14 @@ export async function generateCommissionForPeriod(
   const commissionAmount =
     Math.round((totalCobrado * pct / 100) * ivaFactor * 100) / 100  // 2-decimal precision
 
-  // A contract's commission for a period is ONE row. Read the existing rows
-  // (most-recent first) to: (a) consolidate any duplicates to a single row so
-  // ADMI isn't inflated, and (b) when the caller did NOT pass a destination,
-  // PRESERVE the bank the surviving row was already tagged to. This matters
-  // because the upsert below overwrites the description, so a plain recompute
-  // (e.g. the detail-page "Calcular comisión" button) would otherwise strip a
-  // classified commission's Galicia/BBVA marker back to unclassified.
-  const { data: commType } = await supabase
-    .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
-  let effectiveDestination = destination
-  if (commType) {
-    const { data: existing } = await supabase
-      .from('transactions').select('id, description')
-      .eq('contract_id', contractId).eq('period', period)
-      .eq('transaction_type_id', (commType as any).id)
-      .order('created_at', { ascending: false })
-    if (existing && existing.length > 1) {
-      const extras = existing.slice(1).map((r: any) => r.id)   // keep most-recent, drop the rest
-      const { error: delErr } = await supabase.from('transactions').delete().in('id', extras)
-      if (delErr) return dbFailure(delErr)
-    }
-    if (!effectiveDestination && existing && existing.length > 0) {
-      const d = ((existing[0] as any).description ?? '') as string
-      effectiveDestination =
-        d.includes('ADM_GALICIA')      ? 'ADM_GALICIA' :
-        d.includes('ADM_FRANCES_50_9') ? 'ADM_FRANCES_50_9' :
-        d.includes('ADM_FRANCES_51_6') ? 'ADM_FRANCES_51_6' : undefined
-    }
-  }
-
-  return upsertTransactionByContractPeriod({
-    contractId,
-    period,
-    typeCode:    'COMMISSION_OUT',
-    bankDate:    null,   // not yet transferred when computed
+  // Single writer: setCommission guarantees exactly one COMMISSION_OUT row,
+  // preserves the existing bank marker when `destination` is omitted, and never
+  // duplicates — so every commission surface (this, the Pct recompute, the
+  // detail-page button, the ADMI cell, the bank columns) stays consistent.
+  return setCommission(contractId, period, {
     amount:      commissionAmount,
-    description: `Comisión ${pct}%${includesIva ? ' + IVA' : ''} sobre total cobrado${effectiveDestination ? ` · ${effectiveDestination}` : ''}`,
+    destination,
+    label:       `Comisión ${pct}%${includesIva ? ' + IVA' : ''} sobre total cobrado`,
   })
 }
 
@@ -338,50 +309,126 @@ export async function updateCommissionPctAndRecalc(
 }
 
 // ============================================================================
-// tagCommissionBank — assign an ALREADY-recorded commission to a bank WITHOUT
-// recomputing its amount. Powers the ADMI cell's "banco?" affordance: it only
-// changes the destination marker on the existing COMMISSION_OUT row, preserving
-// the recorded amount AND its bank_date (so a legacy / hand-entered / mid-period
-// figure isn't silently rewritten to ingresos×pct, and a reconciled commission
-// isn't un-reconciled). Consolidates duplicates to the most-recent row first.
+// setCommission — the SINGLE writer for a contract+period commission. Every
+// commission surface routes through here so their rules can never diverge: it
+// guarantees exactly ONE COMMISSION_OUT row, sets amount / bank / label when
+// given and PRESERVES the rest (including bank_date). No doubling, no silent
+// un-classify, no clobbered amount.
+//   • amount omitted       → keep the recorded amount (bank-only re-tag)
+//   • destination omitted  → keep the existing bank
+//   • label omitted        → keep the existing human text
+//   • amount <= 0          → clear the commission (delete the row)
 // ============================================================================
-export async function tagCommissionBank(
-  contractId:  string,
-  period:      string,
-  destination: 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6',
+type CommissionDest = 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6'
+const COMMISSION_MARKER_RE = /\s*[·-]\s*ADM_(GALICIA|FRANCES_50_9|FRANCES_51_6)\b/g
+function deriveCommissionDest(description: string | null): CommissionDest | undefined {
+  const d = description ?? ''
+  return d.includes('ADM_GALICIA')      ? 'ADM_GALICIA'
+       : d.includes('ADM_FRANCES_50_9') ? 'ADM_FRANCES_50_9'
+       : d.includes('ADM_FRANCES_51_6') ? 'ADM_FRANCES_51_6'
+       : undefined
+}
+
+export async function setCommission(
+  contractId: string,
+  period:     string,
+  opts:       { amount?: number; destination?: CommissionDest; label?: string },
 ): Promise<TransactionResult> {
   const supabase = await createSupabaseServer()
   const { data: commType } = await supabase
     .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
   if (!commType) return { ok: false, error: 'Tipo de comisión no encontrado.' }
+  const typeId = (commType as any).id
 
-  const { data: rows } = await supabase
-    .from('transactions').select('id, description')
-    .eq('contract_id', contractId).eq('period', period)
-    .eq('transaction_type_id', (commType as any).id)
+  const { data: rowsData } = await supabase
+    .from('transactions').select('id, description, amount, bank_date')
+    .eq('contract_id', contractId).eq('period', period).eq('transaction_type_id', typeId)
     .order('created_at', { ascending: false })
-  if (!rows || rows.length === 0) return { ok: false, error: 'No hay comisión para asignar a un banco.' }
+  const rows = (rowsData ?? []) as any[]
+  const survivor = rows[0] ?? null
 
-  // Collapse accidental duplicates to the most-recent row (no splits exist).
+  // A contract's commission for a period is ONE row — collapse accidental dupes.
   if (rows.length > 1) {
-    const extras = rows.slice(1).map((r: any) => r.id)
-    const { error: delErr } = await supabase.from('transactions').delete().in('id', extras)
+    const { error: delErr } = await supabase.from('transactions').delete().in('id', rows.slice(1).map(r => r.id))
     if (delErr) return dbFailure(delErr)
   }
 
-  const survivor = rows[0] as any
-  // Strip any existing bank marker, then append the chosen one. Amount and
-  // bank_date are left untouched.
-  const base = String(survivor.description ?? 'Comisión')
-    .replace(/\s*[·-]\s*ADM_(GALICIA|FRANCES_50_9|FRANCES_51_6)\b/g, '')
-    .trim() || 'Comisión'
-  const { error } = await supabase
-    .from('transactions')
-    .update({ description: `${base} · ${destination}` })
-    .eq('id', survivor.id)
-  if (error) return dbFailure(error)
+  const amount = opts.amount ?? (survivor ? Number(survivor.amount) : undefined)
+  if (amount == null) return { ok: false, error: 'No hay comisión ni monto para registrar.' }
 
-  revalidatePath('/liquidacion')
+  // amount <= 0 clears the commission.
+  if (amount <= 0) {
+    if (survivor) {
+      const { error } = await supabase.from('transactions').delete().eq('id', survivor.id)
+      if (error) return dbFailure(error)
+    }
+    revalidatePath('/liquidacion'); revalidatePath('/movimientos')
+    return { ok: true, error: null }
+  }
+
+  const destination = opts.destination ?? (survivor ? deriveCommissionDest(survivor.description) : undefined)
+  const base = (opts.label ?? String(survivor?.description ?? 'Comisión').replace(COMMISSION_MARKER_RE, '').trim()) || 'Comisión'
+  const description = `${base}${destination ? ` · ${destination}` : ''}`
+
+  if (survivor) {
+    const { error } = await supabase.from('transactions')
+      .update({ amount, description })   // bank_date preserved
+      .eq('id', survivor.id)
+    if (error) return dbFailure(error)
+    revalidatePath('/liquidacion'); revalidatePath('/movimientos')
+    return { ok: true, error: null, transactionId: survivor.id }
+  }
+
+  const { data: contract } = await supabase
+    .from('contracts').select('administration_id').eq('id', contractId).maybeSingle()
+  const { data: created, error } = await supabase.from('transactions').insert({
+    administration_id:   (contract as any)?.administration_id,
+    contract_id:         contractId,
+    transaction_type_id: typeId,
+    period,
+    amount,
+    description,
+    bank_date:           null,
+  }).select('id').single()
+  if (error) return dbFailure(error)
+  revalidatePath('/liquidacion'); revalidatePath('/movimientos')
+  return { ok: true, error: null, transactionId: (created as any).id }
+}
+
+// tagCommissionBank — assign an already-recorded commission to a bank WITHOUT
+// recomputing the amount (the ADMI cell "banco?" affordance).
+export async function tagCommissionBank(
+  contractId:  string,
+  period:      string,
+  destination: CommissionDest,
+): Promise<TransactionResult> {
+  return setCommission(contractId, period, { destination })
+}
+
+// setCommissionBankCell — the planilla Galicia / BBVA cells. Sets the amount AND
+// assigns it to that bank in ONE row, so typing into a different bank MOVES the
+// commission instead of adding a second row (which used to double ADMI).
+export async function setCommissionBankCell(
+  contractId:  string,
+  period:      string,
+  destination: CommissionDest,
+  amount:      number,
+): Promise<TransactionResult> {
+  if (amount > 0) return setCommission(contractId, period, { amount, destination })
+
+  // amount <= 0: only clear the commission if it's CURRENTLY in this bank. Other
+  // banks' cells read 0 for a commission that lives elsewhere; committing 0 there
+  // must be a no-op, not delete the commission (matches the old per-cell action).
+  const supabase = await createSupabaseServer()
+  const { data: commType } = await supabase
+    .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
+  if (!commType) return { ok: false, error: 'Tipo de comisión no encontrado.' }
+  const { data: rows } = await supabase
+    .from('transactions').select('description')
+    .eq('contract_id', contractId).eq('period', period).eq('transaction_type_id', (commType as any).id)
+    .order('created_at', { ascending: false }).limit(1)
+  const currentBank = rows && rows[0] ? deriveCommissionDest((rows[0] as any).description) : undefined
+  if (currentBank === destination) return setCommission(contractId, period, { amount: 0 })
   return { ok: true, error: null }
 }
 

@@ -23,7 +23,7 @@ import {
   cycleLiquidacionStatus,
   type DestinationCode,
 } from '@/lib/contract/inline-field-actions'
-import { updateCommissionPctAndRecalc } from '@/lib/transaction/actions'
+import { updateCommissionPctAndRecalc, setCommissionBankCell } from '@/lib/transaction/actions'
 import type { LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { COMMISSION_IVA_RATE } from '@/lib/liquidacion/thresholds'
 import { fmtMoney } from '@/lib/format'
@@ -214,7 +214,12 @@ export function EditableTransactionCell({
       format="money"
       min={0}
       unit="$"
-      onSave={(n) => upsertCellTransaction(contractId, period, typeCode, n, null, label ?? null, destination)}
+      onSave={(n) => typeCode === 'COMMISSION_OUT' && destination
+        // Commission goes through the single writer so a bank edit MOVES the one
+        // row (no second COMMISSION_OUT, no doubled ADMI). Everything else keeps
+        // the generic per-cell upsert.
+        ? setCommissionBankCell(contractId, period, destination, n)
+        : upsertCellTransaction(contractId, period, typeCode, n, null, label ?? null, destination)}
       displayClassName={value > 0 && accent ? accent : cobrado ? 'text-ink' : 'text-slate'}
       title={label}
       validate={validate}
