@@ -29,7 +29,7 @@ export default function ComisionTransferenciaPage() {
         <ul className="space-y-2">
           <Step n={1}>El <strong className="text-ink">%</strong> de comisión se pone en la columna <strong className="text-ink">Pct</strong> (o en la ficha; ver <em>Editar un contrato</em>).</Step>
           <Step n={2}>Registrás la comisión cobrada en las columnas de banco: <strong className="text-ink">Galicia</strong>, <strong className="text-ink">BBVA 50/9</strong> y <strong className="text-ink">BBVA 51/6</strong>. Clic en la celda y ponés el monto de cada una.</Step>
-          <Step n={3}>La columna <strong className="text-ink">ADMI</strong> muestra el <strong className="text-ink">total</strong> automáticamente (Galicia + BBVA 50/9 + BBVA 51/6). Es de solo lectura.</Step>
+          <Step n={3}>La columna <strong className="text-ink">ADMI</strong> muestra el <strong className="text-ink">total</strong> de la comisión (Galicia + BBVA 50/9 + BBVA 51/6). Si hay ingresos pero todavía no la cargaste, en ADMI aparece un botón <strong className="text-ink">«Calcular»</strong> que la genera sola (ingresos × %).</Step>
           <Step n={4}>En la columna <strong className="text-ink">IVA</strong>, un clic marca si la comisión lleva <strong className="text-ink">IVA 21%</strong> (administrador Responsable Inscripto) o no (Monotributo). Cuando lleva, muestra la parte de IVA.</Step>
         </ul>
         <Callout tone="warn" title="Aviso de monto alto">

@@ -56,6 +56,7 @@ import {
 import { LiquidarYEnviarButton } from './LiquidarYEnviarButton'
 import { InlineIngresosCell } from './InlineIngresosCell'
 import { InlineIvaToggleCell } from './InlineIvaToggleCell'
+import { AdmiCell } from './AdmiCell'
 import { InlineMovimientosCell } from './InlineMovimientosCell'
 import { InlineDeudaBreakdownCell } from './InlineDeudaBreakdownCell'
 import { InlineRecurringChargesCell } from './InlineRecurringChargesCell'
@@ -738,9 +739,14 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       return `ADMI = Galicia + BBVA 50/9 + BBVA 51/6 = ${fmtMoney(r.admGalicia)} + ${fmtMoney(r.admFrances509)} + ${fmtMoney(r.admFrances516)} = ${fmtMoney(r.admi)}.${ivaSuffix}`
                     })()}
                   >
-                    <span className={`tabular-nums ${cellTextClass(transferido)}`}>
-                      {fmtMoneyOr(r.admi)}
-                    </span>
+                    <AdmiCell
+                      contractId={r.contractId}
+                      period={r.periodo}
+                      admi={r.admi}
+                      ingresos={r.ingresos}
+                      commissionPct={r.commissionPctConfigured}
+                      textClass={cellTextClass(transferido)}
+                    />
                   </Td>
 
                   {/* 15b. IVA — embedded inside ADMI for RI-invoiced contracts.
