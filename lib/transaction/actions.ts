@@ -213,6 +213,12 @@ export async function createTransaction(formData: FormData): Promise<CreateTrans
 export async function generateCommissionForPeriod(
   contractId: string,
   period:     string,
+  /** Optional bank destination. When set, the COMMISSION_OUT is tagged with the
+   *  marker so it lands in that bank column (Galicia / BBVA) instead of the
+   *  unclassified ADMI total — avoiding the ADMI_DESTINATIONS_UNCLASSIFIED
+   *  warning. The consolidate-then-upsert below keeps it a single row, so
+   *  re-tagging an existing (unclassified) commission never duplicates it. */
+  destination?: 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6',
 ): Promise<TransactionResult> {
   const supabase = await createSupabaseServer()
 
@@ -288,7 +294,7 @@ export async function generateCommissionForPeriod(
     typeCode:    'COMMISSION_OUT',
     bankDate:    null,   // not yet transferred when computed
     amount:      commissionAmount,
-    description: `Comisión ${pct}%${includesIva ? ' + IVA' : ''} sobre total cobrado`,
+    description: `Comisión ${pct}%${includesIva ? ' + IVA' : ''} sobre total cobrado${destination ? ` · ${destination}` : ''}`,
   })
 }
 

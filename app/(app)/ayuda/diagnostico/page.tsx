@@ -79,12 +79,12 @@ export default function DiagnosticoPage() {
       {/* advertencias */}
       <GuideCard title="3. Advertencias (amarillo) — para revisar" tint="#CA8A04">
         <IssueTable>
-          <IssueRow dice="Hay ingresos pero no hay comisión (ADMI = 0)">Cargaste el cobro pero falta registrar la comisión, así que al dueño se le transferiría de más. En la celda <strong className="text-ink">ADMI</strong> tocá <strong className="text-ink">«Calcular»</strong> para generarla sola (ingresos × %), o cargala a mano en el banco (Galicia / BBVA).</IssueRow>
+          <IssueRow dice="Hay ingresos pero no hay comisión (ADMI = 0)">Cargaste el cobro pero falta registrar la comisión, así que al dueño se le transferiría de más. En la celda <strong className="text-ink">ADMI</strong> tocá <strong className="text-ink">«Calcular»</strong> y elegí el banco (Galicia / BBVA): queda cargada al % del contrato.</IssueRow>
           <IssueRow dice="Alquiler vencido hace N días">Cobralo, o si corresponde, cargá el recargo por mora.</IssueRow>
           <IssueRow dice="Suma de % de propietarios / inquilinos ≠ 100%">Ajustá los porcentajes desde la ficha hasta que sumen 100.</IssueRow>
           <IssueRow dice="Contrato sin % de comisión">Cargá el % en la columna <strong className="text-ink">Pct</strong> (o en la ficha).</IssueRow>
           <IssueRow dice="Aumento programado vencido">Aplicá el aumento y actualizá la fecha del próximo ajuste.</IssueRow>
-          <IssueRow dice="ADMI sin marcador de banco">Una comisión quedó sin asignar a Galicia / BBVA. Verificá las columnas de banco.</IssueRow>
+          <IssueRow dice="ADMI sin marcador de banco (Galicia / BBVA)">La comisión está cargada pero no asignada a un banco. En la celda <strong className="text-ink">ADMI</strong> tocá <strong className="text-ink">«banco?»</strong> y elegí Galicia / BBVA (así no se duplica).</IssueRow>
           <IssueRow dice="Fecha de transferencia anterior al cobro">El orden de fechas no cierra. Verificá F. banco y D. transf.</IssueRow>
           <IssueRow dice="IVA marcado pero el administrador no es RI">Revisá el IVA de la comisión: desactivá el flag o asigná un administrador RI.</IssueRow>
           <IssueRow dice="Recargo recurrente sin registrar">Un recargo (ABL, gas…) no tiene el cobro cargado este mes (es el punto rojo en Recargos).</IssueRow>

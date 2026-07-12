@@ -745,6 +745,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       admi={r.admi}
                       ingresos={r.ingresos}
                       commissionPct={r.commissionPctConfigured}
+                      bankSum={r.admGalicia + r.admFrances509 + r.admFrances516}
                       textClass={cellTextClass(transferido)}
                     />
                   </Td>
