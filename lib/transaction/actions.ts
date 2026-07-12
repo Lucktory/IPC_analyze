@@ -338,6 +338,54 @@ export async function updateCommissionPctAndRecalc(
 }
 
 // ============================================================================
+// tagCommissionBank — assign an ALREADY-recorded commission to a bank WITHOUT
+// recomputing its amount. Powers the ADMI cell's "banco?" affordance: it only
+// changes the destination marker on the existing COMMISSION_OUT row, preserving
+// the recorded amount AND its bank_date (so a legacy / hand-entered / mid-period
+// figure isn't silently rewritten to ingresos×pct, and a reconciled commission
+// isn't un-reconciled). Consolidates duplicates to the most-recent row first.
+// ============================================================================
+export async function tagCommissionBank(
+  contractId:  string,
+  period:      string,
+  destination: 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6',
+): Promise<TransactionResult> {
+  const supabase = await createSupabaseServer()
+  const { data: commType } = await supabase
+    .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
+  if (!commType) return { ok: false, error: 'Tipo de comisión no encontrado.' }
+
+  const { data: rows } = await supabase
+    .from('transactions').select('id, description')
+    .eq('contract_id', contractId).eq('period', period)
+    .eq('transaction_type_id', (commType as any).id)
+    .order('created_at', { ascending: false })
+  if (!rows || rows.length === 0) return { ok: false, error: 'No hay comisión para asignar a un banco.' }
+
+  // Collapse accidental duplicates to the most-recent row (no splits exist).
+  if (rows.length > 1) {
+    const extras = rows.slice(1).map((r: any) => r.id)
+    const { error: delErr } = await supabase.from('transactions').delete().in('id', extras)
+    if (delErr) return dbFailure(delErr)
+  }
+
+  const survivor = rows[0] as any
+  // Strip any existing bank marker, then append the chosen one. Amount and
+  // bank_date are left untouched.
+  const base = String(survivor.description ?? 'Comisión')
+    .replace(/\s*[·-]\s*ADM_(GALICIA|FRANCES_50_9|FRANCES_51_6)\b/g, '')
+    .trim() || 'Comisión'
+  const { error } = await supabase
+    .from('transactions')
+    .update({ description: `${base} · ${destination}` })
+    .eq('id', survivor.id)
+  if (error) return dbFailure(error)
+
+  revalidatePath('/liquidacion')
+  return { ok: true, error: null }
+}
+
+// ============================================================================
 // updateTransaction — edit an existing transaction's mutable fields.
 // ============================================================================
 export async function updateTransaction(
