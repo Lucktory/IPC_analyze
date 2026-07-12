@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { upsertTransactionByContractPeriod } from '@/lib/transaction/actions'
+import { upsertTransactionByContractPeriod, setRentBankDate } from '@/lib/transaction/actions'
 
 interface Props {
   contractId:    string
@@ -59,14 +59,21 @@ export function InlineDateCell({ contractId, period, typeCode, initialDate, defa
     }
     setError(null)
     startTransition(async () => {
-      const res = await upsertTransactionByContractPeriod({
-        contractId,
-        period,
-        typeCode,
-        bankDate: newDate,
-        // Only pass amount on create; on update keep existing amount.
-        amount:   initialDate ? undefined : defaultAmount,
-      })
+      // RENT_IN goes through the single writer: it stamps the date on the
+      // existing rent (amount preserved) and only creates current_rent when no
+      // rent exists — so marking the fecha banco can never clobber a partial
+      // cobro loaded from the Alquiler popover. LANDLORD_PAYOUT keeps the
+      // generic upsert (one payout row per contract-period).
+      const res = typeCode === 'RENT_IN'
+        ? await setRentBankDate(contractId, period, newDate, defaultAmount)
+        : await upsertTransactionByContractPeriod({
+            contractId,
+            period,
+            typeCode,
+            bankDate: newDate,
+            // Only pass amount on create; on update keep existing amount.
+            amount:   initialDate ? undefined : defaultAmount,
+          })
       if (!res.ok) {
         setError(res.error)
         return

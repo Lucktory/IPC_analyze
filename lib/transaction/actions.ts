@@ -433,6 +433,120 @@ export async function setCommissionBankCell(
 }
 
 // ============================================================================
+// setRentBankDate — the FECHA BANCO cell (RENT_IN). Sets the bank date on the
+// existing rent WITHOUT touching its amount; only creates a rent row (= current
+// rent) when none exists yet. This fixes the clobber where marking the date
+// used to overwrite a partial cobro recorded in the Alquiler popover with the
+// full current_rent. RENT_IN can legitimately be more than one row (split
+// payments), so this deliberately does NOT collapse to a single row — it just
+// stamps the date on the most-recent rent line.
+// ============================================================================
+export async function setRentBankDate(
+  contractId:     string,
+  period:         string,
+  bankDate:       string | null,
+  fallbackAmount: number,   // current_rent — used only when creating a fresh rent
+): Promise<TransactionResult> {
+  if (bankDate && !/^\d{4}-\d{2}-\d{2}$/.test(bankDate)) {
+    return { ok: false, error: 'Fecha bancaria inválida.' }
+  }
+  const supabase = await createSupabaseServer()
+  const { data: typeRow } = await supabase
+    .from('transaction_types').select('id').eq('code', 'RENT_IN').maybeSingle()
+  if (!typeRow) return { ok: false, error: 'Tipo RENT_IN no encontrado.' }
+  const typeId = (typeRow as any).id
+
+  const { data: rows } = await supabase
+    .from('transactions').select('id')
+    .eq('contract_id', contractId).eq('period', period).eq('transaction_type_id', typeId)
+    .order('created_at', { ascending: false }).limit(1)
+
+  if (rows && rows.length > 0) {
+    const { error } = await supabase.from('transactions')
+      .update({ bank_date: bankDate }).eq('id', (rows[0] as any).id)   // amount preserved
+    if (error) return dbFailure(error)
+  } else {
+    if (!isFinite(fallbackAmount) || fallbackAmount <= 0) {
+      return { ok: false, error: 'No hay alquiler cargado para este contrato.' }
+    }
+    const { data: contract } = await supabase
+      .from('contracts').select('administration_id').eq('id', contractId).maybeSingle()
+    const { error } = await supabase.from('transactions').insert({
+      administration_id:   (contract as any)?.administration_id,
+      contract_id:         contractId,
+      transaction_type_id: typeId,
+      amount:              fallbackAmount,
+      period,
+      bank_date:           bankDate,
+    })
+    if (error) return dbFailure(error)
+  }
+  revalidatePath('/liquidacion')
+  revalidatePath(`/contratos/${contractId}`)
+  return { ok: true, error: null }
+}
+
+// ============================================================================
+// setOtrosCell — the planilla OTROS cell (OTHER_OUT). The cell owns a single
+// row tagged with its own "Otros descuentos" label and only ever touches THAT
+// row, so it can never overwrite an itemised salida logged in the Movimientos
+// modal (which carries its own description). Amount 0 clears the cell's row.
+// (Itemised otros are still edited from Movimientos, and both sum into `otros`.)
+// ============================================================================
+export async function setOtrosCell(
+  contractId: string,
+  period:     string,
+  amount:     number,
+): Promise<TransactionResult> {
+  const supabase = await createSupabaseServer()
+  const { data: typeRow } = await supabase
+    .from('transaction_types').select('id').eq('code', 'OTHER_OUT').maybeSingle()
+  if (!typeRow) return { ok: false, error: 'Tipo OTHER_OUT no encontrado.' }
+  const typeId = (typeRow as any).id
+
+  const { data: rows } = await supabase
+    .from('transactions').select('id')
+    .eq('contract_id', contractId).eq('period', period).eq('transaction_type_id', typeId)
+    .ilike('description', 'Otros descuentos%')
+    .order('created_at', { ascending: false })
+  const list = (rows ?? []) as any[]
+  const survivor = list[0] ?? null
+  if (list.length > 1) {
+    const { error: delErr } = await supabase.from('transactions').delete().in('id', list.slice(1).map(r => r.id))
+    if (delErr) return dbFailure(delErr)
+  }
+
+  if (!isFinite(amount) || amount <= 0) {
+    if (survivor) {
+      const { error } = await supabase.from('transactions').delete().eq('id', survivor.id)
+      if (error) return dbFailure(error)
+    }
+    revalidatePath('/liquidacion'); revalidatePath('/movimientos')
+    return { ok: true, error: null }
+  }
+
+  if (survivor) {
+    const { error } = await supabase.from('transactions').update({ amount }).eq('id', survivor.id)
+    if (error) return dbFailure(error)
+  } else {
+    const { data: contract } = await supabase
+      .from('contracts').select('administration_id').eq('id', contractId).maybeSingle()
+    const { error } = await supabase.from('transactions').insert({
+      administration_id:   (contract as any)?.administration_id,
+      contract_id:         contractId,
+      transaction_type_id: typeId,
+      amount,
+      period,
+      bank_date:           null,
+      description:         'Otros descuentos',
+    })
+    if (error) return dbFailure(error)
+  }
+  revalidatePath('/liquidacion'); revalidatePath('/movimientos')
+  return { ok: true, error: null }
+}
+
+// ============================================================================
 // updateTransaction — edit an existing transaction's mutable fields.
 // ============================================================================
 export async function updateTransaction(
