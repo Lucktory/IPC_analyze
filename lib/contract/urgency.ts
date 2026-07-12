@@ -15,6 +15,30 @@ export {
 } from '@/lib/urgency'
 import type { UrgencyTier } from '@/lib/urgency'
 
+const MS_48H = 48 * 3600000
+
+/**
+ * Audit rule (single source of truth) — "rent paid this month" is a positive
+ * RENT_IN / RENT_NF_IN cobro. OTHER_IN (reintegros, ajustes) is income but NOT
+ * rent, so it must not silence the "sin pago de alquiler" audit. Both the list
+ * (entities) and the contract detail feed this so they can't contradict.
+ */
+export function hasRentForAudit(rentPaidAmount: number): boolean {
+  return rentPaidAmount > 0
+}
+
+/** "Recently touched" = a rent confirmed on the bank OR a note edited within the
+ *  last 48h. Same rule on the list and the detail. */
+export function isRecentlyTouched(args: {
+  rentBankDate?:  string | null
+  noteUpdatedAt?: string | null
+  now?:           number
+}): boolean {
+  const now = args.now ?? Date.now()
+  const fresh = (iso?: string | null) => !!iso && (now - new Date(iso).getTime()) < MS_48H
+  return fresh(args.rentBankDate) || fresh(args.noteUpdatedAt)
+}
+
 export interface UrgencyInputs {
   status:            string
   endDate:           string

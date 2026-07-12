@@ -25,6 +25,7 @@ import { dbFailure } from '@/lib/db-errors'
 import { updateContractCommissionPct } from '@/lib/contract/inline-field-actions'
 import { COMMISSION_IVA_RATE } from '@/lib/liquidacion/thresholds'
 import { isManagedRow, managedRowMessage, stripOtrosMarker, OTROS_CELL_MARKER, OTROS_CELL_ILIKE } from '@/lib/transaction/managed-rows'
+import { deriveCommissionDest, buildCommissionMarker, COMMISSION_MARKER_RE, type CommissionDest } from '@/lib/bancos/destination'
 
 export interface TransactionResult {
   ok:    boolean
@@ -320,16 +321,6 @@ export async function updateCommissionPctAndRecalc(
 //   • label omitted        → keep the existing human text
 //   • amount <= 0          → clear the commission (delete the row)
 // ============================================================================
-type CommissionDest = 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6'
-const COMMISSION_MARKER_RE = /\s*[·-]\s*ADM_(GALICIA|FRANCES_50_9|FRANCES_51_6)\b/g
-function deriveCommissionDest(description: string | null): CommissionDest | undefined {
-  const d = description ?? ''
-  return d.includes('ADM_GALICIA')      ? 'ADM_GALICIA'
-       : d.includes('ADM_FRANCES_50_9') ? 'ADM_FRANCES_50_9'
-       : d.includes('ADM_FRANCES_51_6') ? 'ADM_FRANCES_51_6'
-       : undefined
-}
-
 export async function setCommission(
   contractId: string,
   period:     string,
@@ -369,7 +360,7 @@ export async function setCommission(
 
   const destination = opts.destination ?? (survivor ? deriveCommissionDest(survivor.description) : undefined)
   const base = (opts.label ?? String(survivor?.description ?? 'Comisión').replace(COMMISSION_MARKER_RE, '').trim()) || 'Comisión'
-  const description = `${base}${destination ? ` · ${destination}` : ''}`
+  const description = `${base}${destination ? buildCommissionMarker(destination) : ''}`
 
   if (survivor) {
     const { error } = await supabase.from('transactions')

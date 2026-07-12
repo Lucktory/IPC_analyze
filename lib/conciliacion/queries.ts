@@ -7,6 +7,7 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { bankShortFromDescription } from '@/lib/bancos/destination'
 
 export interface ConciliacionMov {
   id:             string
@@ -23,13 +24,7 @@ export interface ConciliacionMov {
   description:    string
 }
 
-const BANK_SHORT: Record<string, string> = {
-  ADM_GALICIA: 'Galicia', ADM_FRANCES_50_9: 'BBVA 50-9', ADM_FRANCES_51_6: 'BBVA 51-6',
-}
-function bankFromDescription(desc: string): string | null {
-  for (const tag of Object.keys(BANK_SHORT)) if (desc.includes(tag)) return BANK_SHORT[tag]
-  return null
-}
+const bankFromDescription = bankShortFromDescription
 
 export async function getConciliacionMovimientos(period: string): Promise<ConciliacionMov[]> {
   const supabase = await createSupabaseServer()

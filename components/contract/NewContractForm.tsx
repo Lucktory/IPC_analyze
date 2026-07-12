@@ -98,6 +98,7 @@ export function NewContractForm({ tenants, landlords, properties }: Props) {
       <FormField name="end_date"   label="Fecha de fin"    type="date" required defaultValue={endIso} />
 
       <FormField name="payment_day"    label="Día de pago (1–31)"  type="number" defaultValue="5" />
+      <FormField name="commission_pct" label="Comisión administración (%)" type="number" step="0.01" defaultValue="8" placeholder="8" />
 
       <label className="flex flex-col gap-1.5">
         <span className="label-cap">Moneda</span>

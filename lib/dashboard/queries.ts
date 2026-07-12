@@ -24,6 +24,8 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { getCurrentPeriod, getRecentPeriods, periodAxisLabel } from '@/lib/period'
 import { EVENTS_TABLE, EVENT_KIND, EVENT_STATUS } from '@/lib/contract/events-types'
+import { classifyDestination } from '@/lib/bancos/destination'
+import { pickPrimaryLandlord } from '@/lib/contract/primary'
 
 // ── Filter primitives — applied to the joined transaction_types row.
 //    Centralized so a single typo can't desync the dashboard from the
@@ -167,11 +169,7 @@ export async function getCommissionByDestination(period?: string): Promise<Commi
   }
 
   for (const row of data ?? []) {
-    const descr = (row.description ?? '') as string
-    const key =
-      descr.includes('ADM_GALICIA')       ? 'ADM_GALICIA' :
-      descr.includes('ADM_FRANCES_50_9')  ? 'ADM_FRANCES_50_9' :
-      descr.includes('ADM_FRANCES_51_6')  ? 'ADM_FRANCES_51_6' : 'OTHER'
+    const key = classifyDestination(row.description ?? null)
     buckets[key].total += Number(row.amount)
     buckets[key].count += 1
   }
@@ -575,7 +573,7 @@ export async function getContractsWithoutPayment(): Promise<TenantWithoutPayment
       .select(`
         id, current_rent,
         contract_tenants(is_primary, tenants(name)),
-        contract_landlords(landlords(name))
+        contract_landlords(ownership_pct, landlords(name))
       `)
       .eq('status', 'active')
 
@@ -597,7 +595,7 @@ export async function getContractsWithoutPayment(): Promise<TenantWithoutPayment
 
     return unpaid.map((c: any) => {
       const primary = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
-      const firstLandlord = c.contract_landlords?.[0]
+      const firstLandlord = pickPrimaryLandlord(c.contract_landlords)
       return {
         contractId:   c.id,
         tenantName:   primary?.tenants?.name ?? '(sin inquilino)',

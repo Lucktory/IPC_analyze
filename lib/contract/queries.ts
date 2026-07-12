@@ -9,6 +9,7 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { displayCity } from '@/lib/geo'
+import { classifyDestination, type DestinationCode } from '@/lib/bancos/destination'
 
 export interface ContractDetail {
   id:              string
@@ -137,7 +138,13 @@ export async function getContractPaymentHistory(contractId: string, months = 5):
 // ---------------------------------------------------------------------------
 export interface LiquidacionEmbudo {
   period:         string
-  rent:           number   // RENT_IN sum
+  rent:           number   // RENT_IN + RENT_NF_IN + OTHER_IN (the income total)
+  /** RENT_IN + RENT_NF_IN only — the "did the tenant pay rent" audit signal
+   *  (OTHER_IN excluded). Kept separate from `rent` so the audit doesn't count
+   *  reintegros/ajustes as rent. */
+  rentPaid:       number
+  /** Latest RENT_IN / RENT_NF_IN bank_date, for the "recently touched" audit. */
+  lastRentBankDate: string | null
   recoveries:     { label: string; amount: number; typeCode: string }[]  // TASA, CAMUZZI, etc.
   recoveriesTotal: number
   totalIn:        number   // rent + recoveries
@@ -163,12 +170,14 @@ const RECOVERY_LABEL: Record<string, string> = {
   BANK_FEE_OUT:  'Gastos bancarios',
 }
 
+const CONTRACT_DEST_LABEL: Record<DestinationCode, string> = {
+  ADM_GALICIA:      'ADM Galicia',
+  ADM_FRANCES_50_9: 'BBVA Francés 50/9',
+  ADM_FRANCES_51_6: 'BBVA Francés 51/6',
+  OTHER:            'Sin destino',
+}
 function destinationFromDescription(d: string | null): string {
-  const s = d ?? ''
-  if (s.includes('ADM_GALICIA'))      return 'ADM Galicia'
-  if (s.includes('ADM_FRANCES_50_9')) return 'BBVA Francés 50/9'
-  if (s.includes('ADM_FRANCES_51_6')) return 'BBVA Francés 51/6'
-  return 'Sin destino'
+  return CONTRACT_DEST_LABEL[classifyDestination(d)]
 }
 
 export async function getEmbudoForContract(
@@ -179,13 +188,15 @@ export async function getEmbudoForContract(
 
   const { data } = await supabase
     .from('transactions')
-    .select('amount, description, transaction_types!inner(code, label)')
+    .select('amount, description, bank_date, transaction_types!inner(code, label)')
     .eq('contract_id', contractId)
     .eq('period', period)
 
   const embudo: LiquidacionEmbudo = {
     period,
-    rent:            0,
+    rent:             0,
+    rentPaid:         0,
+    lastRentBankDate: null,
     recoveries:      [],
     recoveriesTotal: 0,
     totalIn:         0,
@@ -201,8 +212,13 @@ export async function getEmbudoForContract(
   for (const tx of (data ?? []) as any[]) {
     const code = tx.transaction_types.code as string
     const amount = Number(tx.amount)
-    if (code === 'RENT_IN' || code === 'RENT_NF_IN' || code === 'OTHER_IN') {
+    if (code === 'RENT_IN' || code === 'RENT_NF_IN') {
       embudo.rent += amount
+      embudo.rentPaid += amount   // rent-only audit signal (OTHER_IN excluded)
+      const bd = tx.bank_date as string | null
+      if (bd && (!embudo.lastRentBankDate || bd > embudo.lastRentBankDate)) embudo.lastRentBankDate = bd
+    } else if (code === 'OTHER_IN') {
+      embudo.rent += amount   // income for the total cobrado, but not "rent paid"
     } else if (RECOVERY_TYPES.has(code)) {
       recoveryMap.set(code, (recoveryMap.get(code) ?? 0) + amount)
     } else if (code === 'COMMISSION_OUT') {

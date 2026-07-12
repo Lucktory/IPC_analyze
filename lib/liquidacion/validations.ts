@@ -188,7 +188,10 @@ export interface ValidatableRow {
 //    reconcile yet.
 function checkTransferenciaBalance(r: ValidatableRow): ValidationIssue | null {
   if (r.payout <= 0) return null  // nothing transferred yet → nothing to reconcile
-  const expected = r.ingresos - r.admi - r.otros + r.adjustmentAmount  // = recibo neto
+  // Read the ONE computed recibo neto (queries.ts transferencia) rather than
+  // re-deriving the formula here — so a future change to the formula can't make
+  // this reconciliation check silently disagree with the number shown/paid.
+  const expected = r.transferencia
   const diff = Math.abs(r.payout - expected)
   if (diff <= VALIDATION_TOLERANCES.TRANSFERENCIA_PESOS) return null
   return {
@@ -204,7 +207,7 @@ function checkTransferenciaBalance(r: ValidatableRow): ValidationIssue | null {
 // 2. Transferencia non-negative — if the computed expected goes below
 //    zero (e.g., huge negative adjustment), the math is broken.
 function checkTransferenciaNonNegative(r: ValidatableRow): ValidationIssue | null {
-  const expected = r.ingresos - r.admi - r.otros + r.adjustmentAmount
+  const expected = r.transferencia   // single source: queries.ts recibo neto
   if (expected >= 0) return null
   return {
     code:     'TRANSFERENCIA_NEGATIVE',

@@ -45,6 +45,21 @@ export function isPctSum100(values: ReadonlyArray<number | string | null | undef
 }
 
 /**
+ * Split 100% equally across N rows, putting the rounding residue on the FIRST
+ * (primary) row so the set sums to exactly 100 and every row stays in (0, 100].
+ * Single source of truth for equal co-ownership / co-tenancy splits (app writers
+ * and the import script) so none of them land on sum≠100.
+ *   equalSplit(1) → [100]   equalSplit(2) → [50, 50]   equalSplit(3) → [33.34, 33.33, 33.33]
+ */
+export function equalSplit(n: number): number[] {
+  if (n <= 0) return []
+  const base   = +(100 / n).toFixed(2)
+  const shares = Array<number>(n).fill(base)
+  shares[0] = +(100 - base * (n - 1)).toFixed(2)
+  return shares
+}
+
+/**
  * True if every value is a valid per-row percentage (number in (0, 100]).
  * Use alongside isPctSum100 — both must pass.
  */

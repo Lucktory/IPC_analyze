@@ -7,15 +7,11 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { getRecentPeriods, periodAxisLabel } from '@/lib/period'
 import { displayCity } from '@/lib/geo'
+import { classifyDestination, type DestinationCode } from '@/lib/bancos/destination'
 
-export type BankDest = 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6' | 'OTHER'
-
-export function classifyDestination(description: string): BankDest {
-  if (description.includes('ADM_GALICIA'))      return 'ADM_GALICIA'
-  if (description.includes('ADM_FRANCES_50_9'))  return 'ADM_FRANCES_50_9'
-  if (description.includes('ADM_FRANCES_51_6'))  return 'ADM_FRANCES_51_6'
-  return 'OTHER'
-}
+// Re-exported for existing importers of the bancos surface.
+export type BankDest = DestinationCode
+export { classifyDestination }
 
 // Per-COMMISSION_OUT row for the period: contract + property + destination + %.
 export interface CommissionContractRow {

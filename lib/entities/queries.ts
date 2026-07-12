@@ -7,6 +7,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { getCurrentPeriod } from '@/lib/period'
 import { deriveOwner, type OwnerType } from '@/lib/owner'
 import { displayCity } from '@/lib/geo'
+import { pickPrimaryLandlord } from '@/lib/contract/primary'
 
 // ---------------------------------------------------------------------------
 // LANDLORDS  (a.k.a. "contribuyentes" — propietarios with tax info)
@@ -583,9 +584,7 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
   // Normalise to ContractRow shape + compute urgency
   const all: (ContractRow & { landlordId: string })[] = (contractsRes.data ?? []).map((c: any) => {
     const primary  = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
-    const topOwner = (c.contract_landlords ?? [])
-      .slice()
-      .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
+    const topOwner = pickPrimaryLandlord(c.contract_landlords)
 
     const cId            = c.id as string
     const status         = c.status as string

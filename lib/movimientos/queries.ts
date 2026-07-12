@@ -7,14 +7,10 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { bankShortFromDescription } from '@/lib/bancos/destination'
+import { pickPrimaryLandlord } from '@/lib/contract/primary'
 
-const BANK_SHORT: Record<string, string> = {
-  ADM_GALICIA: 'Galicia', ADM_FRANCES_50_9: 'BBVA 50-9', ADM_FRANCES_51_6: 'BBVA 51-6',
-}
-function bankFromDescription(desc: string): string | null {
-  for (const tag of Object.keys(BANK_SHORT)) if (desc.includes(tag)) return BANK_SHORT[tag]
-  return null
-}
+const bankFromDescription = bankShortFromDescription
 
 export interface MovimientoRow {
   id:             string
@@ -49,7 +45,7 @@ export async function getMovimientos(period: string): Promise<MovimientoRow[]> {
   return (data ?? []).map((r: any) => {
     const c        = r.contracts
     const tenant   = c?.contract_tenants?.find((ct: any) => ct.is_primary) ?? c?.contract_tenants?.[0]
-    const landlord = (c?.contract_landlords ?? []).slice().sort((a: any, b: any) => (b.ownership_pct ?? 0) - (a.ownership_pct ?? 0))[0]
+    const landlord = pickPrimaryLandlord(c?.contract_landlords)
     const code     = r.transaction_types?.code ?? ''
     const counterparty = code === 'LANDLORD_PAYOUT'
       ? (landlord?.landlords?.name ?? null)

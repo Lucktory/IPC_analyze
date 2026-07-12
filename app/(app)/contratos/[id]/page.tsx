@@ -22,7 +22,7 @@ import { getDeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
 import { ValidationIssueRow } from '@/components/shared/ValidationIssueRow'
 import { getContractDiagnostico } from '@/lib/liquidacion/diagnostico'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
-import { computeUrgency, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
+import { computeUrgency, hasRentForAudit, isRecentlyTouched, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 import { getCurrentPeriod } from '@/lib/period'
 import { fmtMoney as fmt, fmtDate } from '@/lib/format'
 
@@ -80,11 +80,13 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
   const nextAdjustment = computeNextAdjustment(contract.startDate, contract.cadence, contract.status)
   const commissionPct  = embudo.totalIn > 0 ? (embudo.commissionTotal / embudo.totalIn) * 100 : 0
 
-  const noteUpdatedRecently = !!note.updatedAt && (Date.now() - new Date(note.updatedAt).getTime()) < 48 * 3600000
   const audit = computeUrgency({
     status: contract.status, endDate: contract.endDate,
-    hasRentThisMonth: embudo.rent > 0, hasNoteThisMonth: !!note.body.trim(),
-    recentlyTouched: noteUpdatedRecently, nextAdjustment,
+    // Same audit rule as the contract list: rent = RENT_IN/RENT_NF_IN only
+    // (OTHER_IN is income, not rent), and "recent" = rent OR note within 48h.
+    hasRentThisMonth: hasRentForAudit(embudo.rentPaid), hasNoteThisMonth: !!note.body.trim(),
+    recentlyTouched: isRecentlyTouched({ rentBankDate: embudo.lastRentBankDate, noteUpdatedAt: note.updatedAt }),
+    nextAdjustment,
   })
 
   // Contract progress (months elapsed of the term)

@@ -15,6 +15,7 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { normalizeLfa } from '@/lib/contract/lfa'
+import { buildCommissionMarker } from '@/lib/bancos/destination'
 
 export interface InlineResult {
   ok:    boolean
@@ -285,7 +286,7 @@ export async function upsertCellTransaction(
   if (destination) {
     insertDescription = baseDescription.includes(destination)
       ? (baseDescription || destination)
-      : (baseDescription ? `${baseDescription} · ${destination}` : destination)
+      : (baseDescription ? `${baseDescription}${buildCommissionMarker(destination)}` : destination)
   }
 
   // Find existing transaction for (contract, period, type [+ destination marker]).

@@ -6,6 +6,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure }            from '@/lib/db-errors'
 import { isPctSum100, pctSum }  from '@/lib/shared'
 import { normalizeLfa }         from '@/lib/contract/lfa'
+import { nextContractNumber, resolveCommissionPct } from '@/lib/contract/create-helpers'
 
 export interface SaveNoteResult {
   ok:    boolean
@@ -69,6 +70,7 @@ export async function createContract(formData: FormData): Promise<CreateContract
   const indexer         = String(formData.get('indexer')         ?? 'IPC_GENERAL').trim()
   const paymentDay      = Number(String(formData.get('payment_day') ?? '5').trim() || '5')
   const lfaNorm         = normalizeLfa(String(formData.get('lfa_code') ?? ''))
+  const commissionPct   = resolveCommissionPct(formData.get('commission_pct') as string | null)
   let   contractNumber  = String(formData.get('contract_number') ?? '').trim() || null
 
   if (!propertyId) return { ok: false, error: 'Seleccioná una propiedad.' }
@@ -84,7 +86,8 @@ export async function createContract(formData: FormData): Promise<CreateContract
   if (!isFinite(paymentDay) || paymentDay < 1 || paymentDay > 31) {
     return { ok: false, error: 'Día de pago debe ser entre 1 y 31.' }
   }
-  if (!lfaNorm.ok) return { ok: false, error: lfaNorm.error }
+  if (!lfaNorm.ok)       return { ok: false, error: lfaNorm.error }
+  if (!commissionPct.ok) return { ok: false, error: commissionPct.error }
 
   const supabase = await createSupabaseServer()
 
@@ -94,20 +97,9 @@ export async function createContract(formData: FormData): Promise<CreateContract
   if (propErr)   return dbFailure(propErr)
   if (!property) return { ok: false, error: 'Propiedad no encontrada.' }
 
-  // Auto-assign a human contract number (C-YYYY-NNNN) when none was entered,
-  // sequencing within the start-date year. Numbers are zero-padded to 4 digits
-  // so they sort lexicographically — ordering desc gives the current max.
+  // Shared with the grid create path so the two entry points never diverge.
   if (!contractNumber) {
-    const year = startDate.slice(0, 4)
-    const { data: last } = await supabase
-      .from('contracts')
-      .select('contract_number')
-      .like('contract_number', `C-${year}-%`)
-      .order('contract_number', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    const lastSeq = last?.contract_number ? parseInt((last.contract_number as string).slice(-4), 10) || 0 : 0
-    contractNumber = `C-${year}-${String(lastSeq + 1).padStart(4, '0')}`
+    contractNumber = await nextContractNumber(supabase, startDate)
   }
 
   // Insert contract row
@@ -128,6 +120,7 @@ export async function createContract(formData: FormData): Promise<CreateContract
       payment_day:       paymentDay,
       status:            'active',
       lfa_code:          lfaNorm.value,
+      commission_pct:    commissionPct.value,
     })
     .select('id')
     .single()

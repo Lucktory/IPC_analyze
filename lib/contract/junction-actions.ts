@@ -22,6 +22,7 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { normalizeLfa } from '@/lib/contract/lfa'
+import { nextContractNumber, administrationIdForProperty } from '@/lib/contract/create-helpers'
 
 export interface JunctionResult {
   ok:    boolean
@@ -205,12 +206,20 @@ export async function createContractFromGrid(input: CreateFromGridInput): Promis
       if (plErr) return dbFailure(plErr)
     }
 
-    // ── Create the contract.
+    // ── Create the contract. The contract must inherit the PROPERTY's
+    //    administration (not the first-administration seed) so per-admin
+    //    scoping stays correct once a 2nd administration exists; and it gets a
+    //    C-YYYY-NNNN number from the SAME helper createContract uses, so grid
+    //    contracts are never left blank / duplicated by the backfill.
+    const contractAdminId = propertyIsNew
+      ? administration_id
+      : (await administrationIdForProperty(supabase, propertyId)) ?? administration_id
     const { data: contract, error: contractErr } = await supabase
       .from('contracts')
       .insert({
-        administration_id,
+        administration_id: contractAdminId,
         property_id:       propertyId,
+        contract_number:   await nextContractNumber(supabase, input.startDate),
         current_rent:      input.currentRent,
         initial_rent:      input.currentRent,
         expensas:          0,

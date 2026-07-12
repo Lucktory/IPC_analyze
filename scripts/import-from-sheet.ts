@@ -979,10 +979,16 @@ for (const p of properties) {
 sql.push('')
 
 // Junction: contract_tenants
+// Explicit equal-split share_pct (residue on the primary row) — mirrors
+// equalSplit in lib/shared/percentages.ts. Without it the column default is 100,
+// so N co-tenants would sum to N*100 and trip the app's sum-100 invariant.
 sql.push('  -- contract_tenants (primary = first)')
 for (const c of contracts) {
+  const n = c.tenant_ids.length
+  const base = n > 0 ? +(100 / n).toFixed(2) : 100
   c.tenant_ids.forEach((tid, idx) => {
-    sql.push(`  insert into contract_tenants (contract_id, tenant_id, is_primary) values (${sqlString(c.id)}, ${sqlString(tid)}, ${idx === 0}) on conflict do nothing;`)
+    const share = idx === 0 ? +(100 - base * (n - 1)).toFixed(2) : base
+    sql.push(`  insert into contract_tenants (contract_id, tenant_id, is_primary, share_pct) values (${sqlString(c.id)}, ${sqlString(tid)}, ${idx === 0}, ${share}) on conflict do nothing;`)
   })
 }
 sql.push('')

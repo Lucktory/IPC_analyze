@@ -23,6 +23,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { getCurrentPeriod } from '@/lib/period'
 import { getLiquidacionGridForPeriod } from '@/lib/liquidacion/queries'
+import { pickPrimaryLandlord } from '@/lib/contract/primary'
 
 export type PendienteCategory =
   | 'cobranza_proxima'
@@ -95,9 +96,7 @@ export async function getPendientesDigest(): Promise<PendienteDigest> {
     if (!c) continue
 
     const tenant   = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
-    const landlord = (c.contract_landlords ?? [])
-      .slice()
-      .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
+    const landlord = pickPrimaryLandlord(c.contract_landlords)
 
     const base = {
       contractId:    row.contractId,

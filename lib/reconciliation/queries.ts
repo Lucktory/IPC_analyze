@@ -7,12 +7,12 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { classifyDestination, type DestinationCode } from '@/lib/bancos/destination'
+import { pickPrimaryLandlord } from '@/lib/contract/primary'
 
-export type DestinationCode =
-  | 'ADM_GALICIA'
-  | 'ADM_FRANCES_50_9'
-  | 'ADM_FRANCES_51_6'
-  | 'OTHER'
+// Re-exported for existing importers (e.g. lib/liquidacion/queries).
+export type { DestinationCode }
+export { classifyDestination }
 
 export interface DestinationMeta {
   label:    string
@@ -83,14 +83,6 @@ export interface ReconciliationBucket {
   rows:    ReconciliationRow[]
 }
 
-export function classifyDestination(description: string | null): DestinationCode {
-  const d = description ?? ''
-  if (d.includes('ADM_GALICIA'))      return 'ADM_GALICIA'
-  if (d.includes('ADM_FRANCES_50_9')) return 'ADM_FRANCES_50_9'
-  if (d.includes('ADM_FRANCES_51_6')) return 'ADM_FRANCES_51_6'
-  return 'OTHER'
-}
-
 export async function getReconciliationByDestination(
   period: string,
 ): Promise<ReconciliationBucket[]> {
@@ -121,9 +113,7 @@ export async function getReconciliationByDestination(
     const code  = classifyDestination(tx.description)
     const ct    = tx.contracts?.contract_tenants?.find((x: any) => x.is_primary)
                 ?? tx.contracts?.contract_tenants?.[0]
-    const cl    = (tx.contracts?.contract_landlords ?? [])
-                  .slice()
-                  .sort((a: any, b: any) => Number(b.ownership_pct) - Number(a.ownership_pct))[0]
+    const cl    = pickPrimaryLandlord(tx.contracts?.contract_landlords)
     const row: ReconciliationRow = {
       amount:      Number(tx.amount),
       bankDate:    tx.bank_date,
