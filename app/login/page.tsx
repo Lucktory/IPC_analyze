@@ -34,17 +34,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-cream flex items-center justify-center px-6">
       <div className="w-full max-w-[400px]">
         <div className="mb-8">
-          // <p className="label-cap">Administración Alejandro</p>
-          <div className="label-cap">
-            Hola, Alejandro:
-
-¿Podrías decirme qué pasa?
-
-Te he enviado mi correo electrónico y mi número de teléfono varias veces, pero no he recibido respuesta, así que estoy preocupado por lo que está pasando. Te agradecería mucho que me contestaras.
-</div>
-        
-         // <h1 className="font-display text-[28px] mt-2">Iniciar sesión</h1>
-          <h1 className="font-display text-[28px] mt-2">Mi nuevo móvil:+13342209647</h1>
+        <p className="label-cap">Administración Alejandro</p>
+        <h1 className="font-display text-[28px] mt-2">Iniciar sesión</h1>
+   
           <p className="text-slate text-[14px] mt-1">
             Ingresá tus credenciales para acceder al panel.
           </p>
