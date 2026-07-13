@@ -257,6 +257,12 @@ create table contracts (
   -- Pampa's commission percentage, applied to TOTAL COBRADO (alquiler
   -- + recuperos), per Alejandro's confirmed spec #2.
   commission_pct numeric(5,2) default 8.0,
+  -- Durable default destination bank for this contract's commission (ADMI).
+  -- The commission follows the administración's assigned Pampa account; every
+  -- period's COMMISSION_OUT inherits this (see lib/transaction setCommission).
+  -- NULL = no default yet. Added 2026-07 (db/julio-2026/01-…).
+  commission_destination text
+    check (commission_destination in ('ADM_GALICIA','ADM_FRANCES_50_9','ADM_FRANCES_51_6')),
   -- ── Phase 11: billing identity + tax rules (2026-06-17) ───────────────
   --
   -- Who invoices the commission. RI administrators add IVA; Monotributo

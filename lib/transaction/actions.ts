@@ -358,7 +358,17 @@ export async function setCommission(
     return { ok: true, error: null }
   }
 
-  const destination = opts.destination ?? (survivor ? deriveCommissionDest(survivor.description) : undefined)
+  // Load the contract once: administration_id for the insert, and
+  // commission_destination as the durable default bank a NEW commission
+  // inherits (Alejandro assigns the bank to the administración, so every future
+  // period lands in the right account without re-picking). An EXISTING row keeps
+  // its own marker (a manual per-period move is never snapped back).
+  const { data: contract } = await supabase
+    .from('contracts').select('administration_id, commission_destination').eq('id', contractId).maybeSingle()
+  const contractDefault = deriveCommissionDest((contract as any)?.commission_destination ?? null)
+
+  const destination = opts.destination
+    ?? (survivor ? deriveCommissionDest(survivor.description) : contractDefault)
   const base = (opts.label ?? String(survivor?.description ?? 'Comisión').replace(COMMISSION_MARKER_RE, '').trim()) || 'Comisión'
   const description = `${base}${destination ? buildCommissionMarker(destination) : ''}`
 
@@ -371,8 +381,6 @@ export async function setCommission(
     return { ok: true, error: null, transactionId: survivor.id }
   }
 
-  const { data: contract } = await supabase
-    .from('contracts').select('administration_id').eq('id', contractId).maybeSingle()
   const { data: created, error } = await supabase.from('transactions').insert({
     administration_id:   (contract as any)?.administration_id,
     contract_id:         contractId,
@@ -395,6 +403,28 @@ export async function tagCommissionBank(
   destination: CommissionDest,
 ): Promise<TransactionResult> {
   return setCommission(contractId, period, { destination })
+}
+
+// setContractCommissionDestination — the ADMI cell bank picker (Alejandro's
+// "editar la línea… banco 1/2/3"). Sets the contract's DURABLE default bank so
+// EVERY future period's commission inherits it, AND re-tags the current period's
+// commission if one already exists. Lets him assign a bank once, or MOVE a
+// contract to another bank later (e.g. a bank closes) from a single click.
+export async function setContractCommissionDestination(
+  contractId:  string,
+  period:      string,
+  destination: CommissionDest,
+): Promise<TransactionResult> {
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase
+    .from('contracts').update({ commission_destination: destination }).eq('id', contractId)
+  if (error) return dbFailure(error)
+  // Re-tag THIS period's commission if it exists (amount preserved). If none
+  // exists yet, the default above applies automatically when it's created.
+  await setCommission(contractId, period, { destination })
+  revalidatePath('/liquidacion')
+  revalidatePath(`/contratos/${contractId}`)
+  return { ok: true, error: null }
 }
 
 // setCommissionBankCell — the planilla Galicia / BBVA cells. Sets the amount AND

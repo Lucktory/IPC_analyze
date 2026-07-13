@@ -3,21 +3,22 @@
 // ============================================================================
 // AdmiCell — the ADMI (total commission) cell on the planilla.
 //
-// ADMI is the SUM of the COMMISSION_OUT transactions. It is not auto-generated
-// when income is loaded, so it's easy to forget — and a forgotten commission
-// over-pays the owner. This cell makes it one action and assigns the bank at
-// the same time (so it doesn't land unclassified):
-//   • ADMI = 0 with income + a % → "Calcular" picker: choose the bank and it
-//     COMPUTES ingresos × commission_pct (+IVA for RI), tagged to that bank.
-//   • ADMI > 0 but unclassified → "banco?" picker: TAGS the existing amount to
-//     a bank WITHOUT recomputing it (preserves a legacy / hand-entered figure
-//     and its reconciliation date).
-//   • ADMI classified → the amount, read-only.
+// ADMI is the SUM of the COMMISSION_OUT transactions. Its destination bank is a
+// DURABLE property of the contract (contracts.commission_destination): Alejandro
+// assigns each administración to a bank once, and every period's commission
+// inherits it. This cell is the editor for that assignment:
+//   • commission recorded → click the amount to CHOOSE or CHANGE the bank
+//     (banco 1 Galicia / banco 2 BBVA 50-9 / banco 3 BBVA 51-6). Moving a
+//     contract to another bank (a bank closes, etc.) is one click. If it's not
+//     yet classified, a "banco?" hint nudges to assign one.
+//   • no commission yet, income + a % → "Calcular": pick the bank, it COMPUTES
+//     ingresos × commission_pct (+IVA for RI), tags it, and stores the default.
+// Not every commission needs a bank — unpaid contracts have none, which is fine.
 // ============================================================================
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { generateCommissionForPeriod, tagCommissionBank } from '@/lib/transaction/actions'
+import { generateCommissionForPeriod, setContractCommissionDestination } from '@/lib/transaction/actions'
 import { fmtMoney } from '@/lib/format'
 
 type Dest = 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6'
@@ -44,9 +45,16 @@ export function AdmiCell({ contractId, period, admi, ingresos, commissionPct, ba
   function pick(destination: Dest) {
     setError(null)
     startTransition(async () => {
-      const res = mode === 'tag'
-        ? await tagCommissionBank(contractId, period, destination)          // just assign the bank
-        : await generateCommissionForPeriod(contractId, period, destination) // compute + assign
+      // Calcular → compute the commission tagged to the bank, then persist the
+      // bank as the contract's durable default. Tag → set/move the bank (durable
+      // default + re-tag the current period).
+      let res
+      if (mode === 'calcular') {
+        res = await generateCommissionForPeriod(contractId, period, destination)
+        if (res.ok) res = await setContractCommissionDestination(contractId, period, destination)
+      } else {
+        res = await setContractCommissionDestination(contractId, period, destination)
+      }
       if (!res.ok) { setError(res.error ?? 'No se pudo registrar la comisión.'); return }
       setMode(null)
       router.refresh()
@@ -56,7 +64,7 @@ export function AdmiCell({ contractId, period, admi, ingresos, commissionPct, ba
   const unclassified = admi > 0 && admi - bankSum > 1
   const canCalc      = ingresos > 0 && commissionPct != null && commissionPct > 0
 
-  // Bank picker (shared by "Calcular" and "banco?").
+  // Bank picker (shared by "Calcular", "banco?", and re-assigning a bank).
   if (mode) {
     return (
       <span className="inline-flex flex-col items-end gap-0.5">
@@ -79,22 +87,24 @@ export function AdmiCell({ contractId, period, admi, ingresos, commissionPct, ba
     )
   }
 
-  // Recorded and classified → show the amount.
-  if (admi > 0 && !unclassified) {
-    return <span className={`tabular-nums ${textClass}`}>{fmtMoney(admi)}</span>
-  }
-
-  // Recorded but not assigned to a bank → amount + "banco?" (tag only).
-  if (unclassified) {
+  // Recorded → the amount is click-to-edit the bank. "banco?" hint when unclassified.
+  if (admi > 0) {
     return (
       <span className="inline-flex items-center justify-end gap-1">
-        <span className={`tabular-nums ${textClass}`}>{fmtMoney(admi)}</span>
         <button
           type="button"
           onClick={() => { setError(null); setMode('tag') }}
-          title="Comisión sin banco asignado — tocá para elegir Galicia / BBVA (no cambia el monto)"
-          className="text-[10px] font-medium text-warn hover:underline whitespace-nowrap"
-        >banco?</button>
+          title="Tocá para elegir o cambiar el banco de la comisión"
+          className={`tabular-nums hover:underline ${textClass}`}
+        >{fmtMoney(admi)}</button>
+        {unclassified && (
+          <button
+            type="button"
+            onClick={() => { setError(null); setMode('tag') }}
+            title="Comisión sin banco asignado — tocá para elegir Galicia / BBVA"
+            className="text-[10px] font-medium text-warn hover:underline whitespace-nowrap"
+          >banco?</button>
+        )}
       </span>
     )
   }
