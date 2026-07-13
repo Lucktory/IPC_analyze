@@ -18,7 +18,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { generateCommissionForPeriod, setContractCommissionDestination } from '@/lib/transaction/actions'
+import { generateCommissionForPeriod, tagCommissionBank } from '@/lib/transaction/actions'
 import { fmtMoney } from '@/lib/format'
 
 type Dest = 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6'
@@ -45,16 +45,12 @@ export function AdmiCell({ contractId, period, admi, ingresos, commissionPct, ba
   function pick(destination: Dest) {
     setError(null)
     startTransition(async () => {
-      // Calcular → compute the commission tagged to the bank, then persist the
-      // bank as the contract's durable default. Tag → set/move the bank (durable
-      // default + re-tag the current period).
-      let res
-      if (mode === 'calcular') {
-        res = await generateCommissionForPeriod(contractId, period, destination)
-        if (res.ok) res = await setContractCommissionDestination(contractId, period, destination)
-      } else {
-        res = await setContractCommissionDestination(contractId, period, destination)
-      }
+      // Both route through setCommission, which sets the contract's durable
+      // default bank whenever an explicit destination is passed (one writer, no
+      // divergence): Calcular computes + tags, tagCommissionBank assigns/moves.
+      const res = mode === 'calcular'
+        ? await generateCommissionForPeriod(contractId, period, destination)
+        : await tagCommissionBank(contractId, period, destination)
       if (!res.ok) { setError(res.error ?? 'No se pudo registrar la comisión.'); return }
       setMode(null)
       router.refresh()
