@@ -5,14 +5,19 @@
 // page. Alejandro: "A veces puedo perder una propiedad — porque el dueño se la
 // quiere llevar, o porque yo no la quiero tener mas." Rescindir drops the
 // contract off the active planilla (status='rescinded'); it stays fully
-// reversible via reactivar. A two-step inline confirm guards the flip so it
-// can't be triggered by a stray click.
+// reversible via reactivar.
+//
+// The destructive "Rescindir" reuses the shared DelayedActionButton: click to
+// arm a countdown, click again to cancel, and it only fires after the delay —
+// the same safety buffer used for every money-touching mutation in the app. No
+// bespoke confirm logic here.
 // ============================================================================
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Ban, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 import { rescindContract, reactivateContract, type InlineResult } from '@/lib/contract/inline-field-actions'
+import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
 
 interface Props {
   contractId: string
@@ -20,7 +25,6 @@ interface Props {
 }
 
 export function ContractStatusControl({ contractId, status }: Props) {
-  const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const router = useRouter()
@@ -30,12 +34,11 @@ export function ContractStatusControl({ contractId, status }: Props) {
     startTransition(async () => {
       const res = await action()
       if (!res.ok) { setError(res.error ?? 'No se pudo cambiar el estado del contrato.'); return }
-      setConfirming(false)
       router.refresh()
     })
   }
 
-  // Rescinded → reactivar (non-destructive, single click).
+  // Rescinded → reactivar (non-destructive, single click — no delay needed).
   if (status === 'rescinded') {
     return (
       <div className="flex flex-col items-end gap-1">
@@ -54,34 +57,20 @@ export function ContractStatusControl({ contractId, status }: Props) {
   // meaningful "rescindir" flow here).
   if (status !== 'active') return null
 
-  // Active → rescindir, behind a two-step confirm.
-  if (!confirming) {
-    return (
-      <button
-        type="button" onClick={() => setConfirming(true)}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line text-[12px] text-slate-dark hover:border-danger/50 hover:text-danger transition-colors"
-      >
-        <Ban size={14} /> Rescindir contrato
-      </button>
-    )
-  }
-
+  // Active → rescindir behind the shared 5s delayed-action button.
   return (
-    <div className="rounded-lg border border-danger/40 bg-danger/5 p-3 space-y-2 w-full max-w-[340px]">
-      <p className="text-[12px] text-ink">
-        ¿Rescindir este contrato? Dejará de aparecer en la planilla activa. Podés reactivarlo después.
-      </p>
-      {error && <p className="text-[11px] text-danger">{error}</p>}
-      <div className="flex items-center justify-end gap-1.5">
-        <button
-          type="button" onClick={() => { setConfirming(false); setError(null) }} disabled={pending}
-          className="px-2 py-1 text-[11px] text-slate-dark hover:text-ink disabled:opacity-60"
-        >Cancelar</button>
-        <button
-          type="button" onClick={() => run(() => rescindContract(contractId))} disabled={pending}
-          className="px-2.5 py-1 text-[11px] bg-danger text-white rounded font-medium hover:opacity-90 disabled:opacity-60"
-        >{pending ? 'Rescindiendo…' : 'Sí, rescindir'}</button>
-      </div>
+    <div className="flex flex-col items-end gap-1">
+      <DelayedActionButton
+        variant="danger"
+        size="sm"
+        delaySeconds={5}
+        label="Rescindir contrato"
+        pendingLabel="Rescindiendo…"
+        pending={pending}
+        onConfirm={() => run(() => rescindContract(contractId))}
+        title="Rescindir el contrato — se arma una cuenta regresiva; tocá de nuevo para cancelar"
+      />
+      {error && <p className="text-[11px] text-danger max-w-[240px] text-right">{error}</p>}
     </div>
   )
 }

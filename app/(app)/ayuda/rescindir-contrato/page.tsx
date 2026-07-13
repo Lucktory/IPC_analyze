@@ -34,8 +34,8 @@ export default function RescindirContratoPage() {
         <ul className="space-y-2">
           <Step n={1}>Abrí la ficha del contrato (desde <strong className="text-ink">Contratos</strong> o el número de contrato).</Step>
           <Step n={2}>Arriba a la derecha, tocá <strong className="text-ink">Rescindir contrato</strong>.</Step>
-          <Step n={3}>Aparece la confirmación: <em>«¿Rescindir este contrato? Dejará de aparecer en la planilla activa. Podés reactivarlo después.»</em></Step>
-          <Step n={4}>Tocá <strong className="text-ink">Sí, rescindir</strong> (o <strong className="text-ink">Cancelar</strong> para no hacer nada).</Step>
+          <Step n={3}>El botón <strong className="text-ink">arma una cuenta regresiva</strong> de 5 segundos y se pone rojo: <em>«Cancelar · Rescindir contrato en 5s»</em>.</Step>
+          <Step n={4}>Si no hacés nada, al llegar a <strong className="text-ink">0</strong> el contrato se rescinde solo. Para <strong className="text-ink">no hacerlo</strong>, tocá el botón otra vez antes de que termine (lo cancela).</Step>
         </ul>
         <div className="mt-3 pt-3 border-t border-line">
           <p className="text-[13px] text-slate-dark leading-relaxed">Qué pasa cuando lo rescindís:</p>
