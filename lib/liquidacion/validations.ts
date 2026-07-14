@@ -88,6 +88,8 @@ export type ValidationCode =
   | 'BILLING_IVA_MISMATCH'
   // ── Recurring charges (2026-06-20) ──
   | 'RECURRING_CHARGE_NOT_RECORDED'
+  // ── Observaciones sin confirmar (2026-07-14) ──
+  | 'OBSERVACION_SIN_CONFIRMAR'
 
 // ── Row shape the validators read. Keep it minimal — only the fields
 //    actually used by the rules. Lets us evolve LiquidacionGridRow
@@ -174,6 +176,10 @@ export interface ValidatableRow {
   recurringChargesMissingLabels: string[]
   /** Count of typed charges total (eligible for the check). Skipped when 0. */
   recurringChargesTypedCount:    number
+  /** Count of este-mes observaciones still "a cobrar" (unconfirmed). > 0 means a
+   *  value due this month wasn't cobrado yet → drives OBSERVACION_SIN_CONFIRMAR
+   *  (non-blocking warning; the mail/transfer can still be sent). */
+  observacionesACobrar:          number
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -671,6 +677,22 @@ export function validateRow(
         diff:     Math.abs(expectedAdmi - r.admi),
       })
     }
+  }
+
+  // Observaciones sin confirmar — a value due THIS month that wasn't cobrado.
+  // Non-blocking warning (per Alejandro 2026-07-14): the encargada can still send
+  // the mail / do the transfer, but the Check goes amber so nobody trusts a green
+  // ✓ while an observación value is still uncollected. A confirmed (cobrado)
+  // observación does NOT count — only the "a cobrar" ones.
+  if (r.observacionesACobrar > 0) {
+    issues.push({
+      code:     'OBSERVACION_SIN_CONFIRMAR',
+      severity: 'warning',
+      message:  `${r.observacionesACobrar} observación(es) de este mes sin confirmar (a cobrar). Confirmalas (marcar como cobrado) o enviá igual sabiendo que queda pendiente.`,
+      expected: 0,
+      actual:   r.observacionesACobrar,
+      diff:     r.observacionesACobrar,
+    })
   }
 
   return issues

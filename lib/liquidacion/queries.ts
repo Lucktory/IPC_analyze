@@ -19,7 +19,7 @@ import { COMMISSION_IVA_RATE, type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
 import { buildEventsSummariesBulk, buildReceiptAjustes, type EventsSummary, type AjusteLine } from '@/lib/contract/events-bulk'
-import { EVENT_KIND } from '@/lib/contract/events-types'
+import { EVENT_KIND, EVENT_STATUS } from '@/lib/contract/events-types'
 import { getArgentinaToday } from '@/lib/period'
 
 export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown, RecurringChargesSummary, AjusteLine }
@@ -1125,6 +1125,11 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
             return sum.lines.filter(l => l.recorded === false).map(l => l.label)
           })(),
           recurringChargesTypedCount: recurringChargesByContract.get(c.id)?.typedCount ?? 0,
+          // Observaciones de este mes todavía "a cobrar" (sin confirmar) — excluye
+          // honorarios (ingreso inmobiliaria) y las ya cobradas (status applied).
+          observacionesACobrar: (eventsSummary?.esteMes ?? []).filter(
+            e => e.kind !== EVENT_KIND.HONORARIOS && e.status !== EVENT_STATUS.APPLIED,
+          ).length,
         },
         c.commission_pct != null ? Number(c.commission_pct) : undefined,
         commissionIncludesIva,
