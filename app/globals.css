@@ -15,6 +15,10 @@
    ============================================================================ */
 
 :root, [data-theme="light"] {
+  /* Native controls (date inputs, selects, scrollbars) follow the APP theme,
+     not the OS — otherwise a date input renders dark-on-dark in dark mode. */
+  color-scheme: light;
+
   /* Surfaces — cool blue-slate (Panel redesign 2026-07) */
   --color-paper:        255 255 255;   /* #FFFFFF — card surface */
   --color-cream:        245 247 251;   /* #F5F7FB — page background, cool */
@@ -56,6 +60,9 @@
 }
 
 [data-theme="dark"] {
+  /* Native controls render in dark scheme (light date text, light picker icon). */
+  color-scheme: dark;
+
   /* Surfaces — deep blue-black slate (Panel redesign 2026-07) */
   --color-paper:        21  27  38;    /* #151B26 — card surface, elevated */
   --color-cream:        11  15  22;    /* #0B0F16 — page background */
@@ -108,7 +115,8 @@ body {
   color: rgb(var(--color-ink));
   background: rgb(var(--color-cream));
   -webkit-font-smoothing: antialiased;
-  color-scheme: light dark;
+  /* color-scheme is set on :root / [data-theme] so native controls follow the
+     app theme instead of the OS. (Do not hardcode "light dark" here.) */
 }
 
 h1, h2, h3, h4 {
