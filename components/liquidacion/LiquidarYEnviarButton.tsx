@@ -20,9 +20,12 @@
 //          Works on any browser/OS without OS configuration.
 //        • "Abrir programa de mail" (SECONDARY) — mailto: handoff for
 //          encargadas with Outlook/Thunderbird configured.
-//   5. The instant she clicks one of those buttons, markLiquidacionAsSent
-//      fires on the server (status → sent + sent_at stamp). Cancelar does
-//      NOT mark anything as sent — the fix for the previous bug.
+//   5. Clicking one of those buttons only OPENS her mail UI — it does NOT
+//      mark anything yet. The modal then asks "¿Confirmás que enviaste el
+//      mail?". Only when she taps "Sí, ya lo envié" does markLiquidacionAsSent
+//      fire (status → sent + sent_at). If she canceled in Gmail she taps
+//      "Todavía no" and the liquidación stays as Borrador. This closes the
+//      "Enviada" false-positive (opening Gmail no longer implies sent).
 //
 // Respects the saved communication-model rule: drafting + recommendation
 // are automated; sending is always done by the encargada in her own mail UI.
@@ -57,6 +60,9 @@ export function LiquidarYEnviarButton({
   const [recipientDraft, setRecipientDraft] = useState(landlordEmail ?? '')
   const [subjectDraft, setSubjectDraft]     = useState('')
   const [bodyDraft, setBodyDraft]           = useState('')
+  // After the mail UI is opened we wait for the encargada to confirm she
+  // actually sent it before flipping the status to Enviada.
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false)
   const [summary, setSummary]               = useState<{
     gross: number; commission: number; otros: number
     ajusteLines: { label: string; amount: number }[]; ajustes: number
@@ -81,6 +87,7 @@ export function LiquidarYEnviarButton({
   function openModal() {
     setError(null)
     setOpen(true)
+    setAwaitingConfirm(false)
     setSubjectDraft('')
     setBodyDraft('')
     setSummary(null)
@@ -100,49 +107,61 @@ export function LiquidarYEnviarButton({
 
   function closeModal() {
     if (pending) return
+    setAwaitingConfirm(false)
     setOpen(false)
   }
 
-  // Common send sequence: validate, mark as sent on the server, open the
-  // chosen mail UI, close the modal, refresh.
-  function send(mode: 'gmail' | 'mailto') {
+  // Step 1 of the send: open the chosen mail UI. This does NOT mark anything
+  // as sent — the status only flips once she confirms (confirmSent). Opening
+  // Gmail and then canceling there must leave the liquidación as Borrador.
+  function openMail(mode: 'gmail' | 'mailto') {
     if (!recipientDraft.trim()) {
       setError('Falta el email del propietario.')
       return
     }
     setError(null)
+    if (mode === 'gmail') {
+      // Gmail compose URL. Works on any browser/OS. Pre-fills to, subject,
+      // body. authuser lets Gmail pick the right account when she has
+      // multiple logged in.
+      const url = new URL('https://mail.google.com/mail/')
+      url.searchParams.set('view', 'cm')
+      url.searchParams.set('fs', '1')
+      url.searchParams.set('to', recipientDraft.trim())
+      url.searchParams.set('su', subjectDraft)
+      url.searchParams.set('body', bodyDraft)
+      if (senderEmail.trim()) url.searchParams.set('authuser', senderEmail.trim())
+      window.open(url.toString(), '_blank', 'noopener,noreferrer')
+    } else {
+      // mailto: fallback for Outlook / Thunderbird users.
+      const href =
+        `mailto:${encodeURIComponent(recipientDraft.trim())}` +
+        `?subject=${encodeURIComponent(subjectDraft)}` +
+        `&body=${encodeURIComponent(bodyDraft)}`
+      window.location.href = href
+    }
+    // Now ask her to confirm the actual send.
+    setAwaitingConfirm(true)
+  }
+
+  // Step 2: she confirms she really sent the mail → mark as Enviada now.
+  function confirmSent() {
+    setError(null)
     startTransition(async () => {
-      // Mark sent only NOW — not when the modal opened. Cancel preserves
-      // the draft status as it should.
       const sentRes = await markLiquidacionAsSent(contractId, landlordId, period)
       if (!sentRes.ok) {
         setError(sentRes.error ?? 'Error al marcar como enviada')
         return
       }
-      // Open the chosen mail UI.
-      if (mode === 'gmail') {
-        // Gmail compose URL. Works on any browser/OS. Pre-fills to, subject,
-        // body. authuser lets Gmail pick the right account when she has
-        // multiple logged in.
-        const url = new URL('https://mail.google.com/mail/')
-        url.searchParams.set('view', 'cm')
-        url.searchParams.set('fs', '1')
-        url.searchParams.set('to', recipientDraft.trim())
-        url.searchParams.set('su', subjectDraft)
-        url.searchParams.set('body', bodyDraft)
-        if (senderEmail.trim()) url.searchParams.set('authuser', senderEmail.trim())
-        window.open(url.toString(), '_blank', 'noopener,noreferrer')
-      } else {
-        // mailto: fallback for Outlook / Thunderbird users.
-        const href =
-          `mailto:${encodeURIComponent(recipientDraft.trim())}` +
-          `?subject=${encodeURIComponent(subjectDraft)}` +
-          `&body=${encodeURIComponent(bodyDraft)}`
-        window.location.href = href
-      }
+      setAwaitingConfirm(false)
       setOpen(false)
       router.refresh()
     })
+  }
+
+  // She canceled in Gmail / didn't send → back to editing, status stays Borrador.
+  function backToEdit() {
+    setAwaitingConfirm(false)
   }
 
   // Hide the button on already-paid liquidaciones.
@@ -274,33 +293,66 @@ export function LiquidarYEnviarButton({
               </p>
             </div>
 
-            <div className="px-5 py-3 border-t border-line flex items-center justify-end gap-2 bg-cream-2 sticky bottom-0 flex-wrap">
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={pending}
-                className="px-3 py-1.5 rounded border border-line text-[12px] text-slate-dark hover:bg-cream-2 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => send('mailto')}
-                disabled={pending || !summary}
-                title="Abrir Outlook / Thunderbird / programa de mail predeterminado"
-                className="px-3 py-1.5 rounded border border-line text-[12px] text-slate-dark hover:bg-cream-2 disabled:opacity-60 transition-colors"
-              >
-                Abrir programa de mail
-              </button>
-              <button
-                type="button"
-                onClick={() => send('gmail')}
-                disabled={pending || !summary}
-                title="Abrir Gmail en una pestaña nueva"
-                className="px-3 py-1.5 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 disabled:opacity-60 transition-opacity inline-flex items-center gap-1.5"
-              >
-                ✉ Abrir en Gmail
-              </button>
+            <div className="px-5 py-3 border-t border-line bg-cream-2 sticky bottom-0">
+              {awaitingConfirm ? (
+                // ── Confirmation step: the mail UI is open; ask her to confirm
+                //    the real send before flipping the status to Enviada. ──
+                <div className="space-y-2.5">
+                  <p className="text-[12px] text-ink leading-snug">
+                    Abrimos tu programa de mail con la liquidación lista.
+                    <br />
+                    <strong>¿Confirmás que enviaste el mail al propietario?</strong> Recién ahí lo marco como <strong className="text-success">Enviada</strong>. Si lo cancelaste, queda en Borrador.
+                  </p>
+                  <div className="flex items-center justify-end gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={backToEdit}
+                      disabled={pending}
+                      className="px-3 py-1.5 rounded border border-line text-[12px] text-slate-dark hover:bg-cream-2 disabled:opacity-60 transition-colors"
+                    >
+                      Todavía no
+                    </button>
+                    <button
+                      type="button"
+                      onClick={confirmSent}
+                      disabled={pending}
+                      title="Marcar la liquidación como Enviada"
+                      className="px-3 py-1.5 rounded bg-success text-paper text-[12px] font-medium hover:opacity-90 disabled:opacity-60 transition-opacity inline-flex items-center gap-1.5"
+                    >
+                      ✓ Sí, ya lo envié — marcar Enviada
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-end gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    disabled={pending}
+                    className="px-3 py-1.5 rounded border border-line text-[12px] text-slate-dark hover:bg-cream-2 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMail('mailto')}
+                    disabled={pending || !summary}
+                    title="Abrir Outlook / Thunderbird / programa de mail predeterminado"
+                    className="px-3 py-1.5 rounded border border-line text-[12px] text-slate-dark hover:bg-cream-2 disabled:opacity-60 transition-colors"
+                  >
+                    Abrir programa de mail
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openMail('gmail')}
+                    disabled={pending || !summary}
+                    title="Abrir Gmail en una pestaña nueva"
+                    className="px-3 py-1.5 rounded bg-ink text-paper text-[12px] font-medium hover:opacity-90 disabled:opacity-60 transition-opacity inline-flex items-center gap-1.5"
+                  >
+                    ✉ Abrir en Gmail
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
