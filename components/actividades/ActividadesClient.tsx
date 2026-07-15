@@ -128,9 +128,6 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
               const meta = actionMeta(e.action)
               const rows = diffRows(e)
               const chip = e.action === 'update' && rows.length > 0 ? rows[0] : null
-              const mode = (e.action === 'delete' || e.action === 'user.delete') ? 'deleted'
-                : (e.action === 'insert' || e.action === 'user.create' || e.action === 'signup') ? 'created'
-                : 'updated'
               const isOpen = expanded === e.id
               const name = e.actorName || (e.actorEmail ? e.actorEmail.split('@')[0] : 'Sistema')
               return (
@@ -186,41 +183,33 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
                           <table className="w-full text-[12.5px]">
                             <thead className="bg-cream/50 text-[10.5px] uppercase tracking-wider text-slate">
                               <tr>
-                                <th className="text-left px-3 py-2 font-medium w-[30%]">Campo</th>
-                                {mode === 'updated' ? (
-                                  <>
-                                    <th className="text-left px-3 py-2 font-medium">Antes</th>
-                                    <th className="px-3 py-2 w-10 text-center font-medium">→</th>
-                                    <th className="text-left px-3 py-2 font-medium">Despues</th>
-                                  </>
-                                ) : (
-                                  <th className="text-left px-3 py-2 font-medium">Valor</th>
-                                )}
+                                <th className="text-left px-3 py-2 font-medium w-[26%]">Campo</th>
+                                <th className="text-left px-3 py-2 font-medium">Antes</th>
+                                <th className="px-3 py-2 w-10 text-center font-medium">→</th>
+                                <th className="text-left px-3 py-2 font-medium">Despues</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {rows.map(r => (
-                                <tr key={r.field} className="border-t border-line align-top">
-                                  <td className="px-3 py-2 text-slate-dark">{r.label}</td>
-                                  {mode === 'updated' ? (
-                                    <>
-                                      <td className="px-3 py-2">
-                                        <span className={r.before === null ? 'text-slate italic' : 'text-ink'}>{displayValue(r.before, refs)}</span>
-                                      </td>
-                                      <td className="px-3 py-2 text-center text-slate">→</td>
-                                      <td className="px-3 py-2">
-                                        <span className="inline-block px-1.5 py-0.5 rounded bg-success/15 text-success font-medium">{displayValue(r.after, refs)}</span>
-                                      </td>
-                                    </>
-                                  ) : (
+                              {rows.map(r => {
+                                const beforeEmpty = r.before === null || r.before === undefined || r.before === ''
+                                const afterEmpty = r.after === null || r.after === undefined || r.after === ''
+                                return (
+                                  <tr key={r.field} className="border-t border-line align-top">
+                                    <td className="px-3 py-2 text-slate-dark">{r.label}</td>
                                     <td className="px-3 py-2">
-                                      <span className={mode === 'created' ? 'text-success font-medium' : 'text-ink'}>
-                                        {displayValue(mode === 'created' ? r.after : r.before, refs)}
-                                      </span>
+                                      {beforeEmpty
+                                        ? <span className="text-slate italic">Sin valor</span>
+                                        : <span className="text-ink">{displayValue(r.before, refs)}</span>}
                                     </td>
-                                  )}
-                                </tr>
-                              ))}
+                                    <td className="px-3 py-2 text-center text-slate">→</td>
+                                    <td className="px-3 py-2">
+                                      {afterEmpty
+                                        ? <span className="text-slate italic">Sin valor</span>
+                                        : <span className="inline-block px-1.5 py-0.5 rounded bg-success/15 text-success font-medium">{displayValue(r.after, refs)}</span>}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
                             </tbody>
                           </table>
                         </div>
