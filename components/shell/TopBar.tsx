@@ -9,14 +9,18 @@ import { UserMenu } from './UserMenu'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 interface TopBarProps {
-  pendientes?:  number
-  userEmail?:   string | null
-  onMenuClick?: () => void
+  pendientes?:   number
+  userEmail?:    string | null
+  userName?:     string | null
+  userPhotoUrl?: string | null
+  onMenuClick?:  () => void
 }
 
 export function TopBar({
   pendientes   = 0,
   userEmail    = null,
+  userName     = null,
+  userPhotoUrl = null,
   onMenuClick,
 }: TopBarProps) {
   const pathname  = usePathname()
@@ -91,7 +95,7 @@ export function TopBar({
         <ThemeToggle />
       </div>
 
-      <UserMenu email={userEmail} />
+      <UserMenu email={userEmail} name={userName} photoUrl={userPhotoUrl} />
     </header>
   )
 }

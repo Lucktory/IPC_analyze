@@ -7,20 +7,22 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowser } from '@/lib/supabase/client'
+import { Avatar } from '@/components/usuarios/Avatar'
 
 interface UserMenuProps {
-  email: string | null
+  email:     string | null
+  name?:     string | null
+  photoUrl?: string | null
 }
 
-export function UserMenu({ email }: UserMenuProps) {
+export function UserMenu({ email, name = null, photoUrl = null }: UserMenuProps) {
   const [open, setOpen]   = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const router            = useRouter()
   const containerRef      = useRef<HTMLDivElement>(null)
 
-  // Display name = local part of the email; fallback for unauthenticated dev mode
-  const displayName = email ? email.split('@')[0] : 'Sesión'
-  const initials    = (displayName.charAt(0) || 'P').toUpperCase()
+  // Display name = real name, then the email local-part; fallback for dev mode.
+  const displayName = name?.trim() || (email ? email.split('@')[0] : 'Sesión')
 
   // Click outside to close
   useEffect(() => {
@@ -49,9 +51,7 @@ export function UserMenu({ email }: UserMenuProps) {
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <div className="w-8 h-8 rounded-full bg-ink text-paper flex items-center justify-center font-display font-semibold text-[12px]">
-          {initials}
-        </div>
+        <Avatar url={photoUrl} name={displayName} size={32} fallbackClassName="bg-ink text-paper font-display font-semibold" />
         <div className="hidden md:flex flex-col leading-tight text-left">
           <span className="text-[13px] font-medium text-ink truncate max-w-[200px]">{displayName}</span>
           <span className="text-[10px] uppercase tracking-wider text-slate">{email ? 'Sesión activa' : 'Sin sesión'}</span>

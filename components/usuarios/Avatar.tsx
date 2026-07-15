@@ -1,7 +1,18 @@
 // Small avatar: shows the photo when present, else the name's initial.
 // Uses a plain <img> (the URL is an external Supabase Storage public URL, so
 // next/image would need remotePatterns config for no real benefit here).
-export function Avatar({ url, name, size = 32 }: { url: string | null; name?: string | null; size?: number }) {
+export function Avatar({
+  url,
+  name,
+  size = 32,
+  fallbackClassName = 'bg-info/15 text-info font-medium',
+}: {
+  url: string | null
+  name?: string | null
+  size?: number
+  /** Color/weight classes for the initial fallback (lets each spot keep its look). */
+  fallbackClassName?: string
+}) {
   const initial = (name?.trim()?.charAt(0) ?? '?').toUpperCase()
   if (url) {
     return (
@@ -18,7 +29,7 @@ export function Avatar({ url, name, size = 32 }: { url: string | null; name?: st
   }
   return (
     <div
-      className="rounded-full bg-info/15 text-info flex items-center justify-center font-medium shrink-0"
+      className={`rounded-full flex items-center justify-center shrink-0 ${fallbackClassName}`}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
     >
       {initial}

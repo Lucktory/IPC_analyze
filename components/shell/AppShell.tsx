@@ -9,6 +9,8 @@ import { BreadcrumbProvider } from './BreadcrumbContext'
 interface AppShellProps {
   children:      React.ReactNode
   userEmail:     string | null
+  userName?:     string | null
+  userPhotoUrl?: string | null
   isSuperAdmin?: boolean
   pendingCount?: number
 }
@@ -39,7 +41,7 @@ function isFullHeightRoute(pathname: string): boolean {
   return !m[2] || !['nuevo', 'cargar-emails'].includes(m[2])
 }
 
-export function AppShell({ children, userEmail, isSuperAdmin = false, pendingCount = 0 }: AppShellProps) {
+export function AppShell({ children, userEmail, userName = null, userPhotoUrl = null, isSuperAdmin = false, pendingCount = 0 }: AppShellProps) {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
@@ -92,6 +94,8 @@ export function AppShell({ children, userEmail, isSuperAdmin = false, pendingCou
         <SideNav
           onNavigate={() => setOpen(false)}
           userEmail={userEmail}
+          userName={userName}
+          userPhotoUrl={userPhotoUrl}
           isSuperAdmin={isSuperAdmin}
           collapsed={collapsed}
           onToggleCollapsed={toggleCollapsed}
@@ -110,7 +114,7 @@ export function AppShell({ children, userEmail, isSuperAdmin = false, pendingCou
 
       <div className="flex-1 flex flex-col min-w-0">
         <div className="print:hidden">
-          <TopBar pendientes={pendingCount} userEmail={userEmail} onMenuClick={() => setOpen(true)} />
+          <TopBar pendientes={pendingCount} userEmail={userEmail} userName={userName} userPhotoUrl={userPhotoUrl} onMenuClick={() => setOpen(true)} />
         </div>
         <main className={`flex-1 bg-watermark print:overflow-visible print:bg-paper ${
           isWideRoute(pathname) ? 'overflow-hidden'

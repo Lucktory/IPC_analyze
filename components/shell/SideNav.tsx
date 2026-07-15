@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getSection } from '@/lib/sections'
+import { Avatar } from '@/components/usuarios/Avatar'
 
 interface NavItem {
   to: string
@@ -154,6 +155,8 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
 interface SideNavProps {
   onNavigate?:         () => void
   userEmail?:          string | null
+  userName?:           string | null
+  userPhotoUrl?:       string | null
   /** Super admins get the Usuarios management link. */
   isSuperAdmin?:       boolean
   /** Desktop icons-only mode. Mobile drawer always renders full labels. */
@@ -165,6 +168,8 @@ interface SideNavProps {
 export function SideNav({
   onNavigate,
   userEmail,
+  userName = null,
+  userPhotoUrl = null,
   isSuperAdmin = false,
   collapsed = false,
   onToggleCollapsed,
@@ -172,11 +177,9 @@ export function SideNav({
   const pathname = usePathname()
   const isActive = (to: string) => pathname === to || pathname.startsWith(to + '/')
 
-  // Display name: prefer the local-part of the email; fall back to "Sesión activa".
-  const displayName = userEmail
-    ? userEmail.split('@')[0]
-    : 'Sesión activa'
-  const initial = displayName.charAt(0).toUpperCase() || 'P'
+  // Display name: prefer the real name, then the email local-part.
+  const displayName = userName?.trim()
+    || (userEmail ? userEmail.split('@')[0] : 'Sesión activa')
 
   // Collapsed mode is a desktop-only concern (mobile = full drawer). Tailwind
   // responsive classes hide the labels at lg+ when collapsed.
@@ -340,9 +343,7 @@ export function SideNav({
       )}
 
       <div className={`border-t border-nav-text/10 py-3 flex items-center gap-3 ${collapsed ? 'lg:justify-center lg:px-2 px-5' : 'px-5'}`}>
-        <div className="h-9 w-9 rounded-full bg-info/15 flex items-center justify-center font-display font-semibold text-info text-[14px] shrink-0">
-          {initial}
-        </div>
+        <Avatar url={userPhotoUrl} name={displayName} size={36} fallbackClassName="bg-info/15 text-info font-display font-semibold" />
         <div className={`flex-col leading-tight min-w-0 flex ${hideAtCollapsed}`}>
           <span className="font-medium text-[14px] text-nav-text truncate">{displayName}</span>
           <span className="text-[11px] text-nav-text/50 truncate">Sesión activa</span>
