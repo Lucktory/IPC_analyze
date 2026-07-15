@@ -154,6 +154,8 @@ function NavIcon({ name }: { name: NavItem['icon'] }) {
 interface SideNavProps {
   onNavigate?:         () => void
   userEmail?:          string | null
+  /** Super admins get the Usuarios management link. */
+  isSuperAdmin?:       boolean
   /** Desktop icons-only mode. Mobile drawer always renders full labels. */
   collapsed?:          boolean
   /** Toggle collapsed state — only effective on lg+ screens. */
@@ -163,6 +165,7 @@ interface SideNavProps {
 export function SideNav({
   onNavigate,
   userEmail,
+  isSuperAdmin = false,
   collapsed = false,
   onToggleCollapsed,
 }: SideNavProps = {}) {
@@ -241,20 +244,66 @@ export function SideNav({
           Configuración
         </p>
         <ul className="space-y-1">
+          {/* Mi perfil — every logged-in user. */}
           <li>
-            <span
-              title={collapsed ? 'Usuarios' : undefined}
-              className={`flex items-center gap-3.5 py-2.5 rounded-lg text-[15px] font-medium text-nav-text/35 cursor-not-allowed select-none ${collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3'}`}
-            >
-              <span className="w-[22px] h-[22px] shrink-0 flex items-center justify-center">
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="w-full h-full">
-                  <circle cx="10" cy="7.5" r="3" />
-                  <path d="M3 17 Q3 12 10 12 Q17 12 17 17" />
-                </svg>
-              </span>
-              <span className={hideAtCollapsed}>Usuarios</span>
-            </span>
+            {(() => {
+              const active = isActive('/mi-perfil')
+              return (
+                <Link
+                  href="/mi-perfil"
+                  onClick={onNavigate}
+                  title={collapsed ? 'Mi perfil' : undefined}
+                  style={active ? { backgroundColor: 'rgb(var(--color-info))' } : undefined}
+                  className={[
+                    'flex items-center gap-3.5 py-2.5 rounded-lg text-[15px] font-medium transition-colors',
+                    collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3',
+                    active ? 'text-white shadow-sm' : 'text-nav-text/60 hover:bg-nav-text/[0.05] hover:text-nav-text',
+                  ].join(' ')}
+                >
+                  <span className={['w-[22px] h-[22px] shrink-0 flex items-center justify-center transition-colors', active ? 'text-white' : 'text-nav-text/45'].join(' ')}>
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="w-full h-full">
+                      <circle cx="10" cy="7.5" r="3" />
+                      <path d="M3 17 Q3 12 10 12 Q17 12 17 17" />
+                    </svg>
+                  </span>
+                  <span className={hideAtCollapsed}>Mi perfil</span>
+                </Link>
+              )
+            })()}
           </li>
+
+          {/* Usuarios — super admins only. */}
+          {isSuperAdmin && (
+            <li>
+              {(() => {
+                const active = isActive('/usuarios')
+                return (
+                  <Link
+                    href="/usuarios"
+                    onClick={onNavigate}
+                    title={collapsed ? 'Usuarios' : undefined}
+                    style={active ? { backgroundColor: 'rgb(var(--color-info))' } : undefined}
+                    className={[
+                      'flex items-center gap-3.5 py-2.5 rounded-lg text-[15px] font-medium transition-colors',
+                      collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3',
+                      active ? 'text-white shadow-sm' : 'text-nav-text/60 hover:bg-nav-text/[0.05] hover:text-nav-text',
+                    ].join(' ')}
+                  >
+                    <span className={['w-[22px] h-[22px] shrink-0 flex items-center justify-center transition-colors', active ? 'text-white' : 'text-nav-text/45'].join(' ')}>
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+                        <circle cx="7" cy="8" r="2.2" />
+                        <circle cx="13" cy="8" r="2.2" />
+                        <path d="M2.5 16 Q2.5 12 7 12 Q11.5 12 11.5 16" />
+                        <path d="M8.5 16 Q8.5 12 13 12 Q17.5 12 17.5 16" />
+                      </svg>
+                    </span>
+                    <span className={hideAtCollapsed}>Usuarios</span>
+                  </Link>
+                )
+              })()}
+            </li>
+          )}
+
           <li>
             <span
               title={collapsed ? 'Reglas IPC' : undefined}

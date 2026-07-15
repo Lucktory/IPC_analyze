@@ -9,6 +9,7 @@ import { BreadcrumbProvider } from './BreadcrumbContext'
 interface AppShellProps {
   children:      React.ReactNode
   userEmail:     string | null
+  isSuperAdmin?: boolean
   pendingCount?: number
 }
 
@@ -38,7 +39,7 @@ function isFullHeightRoute(pathname: string): boolean {
   return !m[2] || !['nuevo', 'cargar-emails'].includes(m[2])
 }
 
-export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProps) {
+export function AppShell({ children, userEmail, isSuperAdmin = false, pendingCount = 0 }: AppShellProps) {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
@@ -91,6 +92,7 @@ export function AppShell({ children, userEmail, pendingCount = 0 }: AppShellProp
         <SideNav
           onNavigate={() => setOpen(false)}
           userEmail={userEmail}
+          isSuperAdmin={isSuperAdmin}
           collapsed={collapsed}
           onToggleCollapsed={toggleCollapsed}
         />

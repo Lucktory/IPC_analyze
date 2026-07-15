@@ -1,5 +1,5 @@
 import { AppShell } from '@/components/shell/AppShell'
-import { createSupabaseServer } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/lib/auth/current-user'
 import { getPendingCount } from '@/lib/pending/digest'
 
 // Always-fresh: the bell badge in the topbar pulls from getPendingCount(),
@@ -11,13 +11,16 @@ export const dynamic    = 'force-dynamic'
 export const fetchCache = 'force-no-store'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createSupabaseServer()
-  const [{ data: { user } }, pendingCount] = await Promise.all([
-    supabase.auth.getUser(),
+  const [me, pendingCount] = await Promise.all([
+    getCurrentUser(),
     getPendingCount(),
   ])
   return (
-    <AppShell userEmail={user?.email ?? null} pendingCount={pendingCount}>
+    <AppShell
+      userEmail={me?.email ?? null}
+      isSuperAdmin={me?.role === 'super_admin'}
+      pendingCount={pendingCount}
+    >
       {children}
     </AppShell>
   )
