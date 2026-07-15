@@ -17,6 +17,7 @@ export interface MovimientoRow {
   bankDate:       string | null
   typeLabel:      string
   typeCode:       string
+  category:       string          // DB transaction_types.category (drives the Categoria filter)
   direction:      'IN' | 'OUT'
   contractId:     string | null
   contractNumber: string | null
@@ -32,7 +33,7 @@ export async function getMovimientos(period: string): Promise<MovimientoRow[]> {
     .from('transactions')
     .select(`
       id, amount, bank_date, description, contract_id,
-      transaction_types!inner(code, label, direction),
+      transaction_types!inner(code, label, direction, category),
       contracts(
         contract_number,
         contract_tenants(is_primary, tenants(name)),
@@ -55,6 +56,7 @@ export async function getMovimientos(period: string): Promise<MovimientoRow[]> {
       bankDate:       r.bank_date ?? null,
       typeLabel:      r.transaction_types?.label ?? code,
       typeCode:       code,
+      category:       r.transaction_types?.category ?? 'other',
       direction:      (r.transaction_types?.direction ?? 'IN') as 'IN' | 'OUT',
       contractId:     r.contract_id ?? null,
       contractNumber: c?.contract_number ?? null,

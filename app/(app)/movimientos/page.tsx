@@ -38,13 +38,6 @@ const CATEGORY_LABEL: Record<string, string> = {
   utility: 'Servicios', deposit: 'Depósito', refund: 'Reintegros', transfer: 'Transferencias', other: 'Otros',
 }
 
-// Map a type code to its category so the Filtros category pills work off the list rows.
-const CODE_CATEGORY: Record<string, string> = {
-  RENT_IN: 'rent', LANDLORD_PAYOUT: 'rent', COMMISSION_OUT: 'commission',
-  OTHER_IN: 'other', OTHER_OUT: 'other', DEPOSIT_IN: 'deposit',
-  METROGAS_OUT: 'utility', ABL_OUT: 'tax',
-}
-
 interface PageProps {
   searchParams: Promise<{ period?: string; dir?: string; category?: string; q?: string; page?: string }>
 }
@@ -81,7 +74,7 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
   let filtered = rows
   if (dir === 'in')  filtered = filtered.filter(r => r.direction === 'IN')
   if (dir === 'out') filtered = filtered.filter(r => r.direction === 'OUT')
-  if (category !== 'todas') filtered = filtered.filter(r => CODE_CATEGORY[r.typeCode] === category)
+  if (category !== 'todas') filtered = filtered.filter(r => r.category === category)
   if (q) filtered = filtered.filter(r =>
     (r.contractNumber ?? '').toLowerCase().includes(q) ||
     (r.counterparty ?? '').toLowerCase().includes(q) ||
@@ -150,7 +143,7 @@ export default async function MovimientosPage({ searchParams }: PageProps) {
               <div>
                 <span className="label-cap text-slate">Categoría</span>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {['rent', 'commission', 'other', 'deposit', 'utility', 'tax'].map(c => (
+                  {['rent', 'commission', 'other', 'deposit', 'utility', 'tax', 'refund'].map(c => (
                     <FilterPill key={c} href={buildHref({ category: c, page: undefined })} clearHref={buildHref({ category: 'todas' })} label={CATEGORY_LABEL[c]} active={category === c} />
                   ))}
                 </div>
