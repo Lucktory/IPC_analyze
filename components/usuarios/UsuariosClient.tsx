@@ -13,6 +13,7 @@ import {
 } from '@/lib/usuarios/actions'
 import { ROLE_LABEL, type UsuarioRow, type UsuarioRole } from '@/lib/usuarios/types'
 import { Avatar } from './Avatar'
+import { resizeImageToFile } from './resizeImage'
 
 interface Props {
   initialUsuarios: UsuarioRow[]
@@ -64,10 +65,16 @@ export function UsuariosClient({ initialUsuarios, currentUserId }: Props) {
   }
   function close() { if (!pending) setMode(null) }
 
-  function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
-    setPhotoFile(f); setPhotoPreview(URL.createObjectURL(f)); setRemovePhoto(false)
+    if (!f.type.startsWith('image/')) { setError('El archivo debe ser una imagen.'); return }
+    try {
+      const small = await resizeImageToFile(f)
+      setPhotoFile(small); setPhotoPreview(URL.createObjectURL(small)); setRemovePhoto(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo procesar la imagen.')
+    }
   }
   function clearPhoto() {
     setPhotoFile(null); setPhotoPreview(null); setRemovePhoto(true)

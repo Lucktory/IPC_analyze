@@ -256,24 +256,28 @@ export async function setUsuarioPhoto(
   if (!_a.ok) return { ok: false, error: _a.error }
   const admin = _a.client
 
-  const path = `${userId}/avatar`
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const { error: upErr } = await admin.storage
-    .from('avatars')
-    .upload(path, buffer, { upsert: true, contentType: file.type })
-  if (upErr) return { ok: false, error: upErr.message }
+  try {
+    const path = `${userId}/avatar`
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const { error: upErr } = await admin.storage
+      .from('avatars')
+      .upload(path, buffer, { upsert: true, contentType: file.type })
+    if (upErr) return { ok: false, error: upErr.message }
 
-  const { data: pub } = admin.storage.from('avatars').getPublicUrl(path)
-  const photoUrl = `${pub.publicUrl}?v=${Date.now()}`
-  const { error } = await admin
-    .from('usuarios')
-    .update({ photo_url: photoUrl, updated_at: new Date().toISOString() })
-    .eq('id', userId)
-  if (error) return { ok: false, error: error.message }
+    const { data: pub } = admin.storage.from('avatars').getPublicUrl(path)
+    const photoUrl = `${pub.publicUrl}?v=${Date.now()}`
+    const { error } = await admin
+      .from('usuarios')
+      .update({ photo_url: photoUrl, updated_at: new Date().toISOString() })
+      .eq('id', userId)
+    if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/usuarios')
-  revalidatePath('/mi-perfil')
-  return { ok: true, error: null, photoUrl }
+    revalidatePath('/usuarios')
+    revalidatePath('/mi-perfil')
+    return { ok: true, error: null, photoUrl }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'No se pudo subir la foto.' }
+  }
 }
 
 export async function removeUsuarioPhoto(userId: string): Promise<Result> {

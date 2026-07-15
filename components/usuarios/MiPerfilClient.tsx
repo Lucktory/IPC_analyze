@@ -13,6 +13,7 @@ import {
 } from '@/lib/usuarios/actions'
 import { ROLE_LABEL, type UsuarioRole } from '@/lib/usuarios/types'
 import { Avatar } from './Avatar'
+import { resizeImageToFile } from './resizeImage'
 
 interface Props {
   id:       string
@@ -39,10 +40,16 @@ export function MiPerfilClient({ id, email, role, fullName, phone, dni, photoUrl
 
   const shownPhoto = photoPreview ?? (removePhoto ? null : photoUrl)
 
-  function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
-    setPhotoFile(f); setPhotoPreview(URL.createObjectURL(f)); setRemovePhoto(false)
+    if (!f.type.startsWith('image/')) { setMsg({ kind: 'err', text: 'El archivo debe ser una imagen.' }); return }
+    try {
+      const small = await resizeImageToFile(f)
+      setPhotoFile(small); setPhotoPreview(URL.createObjectURL(small)); setRemovePhoto(false)
+    } catch (err) {
+      setMsg({ kind: 'err', text: err instanceof Error ? err.message : 'No se pudo procesar la imagen.' })
+    }
   }
   function clearPhoto() { setPhotoFile(null); setPhotoPreview(null); setRemovePhoto(true) }
 
