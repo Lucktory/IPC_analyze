@@ -42,6 +42,7 @@ export default async function ActividadesPage({ searchParams }: PageProps) {
       )}
       <ActividadesClient
         entries={res.entries ?? []}
+        refs={res.refs ?? {}}
         total={res.total ?? 0}
         pageSize={res.pageSize ?? 10}
         page={page}

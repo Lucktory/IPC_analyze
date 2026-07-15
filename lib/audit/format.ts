@@ -43,13 +43,16 @@ export function entityBase(entityType: string): string {
   return ENTITY_LABEL[entityType] ?? entityType
 }
 
-/** Friendly entity name, e.g. "Contrato C-2026-0045". */
-export function entityLabel(entry: AuditEntry): string {
+/** Friendly entity name, e.g. "Contrato C-2026-0045" or "Movimiento en C-2026-0045". */
+export function entityLabel(entry: AuditEntry, refs?: Record<string, string>): string {
   const base = entityBase(entry.entityType)
   if (entry.entityType === 'session') return 'Sesion'
   const j = (entry.after ?? entry.before ?? {}) as Record<string, unknown>
   const friendly = (j.contract_number || j.name || j.label || j.code) as string | undefined
   if (friendly) return `${base} ${friendly}`
+  // Resolve via a referenced contract (transactions, liquidaciones, events, recargos).
+  const cid = j.contract_id
+  if (typeof cid === 'string' && refs?.[cid]) return `${base} en ${refs[cid]}`
   if (entry.entityId) return `${base} (${String(entry.entityId).slice(0, 8)})`
   return base
 }
@@ -65,6 +68,8 @@ const FIELD_LABELS: Record<string, string> = {
   old_rent: 'Alquiler anterior', new_rent: 'Alquiler nuevo', factor: 'Factor',
   contract_number: 'Contrato', lfa_code: 'LFA', recupero_type_code: 'Tipo', interval_months: 'Frecuencia (meses)',
   is_commercial: 'Comercial', active_bool: 'Activo',
+  contract_id: 'Contrato', landlord_id: 'Propietario', tenant_id: 'Inquilino', property_id: 'Propiedad',
+  bank_account_id: 'Cuenta bancaria', bank_id: 'Banco', currency: 'Moneda',
 }
 
 export function fieldLabel(field: string): string {
@@ -122,4 +127,10 @@ export function fmtValue(v: unknown): string {
   if (typeof v === 'boolean') return v ? 'Si' : 'No'
   if (typeof v === 'object') return JSON.stringify(v)
   return String(v)
+}
+
+/** Like fmtValue, but resolves a uuid to its friendly name when known. */
+export function displayValue(v: unknown, refs?: Record<string, string>): string {
+  if (typeof v === 'string' && refs?.[v]) return refs[v]
+  return fmtValue(v)
 }

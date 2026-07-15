@@ -42,6 +42,7 @@ function mapEntry(r: any, umap: Map<string, { full_name: string | null; email: s
 
 export async function listAuditLog(filters: AuditFilters): Promise<{
   ok: boolean; error: string | null; entries?: AuditEntry[]; total?: number; pageSize?: number
+  refs?: Record<string, string>
 }> {
   if (!(await requireSuperAdmin())) return { ok: false, error: 'No autorizado.' }
   let admin
@@ -76,7 +77,43 @@ export async function listAuditLog(filters: AuditFilters): Promise<{
     for (const u of (users ?? []) as any[]) umap.set(u.id, { full_name: u.full_name, email: u.email, photo_url: u.photo_url })
   }
 
-  return { ok: true, error: null, entries: (data ?? []).map((r: any) => mapEntry(r, umap)), total: count ?? 0, pageSize: PAGE_SIZE }
+  const entries = (data ?? []).map((r: any) => mapEntry(r, umap))
+  const refs = await resolveRefs(admin, entries)
+
+  return { ok: true, error: null, entries, total: count ?? 0, pageSize: PAGE_SIZE, refs }
+}
+
+// Resolve foreign-key uuids appearing in the diffs (contract_id, landlord_id,
+// etc.) to human names, so the UI shows "C-2024-0045" instead of a raw uuid.
+async function resolveRefs(admin: ReturnType<typeof createSupabaseAdmin>, entries: AuditEntry[]): Promise<Record<string, string>> {
+  const buckets: Record<string, Set<string>> = {
+    contract_id: new Set(), landlord_id: new Set(), tenant_id: new Set(),
+    property_id: new Set(), bank_account_id: new Set(), bank_id: new Set(),
+  }
+  const scan = (j: Record<string, unknown> | null) => {
+    if (!j) return
+    for (const f of Object.keys(buckets)) {
+      const v = j[f]
+      if (typeof v === 'string' && v) buckets[f].add(v)
+    }
+  }
+  for (const e of entries) { scan(e.before); scan(e.after) }
+
+  const refs: Record<string, string> = {}
+  const lookups: Array<[string, string, Set<string>]> = [
+    ['contracts', 'contract_number', buckets.contract_id],
+    ['landlords', 'name', buckets.landlord_id],
+    ['tenants', 'name', buckets.tenant_id],
+    ['properties', 'address', buckets.property_id],
+    ['bank_accounts', 'alias', buckets.bank_account_id],
+    ['banks', 'name', buckets.bank_id],
+  ]
+  await Promise.all(lookups.map(async ([table, label, ids]) => {
+    if (!ids.size) return
+    const { data } = await admin.from(table).select(`id, ${label}`).in('id', [...ids])
+    for (const row of (data ?? []) as any[]) if (row.id && row[label]) refs[row.id] = String(row[label])
+  }))
+  return refs
 }
 
 export async function getAuditActors(): Promise<AuditActor[]> {

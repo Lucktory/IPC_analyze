@@ -9,11 +9,12 @@
 import { Fragment, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar } from '@/components/usuarios/Avatar'
-import { actionMeta, entityLabel, summarize, diffRows, fmtValue, type Tone } from '@/lib/audit/format'
+import { actionMeta, entityLabel, summarize, diffRows, displayValue, type Tone } from '@/lib/audit/format'
 import type { AuditEntry, AuditActor } from '@/lib/audit/types'
 
 interface Props {
   entries:  AuditEntry[]
+  refs:     Record<string, string>
   total:    number
   pageSize: number
   page:     number
@@ -38,7 +39,7 @@ const TONE_BADGE: Record<Tone, string> = {
 }
 const INPUT = 'h-10 px-3 rounded-lg border border-line bg-cream/60 text-[13px] text-ink outline-none focus:border-info transition-colors'
 
-export function ActividadesClient({ entries, total, pageSize, page, actors, filters }: Props) {
+export function ActividadesClient({ entries, refs, total, pageSize, page, actors, filters }: Props) {
   const router = useRouter()
   const [expanded, setExpanded] = useState<number | null>(null)
   const [q, setQ] = useState(filters.q)
@@ -127,6 +128,9 @@ export function ActividadesClient({ entries, total, pageSize, page, actors, filt
               const meta = actionMeta(e.action)
               const rows = diffRows(e)
               const chip = e.action === 'update' && rows.length > 0 ? rows[0] : null
+              const mode = (e.action === 'delete' || e.action === 'user.delete') ? 'deleted'
+                : (e.action === 'insert' || e.action === 'user.create' || e.action === 'signup') ? 'created'
+                : 'updated'
               const isOpen = expanded === e.id
               const name = e.actorName || (e.actorEmail ? e.actorEmail.split('@')[0] : 'Sistema')
               return (
@@ -154,14 +158,14 @@ export function ActividadesClient({ entries, total, pageSize, page, actors, filt
                       <div className="flex items-center gap-2">
                         <span className="text-slate shrink-0"><IconDoc /></span>
                         <div className="min-w-0">
-                          <div className="text-ink font-medium truncate">{entityLabel(e)}</div>
+                          <div className="text-ink font-medium truncate">{entityLabel(e, refs)}</div>
                           <div className="text-slate text-[11.5px] truncate">{summarize(e)}</div>
                         </div>
                         {chip && (
                           <span className="ml-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cream-2 text-[11.5px] whitespace-nowrap">
-                            <span className="text-slate-dark">{fmtValue(chip.before)}</span>
-                            <span className="text-slate">-&gt;</span>
-                            <span className="text-success font-medium">{fmtValue(chip.after)}</span>
+                            <span className="text-slate-dark">{displayValue(chip.before, refs)}</span>
+                            <span className="text-slate">→</span>
+                            <span className="text-success font-medium">{displayValue(chip.after, refs)}</span>
                           </span>
                         )}
                       </div>
@@ -182,23 +186,39 @@ export function ActividadesClient({ entries, total, pageSize, page, actors, filt
                           <table className="w-full text-[12.5px]">
                             <thead className="bg-cream/50 text-[10.5px] uppercase tracking-wider text-slate">
                               <tr>
-                                <th className="text-left px-3 py-2 font-medium">Campo</th>
-                                <th className="text-left px-3 py-2 font-medium">Antes</th>
-                                <th className="px-3 py-2 w-8"></th>
-                                <th className="text-left px-3 py-2 font-medium">Despues</th>
+                                <th className="text-left px-3 py-2 font-medium w-[30%]">Campo</th>
+                                {mode === 'updated' ? (
+                                  <>
+                                    <th className="text-left px-3 py-2 font-medium">Antes</th>
+                                    <th className="px-3 py-2 w-10 text-center font-medium">→</th>
+                                    <th className="text-left px-3 py-2 font-medium">Despues</th>
+                                  </>
+                                ) : (
+                                  <th className="text-left px-3 py-2 font-medium">Valor</th>
+                                )}
                               </tr>
                             </thead>
                             <tbody>
                               {rows.map(r => (
-                                <tr key={r.field} className="border-t border-line">
+                                <tr key={r.field} className="border-t border-line align-top">
                                   <td className="px-3 py-2 text-slate-dark">{r.label}</td>
-                                  <td className="px-3 py-2">
-                                    <span className={r.before === null ? 'text-slate italic' : 'text-ink'}>{fmtValue(r.before)}</span>
-                                  </td>
-                                  <td className="px-3 py-2 text-center text-slate">-&gt;</td>
-                                  <td className="px-3 py-2">
-                                    <span className="inline-block px-1.5 py-0.5 rounded bg-success/15 text-success font-medium">{fmtValue(r.after)}</span>
-                                  </td>
+                                  {mode === 'updated' ? (
+                                    <>
+                                      <td className="px-3 py-2">
+                                        <span className={r.before === null ? 'text-slate italic' : 'text-ink'}>{displayValue(r.before, refs)}</span>
+                                      </td>
+                                      <td className="px-3 py-2 text-center text-slate">→</td>
+                                      <td className="px-3 py-2">
+                                        <span className="inline-block px-1.5 py-0.5 rounded bg-success/15 text-success font-medium">{displayValue(r.after, refs)}</span>
+                                      </td>
+                                    </>
+                                  ) : (
+                                    <td className="px-3 py-2">
+                                      <span className={mode === 'created' ? 'text-success font-medium' : 'text-ink'}>
+                                        {displayValue(mode === 'created' ? r.after : r.before, refs)}
+                                      </span>
+                                    </td>
+                                  )}
                                 </tr>
                               ))}
                             </tbody>
