@@ -689,6 +689,8 @@ insert into transaction_types (code, label, direction, category, affects_liquida
   ('RECUPERO_AYSA_IN',     'Recupero AySA',                 'IN',  'refund',     true),
   ('RECUPERO_METROGAS_IN', 'Recupero Metrogas / Gas',       'IN',  'refund',     true),
   ('RECUPERO_EDESUR_IN',   'Recupero Edesur / Luz',         'IN',  'refund',     true),
+  ('RECUPERO_SCPL_IN',     'Recupero SCPL (luz/agua)',      'IN',  'refund',     true),
+  ('RECUPERO_COAGUA_IN',   'Recupero Coagua (agua)',        'IN',  'refund',     true),
   ('RECUPERO_OTRO_IN',     'Recupero otro servicio',        'IN',  'refund',     true),
 
   ('COMMISSION_OUT',    'Comisión administrador',          'OUT', 'commission', true),

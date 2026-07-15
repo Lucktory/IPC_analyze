@@ -39,6 +39,8 @@ const TYPE_LABELS: Record<string, string> = {
   RECUPERO_AYSA_IN:      'Recupero AySA',
   RECUPERO_METROGAS_IN:  'Recupero Metrogas / Gas',
   RECUPERO_EDESUR_IN:    'Recupero Edesur / Luz',
+  RECUPERO_SCPL_IN:      'Recupero SCPL (luz/agua)',
+  RECUPERO_COAGUA_IN:    'Recupero Coagua (agua)',
   RECUPERO_OTRO_IN:      'Recupero otro servicio',
   UTILITY_REFUND_IN:     'Reintegro servicios',
   OTHER_IN:              'Otro ingreso',

@@ -42,7 +42,7 @@ interface DraftLine {
   intervalMonths:    number
 }
 
-const SUGGESTED_LABELS = ['ABL', 'THU', 'Tasa de Limpieza', 'Camuzzi (gas)', 'Edesur (luz)', 'AySA', 'Seguro', 'Otro'] as const
+const SUGGESTED_LABELS = ['ABL', 'THU', 'Tasa de Limpieza', 'Camuzzi (gas)', 'Edesur (luz)', 'AySA', 'SCPL (luz y agua)', 'Coagua (agua)', 'Seguro', 'Otro'] as const
 
 // Billing cadences offered in the "Cada" dropdown. interval_months value → label.
 const INTERVAL_OPTIONS: Array<{ v: number; l: string }> = [
@@ -67,6 +67,8 @@ const SUGGESTED_TYPE_CODES: Array<{ code: string; label: string }> = [
   { code: 'RECUPERO_METROGAS_IN',   label: 'Gas' },
   { code: 'RECUPERO_EDESUR_IN',     label: 'Luz' },
   { code: 'RECUPERO_AYSA_IN',       label: 'Agua' },
+  { code: 'RECUPERO_SCPL_IN',       label: 'SCPL (luz/agua)' },
+  { code: 'RECUPERO_COAGUA_IN',     label: 'Coagua (agua)' },
   { code: 'RECUPERO_OTRO_IN',       label: 'Otro' },
 ]
 
