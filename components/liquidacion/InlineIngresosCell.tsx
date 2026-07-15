@@ -26,7 +26,7 @@ import {
   updateIngresosLine,
   deleteIngresosLine,
 } from '@/lib/liquidacion/ingresos-line-actions'
-import { INGRESOS_LINE_TYPES } from '@/lib/liquidacion/ingresos-line-types'
+import { INGRESOS_LINE_TYPES, RECUPERO_SERVICES } from '@/lib/liquidacion/ingresos-line-types'
 
 // Human-readable labels for the dropdown — taken straight from the seeded
 // transaction_types.label values so the popover and the dropdown agree.
@@ -35,13 +35,9 @@ const TYPE_LABELS: Record<string, string> = {
   RENT_NF_IN:            'Alquiler s/factura (N/F)',
   EXPENSAS_IN:           'Expensas',
   LATE_FEE_IN:           'Mora / recargo',
-  RECUPERO_ABL_IN:       'Recupero ABL',
-  RECUPERO_AYSA_IN:      'Recupero AySA',
-  RECUPERO_METROGAS_IN:  'Recupero Metrogas / Gas',
-  RECUPERO_EDESUR_IN:    'Recupero Edesur / Luz',
-  RECUPERO_SCPL_IN:      'Recupero SCPL (luz/agua)',
-  RECUPERO_COAGUA_IN:    'Recupero Coagua (agua)',
-  RECUPERO_OTRO_IN:      'Recupero otro servicio',
+  // Recupero labels come from the shared RECUPERO_SERVICES source so they can
+  // never drift from the Recargos editor / DB.
+  ...Object.fromEntries(RECUPERO_SERVICES.map(s => [s.code, s.full] as [string, string])),
   UTILITY_REFUND_IN:     'Reintegro servicios',
   OTHER_IN:              'Otro ingreso',
 }

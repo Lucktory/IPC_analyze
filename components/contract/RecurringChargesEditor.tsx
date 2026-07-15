@@ -23,6 +23,7 @@ import {
   deleteRecurringCharge,
   type RecurringCharge,
 } from '@/lib/contract/recurring-charges'
+import { RECUPERO_SERVICES } from '@/lib/liquidacion/ingresos-line-types'
 
 interface Props {
   contractId:   string
@@ -42,7 +43,13 @@ interface DraftLine {
   intervalMonths:    number
 }
 
-const SUGGESTED_LABELS = ['ABL', 'THU', 'Tasa de Limpieza', 'Camuzzi (gas)', 'Edesur (luz)', 'AySA', 'SCPL (luz y agua)', 'Coagua (agua)', 'Seguro', 'Otro'] as const
+// Free-text "Etiqueta" name suggestions: the shared service names (so they
+// match the Tipo dropdown + the planilla exactly) plus a few common non-service
+// charges. Service names come from RECUPERO_SERVICES — single source, no drift.
+const SUGGESTED_LABELS = [
+  ...RECUPERO_SERVICES.filter(s => s.code !== 'RECUPERO_OTRO_IN').map(s => s.short),
+  'THU', 'Tasa de Limpieza', 'Seguro', 'Otro',
+]
 
 // Billing cadences offered in the "Cada" dropdown. interval_months value → label.
 const INTERVAL_OPTIONS: Array<{ v: number; l: string }> = [
@@ -58,18 +65,13 @@ const toMonthInput   = (period: string | null): string => (period ? period.slice
 /** 'YYYY-MM' → 'YYYY-MM-01'; null when empty (= "siempre", legacy). */
 const fromMonthInput = (m: string): string | null => (m ? `${m}-01` : null)
 
-// Friendly labels for the "Tipo" dropdown — the technical RECUPERO_*_IN code
-// stays as the stored value (it's what the cobro auto-check matches against),
-// but the encargada sees a plain name.
+// "Tipo" dropdown — the technical RECUPERO_*_IN code stays as the stored value
+// (it's what the cobro auto-check matches against), but the encargada sees a
+// plain name. Both code and label come from the shared RECUPERO_SERVICES source
+// so this list can never diverge from the planilla / DB.
 const SUGGESTED_TYPE_CODES: Array<{ code: string; label: string }> = [
-  { code: '',                       label: 'Sin tipo' },
-  { code: 'RECUPERO_ABL_IN',        label: 'ABL' },
-  { code: 'RECUPERO_METROGAS_IN',   label: 'Gas' },
-  { code: 'RECUPERO_EDESUR_IN',     label: 'Luz' },
-  { code: 'RECUPERO_AYSA_IN',       label: 'Agua' },
-  { code: 'RECUPERO_SCPL_IN',       label: 'SCPL (luz/agua)' },
-  { code: 'RECUPERO_COAGUA_IN',     label: 'Coagua (agua)' },
-  { code: 'RECUPERO_OTRO_IN',       label: 'Otro' },
+  { code: '', label: 'Sin tipo' },
+  ...RECUPERO_SERVICES.map(s => ({ code: s.code, label: s.short })),
 ]
 
 const emptyDraft = (startMonth: string): DraftLine => ({
