@@ -8,6 +8,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowser } from '@/lib/supabase/client'
 import { Avatar } from '@/components/usuarios/Avatar'
+import { recordLogout } from '@/lib/audit/log'
 
 interface UserMenuProps {
   email:     string | null
@@ -36,6 +37,8 @@ export function UserMenu({ email, name = null, photoUrl = null }: UserMenuProps)
 
   async function handleSignOut() {
     setSigningOut(true)
+    // Record the logout while the session still resolves the actor.
+    try { await recordLogout() } catch { /* ignore */ }
     const supabase = createSupabaseBrowser()
     await supabase.auth.signOut()
     router.push('/login')

@@ -773,6 +773,90 @@ drop policy if exists usuarios_update_self on public.usuarios;
 create policy usuarios_update_self on public.usuarios
   for update using (auth.uid() = id) with check (auth.uid() = id);
 
+-- ----------------------------------------------------------------------------
+-- 27. AUDIT_LOG — append-only activity tracking (who did what, when).
+--     Mirrors db/julio-2026/05-audit-log.sql. A generic AFTER trigger on every
+--     business table captures data changes (before/after jsonb + JWT actor);
+--     the app layer logs auth/session/usuarios events via the service-role
+--     client. RLS on + no policies => only the trigger + service-role touch it.
+-- ----------------------------------------------------------------------------
+create table if not exists public.audit_log (
+  id           bigserial primary key,
+  occurred_at  timestamptz not null default now(),
+  actor_id     uuid,
+  actor_email  text,
+  action       text not null,
+  entity_type  text not null,
+  entity_id    text,
+  summary      text,
+  before       jsonb,
+  after        jsonb,
+  source       text not null default 'trigger'
+);
+create index if not exists idx_audit_log_occurred on public.audit_log (occurred_at desc);
+create index if not exists idx_audit_log_actor    on public.audit_log (actor_id);
+create index if not exists idx_audit_log_entity   on public.audit_log (entity_type, entity_id);
+create index if not exists idx_audit_log_action   on public.audit_log (action);
+
+create or replace function public.audit_row()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_claims json; v_actor uuid; v_email text;
+begin
+  begin v_claims := nullif(current_setting('request.jwt.claims', true), '')::json;
+  exception when others then v_claims := null; end;
+  v_actor := nullif(v_claims ->> 'sub', '')::uuid;
+  v_email := v_claims ->> 'email';
+  insert into public.audit_log (occurred_at, actor_id, actor_email, action, entity_type, entity_id, before, after, source)
+  values (now(), v_actor, v_email, lower(tg_op), tg_table_name,
+    case when tg_op = 'DELETE' then (to_jsonb(OLD) ->> 'id') else (to_jsonb(NEW) ->> 'id') end,
+    case when tg_op in ('UPDATE','DELETE') then to_jsonb(OLD) else null end,
+    case when tg_op in ('INSERT','UPDATE') then to_jsonb(NEW) else null end,
+    'trigger');
+  return coalesce(NEW, OLD);
+end; $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'transactions','contracts','liquidaciones','liquidacion_lines','adjustments',
+    'contract_landlords','contract_tenants','contract_administrators','contract_period_notes',
+    'contract_events','contract_recurring_charges','properties','property_landlords',
+    'landlords','tenants','banks','bank_accounts'
+  ] loop
+    if exists (select 1 from information_schema.tables where table_schema='public' and table_name=t) then
+      execute format('drop trigger if exists audit_%1$s on public.%1$s', t);
+      execute format('create trigger audit_%1$s after insert or update or delete on public.%1$s for each row execute function public.audit_row()', t);
+    end if;
+  end loop;
+end; $$;
+
+-- usuarios: UPDATE + DELETE only (creation captured as 'signup' on auth.users).
+drop trigger if exists audit_usuarios on public.usuarios;
+create trigger audit_usuarios after update or delete on public.usuarios
+  for each row execute function public.audit_row();
+
+-- auth.users: signup (insert) + login (last_sign_in_at change), all in-database.
+create or replace function public.audit_auth_event()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.audit_log (actor_id, actor_email, action, entity_type, entity_id, summary, source)
+    values (new.id, new.email, 'signup', 'auth', new.id::text, 'Alta de cuenta', 'trigger');
+  elsif tg_op = 'UPDATE' and new.last_sign_in_at is distinct from old.last_sign_in_at then
+    insert into public.audit_log (actor_id, actor_email, action, entity_type, entity_id, summary, source)
+    values (new.id, new.email, 'login', 'session', new.id::text, 'Inicio de sesion en el sistema', 'trigger');
+  end if;
+  return new;
+end; $$;
+drop trigger if exists audit_auth_signup on auth.users;
+create trigger audit_auth_signup after insert on auth.users for each row execute function public.audit_auth_event();
+drop trigger if exists audit_auth_login on auth.users;
+create trigger audit_auth_login after update on auth.users for each row execute function public.audit_auth_event();
+
+alter table public.audit_log enable row level security;
+revoke update, delete on public.audit_log from anon, authenticated;
+
 -- ============================================================================
 -- DONE. After running this, the next step is to populate landlords / tenants /
 -- properties / contracts from the migration script that parses Alejandro's

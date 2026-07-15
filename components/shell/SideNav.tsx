@@ -307,6 +307,35 @@ export function SideNav({
             </li>
           )}
 
+          {/* Actividades (audit log) — super admins only. */}
+          {isSuperAdmin && (
+            <li>
+              {(() => {
+                const active = isActive('/actividades')
+                return (
+                  <Link
+                    href="/actividades"
+                    onClick={onNavigate}
+                    title={collapsed ? 'Actividades' : undefined}
+                    style={active ? { backgroundColor: 'rgb(var(--color-info))' } : undefined}
+                    className={[
+                      'flex items-center gap-3.5 py-2.5 rounded-lg text-[15px] font-medium transition-colors',
+                      collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3',
+                      active ? 'text-white shadow-sm' : 'text-nav-text/60 hover:bg-nav-text/[0.05] hover:text-nav-text',
+                    ].join(' ')}
+                  >
+                    <span className={['w-[22px] h-[22px] shrink-0 flex items-center justify-center transition-colors', active ? 'text-white' : 'text-nav-text/45'].join(' ')}>
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+                        <path d="M2.5 10.5h3l2 5 4-11 2 6h3.5" />
+                      </svg>
+                    </span>
+                    <span className={hideAtCollapsed}>Actividades</span>
+                  </Link>
+                )
+              })()}
+            </li>
+          )}
+
           <li>
             <span
               title={collapsed ? 'Reglas IPC' : undefined}

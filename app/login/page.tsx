@@ -25,6 +25,7 @@ export default function LoginPage() {
     // Auth OK — start the 1-hour session window (enforced in middleware): this
     // marker cookie expires 3600s after login, and once it's gone the user is
     // forced to log in again with email + password.
+    // (The login itself is recorded by a DB trigger on auth.users.last_sign_in_at.)
     document.cookie = 'session_active=1; path=/; max-age=3600; SameSite=Lax'
     router.push('/liquidacion')
     router.refresh()
