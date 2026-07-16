@@ -14,7 +14,7 @@ import {
   createUsuario, updateUsuario, deleteUsuario, setUsuarioPhoto, removeUsuarioPhoto,
 } from '@/lib/usuarios/actions'
 import { ROLE_LABEL, type UsuarioRow, type UsuarioRole } from '@/lib/usuarios/types'
-import { Avatar } from './Avatar'
+import { AvatarZoom } from './AvatarZoom'
 import { resizeImageToFile } from './resizeImage'
 
 interface Props {
@@ -182,7 +182,7 @@ export function UsuariosClient({ initialUsuarios, currentUserId }: Props) {
               <tr key={u.id} className="border-t border-line hover:bg-cream-2/50 transition-colors">
                 <td className="px-6 py-3">
                   <div className="flex items-center gap-3">
-                    <Avatar url={u.photoUrl} name={u.fullName || u.email} size={38} />
+                    <AvatarZoom url={u.photoUrl} name={u.fullName || u.email} size={38} caption={u.fullName || u.email} />
                     <span className="font-medium text-ink">
                       {u.fullName || <span className="text-slate italic font-normal">Sin nombre</span>}
                       {u.id === currentUserId && <span className="ml-1.5 text-[10px] text-info align-middle">(vos)</span>}

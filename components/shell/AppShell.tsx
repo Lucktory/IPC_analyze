@@ -6,12 +6,17 @@ import { SideNav } from './SideNav'
 import { TopBar } from './TopBar'
 import { NavProgressBar } from './NavProgress'
 import { BreadcrumbProvider } from './BreadcrumbContext'
+import { type UsuarioRole } from '@/lib/usuarios/types'
 
 interface AppShellProps {
   children:      React.ReactNode
   userEmail:     string | null
   userName?:     string | null
   userPhotoUrl?: string | null
+  userId?:       string | null
+  userRole?:     UsuarioRole
+  userPhone?:    string | null
+  userDni?:      string | null
   isSuperAdmin?: boolean
   pendingCount?: number
 }
@@ -42,7 +47,7 @@ function isFullHeightRoute(pathname: string): boolean {
   return !m[2] || !['nuevo', 'cargar-emails'].includes(m[2])
 }
 
-export function AppShell({ children, userEmail, userName = null, userPhotoUrl = null, isSuperAdmin = false, pendingCount = 0 }: AppShellProps) {
+export function AppShell({ children, userEmail, userName = null, userPhotoUrl = null, userId = null, userRole = 'user', userPhone = null, userDni = null, isSuperAdmin = false, pendingCount = 0 }: AppShellProps) {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
@@ -115,7 +120,7 @@ export function AppShell({ children, userEmail, userName = null, userPhotoUrl = 
 
       <div className="flex-1 flex flex-col min-w-0">
         <div className="print:hidden">
-          <TopBar pendientes={pendingCount} userEmail={userEmail} userName={userName} userPhotoUrl={userPhotoUrl} onMenuClick={() => setOpen(true)} />
+          <TopBar pendientes={pendingCount} userEmail={userEmail} userName={userName} userPhotoUrl={userPhotoUrl} userId={userId} userRole={userRole} userPhone={userPhone} userDni={userDni} onMenuClick={() => setOpen(true)} />
           {/* The global loading line — sits right under the topbar, shown on
               every page while the server is fetching. */}
           <NavProgressBar />

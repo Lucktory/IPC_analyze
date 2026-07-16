@@ -1,31 +1,43 @@
 'use client'
 
-// Click-anywhere-to-dismiss dropdown for the logged-in user. Currently just
-// "Cerrar sesión" but reserved for future per-user options (preferences,
-// password change, etc.).
+// Click-anywhere-to-dismiss dropdown for the logged-in user: "Mi perfil"
+// (opens the profile modal) + "Cerrar sesion". The profile modal hosts the
+// shared ProfileForm, so the user edits their data without leaving the page.
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowser } from '@/lib/supabase/client'
 import { Avatar } from '@/components/usuarios/Avatar'
+import { ProfileForm } from '@/components/usuarios/ProfileForm'
 import { recordLogout } from '@/lib/audit/log'
+import { type UsuarioRole } from '@/lib/usuarios/types'
 
 interface UserMenuProps {
   email:     string | null
   name?:     string | null
   photoUrl?: string | null
+  // Full profile for the "Mi perfil" modal. When userId is null (no session)
+  // the Mi perfil item is hidden.
+  userId?:   string | null
+  role?:     UsuarioRole
+  phone?:    string | null
+  dni?:      string | null
 }
 
-export function UserMenu({ email, name = null, photoUrl = null }: UserMenuProps) {
-  const [open, setOpen]   = useState(false)
-  const [signingOut, setSigningOut] = useState(false)
-  const router            = useRouter()
-  const containerRef      = useRef<HTMLDivElement>(null)
+export function UserMenu({
+  email, name = null, photoUrl = null,
+  userId = null, role = 'user', phone = null, dni = null,
+}: UserMenuProps) {
+  const [open, setOpen]               = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [signingOut, setSigningOut]   = useState(false)
+  const router       = useRouter()
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Display name = real name, then the email local-part; fallback for dev mode.
   const displayName = name?.trim() || (email ? email.split('@')[0] : 'Sesión')
 
-  // Click outside to close
+  // Click outside to close the dropdown.
   useEffect(() => {
     if (!open) return
     function onClick(e: MouseEvent) {
@@ -34,6 +46,19 @@ export function UserMenu({ email, name = null, photoUrl = null }: UserMenuProps)
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
   }, [open])
+
+  // Esc to close + lock body scroll while the profile modal is open.
+  useEffect(() => {
+    if (!profileOpen) return
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setProfileOpen(false) }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [profileOpen])
 
   async function handleSignOut() {
     setSigningOut(true)
@@ -70,11 +95,26 @@ export function UserMenu({ email, name = null, photoUrl = null }: UserMenuProps)
             <p className="text-[11px] text-slate uppercase tracking-wider">Sesión iniciada como</p>
             <p className="text-[13px] text-ink font-medium truncate mt-0.5">{email ?? '—'}</p>
           </div>
+
+          {userId && (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); setProfileOpen(true) }}
+              className="w-full px-4 py-2.5 text-left text-[13px] text-slate-dark hover:bg-cream-2 transition-colors flex items-center gap-2"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
+              </svg>
+              Mi perfil
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleSignOut}
             disabled={signingOut}
-            className="w-full px-4 py-2.5 text-left text-[13px] text-slate-dark hover:bg-cream-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="w-full px-4 py-2.5 text-left text-[13px] text-slate-dark hover:bg-cream-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 border-t border-line"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -83,6 +123,37 @@ export function UserMenu({ email, name = null, photoUrl = null }: UserMenuProps)
             </svg>
             {signingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
           </button>
+        </div>
+      )}
+
+      {/* Mi perfil modal — hosts the shared ProfileForm. */}
+      {profileOpen && userId && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[1100] flex items-center justify-center px-4">
+          <button
+            type="button"
+            aria-label="Cerrar"
+            onClick={() => setProfileOpen(false)}
+            className="absolute inset-0 bg-ink/50 backdrop-blur-[2px]"
+          />
+          <div className="relative bg-paper border border-line rounded-xl shadow-xl w-full max-w-[560px] max-h-[92vh] overflow-y-auto">
+            <div className="px-6 py-4 flex items-center justify-between border-b border-line sticky top-0 bg-paper z-10">
+              <h2 className="font-display text-[16px] font-semibold text-ink">Mi perfil</h2>
+              <button type="button" onClick={() => setProfileOpen(false)} className="text-slate hover:text-ink transition-colors p-1">
+                <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 5l10 10M15 5L5 15" /></svg>
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <ProfileForm
+                id={userId}
+                email={email}
+                role={role}
+                fullName={name}
+                phone={phone}
+                dni={dni}
+                photoUrl={photoUrl}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

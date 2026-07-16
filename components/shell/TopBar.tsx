@@ -7,12 +7,17 @@ import { getSection, getBreadcrumbSuffix } from '@/lib/sections'
 import { useBreadcrumbTitle } from './BreadcrumbContext'
 import { UserMenu } from './UserMenu'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
+import { type UsuarioRole } from '@/lib/usuarios/types'
 
 interface TopBarProps {
   pendientes?:   number
   userEmail?:    string | null
   userName?:     string | null
   userPhotoUrl?: string | null
+  userId?:       string | null
+  userRole?:     UsuarioRole
+  userPhone?:    string | null
+  userDni?:      string | null
   onMenuClick?:  () => void
 }
 
@@ -21,6 +26,10 @@ export function TopBar({
   userEmail    = null,
   userName     = null,
   userPhotoUrl = null,
+  userId       = null,
+  userRole     = 'user',
+  userPhone    = null,
+  userDni      = null,
   onMenuClick,
 }: TopBarProps) {
   const pathname  = usePathname()
@@ -95,7 +104,15 @@ export function TopBar({
         <ThemeToggle />
       </div>
 
-      <UserMenu email={userEmail} name={userName} photoUrl={userPhotoUrl} />
+      <UserMenu
+        email={userEmail}
+        name={userName}
+        photoUrl={userPhotoUrl}
+        userId={userId}
+        role={userRole}
+        phone={userPhone}
+        dni={userDni}
+      />
     </header>
   )
 }

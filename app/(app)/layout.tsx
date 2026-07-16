@@ -25,6 +25,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           userEmail={me?.email ?? null}
           userName={me?.fullName ?? null}
           userPhotoUrl={me?.photoUrl ?? null}
+          userId={me?.id ?? null}
+          userRole={me?.role ?? 'user'}
+          userPhone={me?.phone ?? null}
+          userDni={me?.dni ?? null}
           isSuperAdmin={me?.role === 'super_admin'}
           pendingCount={pendingCount}
         >
