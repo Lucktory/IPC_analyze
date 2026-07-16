@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { SideNav } from './SideNav'
 import { TopBar } from './TopBar'
+import { NavProgressBar } from './NavProgress'
 import { BreadcrumbProvider } from './BreadcrumbContext'
 
 interface AppShellProps {
@@ -115,6 +116,9 @@ export function AppShell({ children, userEmail, userName = null, userPhotoUrl = 
       <div className="flex-1 flex flex-col min-w-0">
         <div className="print:hidden">
           <TopBar pendientes={pendingCount} userEmail={userEmail} userName={userName} userPhotoUrl={userPhotoUrl} onMenuClick={() => setOpen(true)} />
+          {/* The global loading line — sits right under the topbar, shown on
+              every page while the server is fetching. */}
+          <NavProgressBar />
         </div>
         <main className={`flex-1 bg-watermark print:overflow-visible print:bg-paper ${
           isWideRoute(pathname) ? 'overflow-hidden'

@@ -7,7 +7,7 @@
 // ============================================================================
 
 import { Fragment, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useProgressRouter } from '@/components/shell/NavProgress'
 import { Avatar } from '@/components/usuarios/Avatar'
 import { actionMeta, entityLabel, summarize, diffRows, displayValue, type Tone } from '@/lib/audit/format'
 import type { AuditEntry, AuditActor } from '@/lib/audit/types'
@@ -42,7 +42,8 @@ const TONE_BADGE: Record<Tone, string> = {
 const INPUT = 'h-10 px-3 rounded-lg border border-line bg-cream/60 text-[13px] text-ink outline-none focus:border-info transition-colors'
 
 export function ActividadesClient({ entries, refs, total, pageSize, page, actors, today, filters }: Props) {
-  const router = useRouter()
+  // Shared navigator: drives the global loading line while the server fetches.
+  const { navigate } = useProgressRouter()
   const [expanded, setExpanded] = useState<number | null>(null)
   const [q, setQ] = useState(filters.q)
   const [mounted, setMounted] = useState(false)
@@ -57,7 +58,7 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
     if (cur.group) p.set('group', cur.group)
     if (cur.q)     p.set('q', cur.q)
     if (cur.page > 1) p.set('page', String(cur.page))
-    router.push(`/actividades?${p.toString()}`)
+    navigate(`/actividades?${p.toString()}`)
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))

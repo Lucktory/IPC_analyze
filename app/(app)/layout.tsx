@@ -1,4 +1,6 @@
+import { Suspense } from 'react'
 import { AppShell } from '@/components/shell/AppShell'
+import { NavProgressProvider } from '@/components/shell/NavProgress'
 import { getCurrentUser } from '@/lib/auth/current-user'
 import { getPendingCount } from '@/lib/pending/digest'
 
@@ -16,14 +18,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getPendingCount(),
   ])
   return (
-    <AppShell
-      userEmail={me?.email ?? null}
-      userName={me?.fullName ?? null}
-      userPhotoUrl={me?.photoUrl ?? null}
-      isSuperAdmin={me?.role === 'super_admin'}
-      pendingCount={pendingCount}
-    >
-      {children}
-    </AppShell>
+    // NavProgressProvider reads the search params, so it sits behind Suspense.
+    <Suspense fallback={null}>
+      <NavProgressProvider>
+        <AppShell
+          userEmail={me?.email ?? null}
+          userName={me?.fullName ?? null}
+          userPhotoUrl={me?.photoUrl ?? null}
+          isSuperAdmin={me?.role === 'super_admin'}
+          pendingCount={pendingCount}
+        >
+          {children}
+        </AppShell>
+      </NavProgressProvider>
+    </Suspense>
   )
 }
