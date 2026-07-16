@@ -26,13 +26,14 @@ import { NewContractModal } from '@/components/liquidacion/NewContractModal'
 import { ResumenView } from '@/components/liquidacion/ResumenView'
 import { MovimientosView } from '@/components/liquidacion/MovimientosView'
 import { DestinosView } from '@/components/liquidacion/DestinosView'
+import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { fmtMoney as fmt } from '@/lib/format'
 
 type StatusFilter = 'todas' | LiquidacionStatus
 type View         = 'grilla' | 'resumen' | 'movimientos' | 'destinos'
 
 interface PageProps {
-  searchParams: Promise<{ period?: string; status?: string; view?: string }>
+  searchParams: Promise<{ period?: string; status?: string; view?: string; q?: string }>
 }
 
 const VIEWS: { key: View; label: string }[] = [
@@ -43,7 +44,12 @@ const VIEWS: { key: View; label: string }[] = [
 ]
 
 export default async function LiquidacionPage({ searchParams }: PageProps) {
-  const { period: paramPeriod, status: paramStatus, view: paramView } = await searchParams
+  const { period: paramPeriod, status: paramStatus, view: paramView, q: paramQ } = await searchParams
+  // Free-text search over the planilla — owner / tenant / contract number.
+  // qRaw keeps the user's casing for the URL + input value; q is normalized
+  // for matching.
+  const qRaw   = (paramQ ?? '').trim()
+  const q      = qRaw.toLowerCase()
   const period = paramPeriod ?? getCurrentPeriod()
   const statusFilter: StatusFilter =
     paramStatus === 'draft' || paramStatus === 'sent' || paramStatus === 'paid'
@@ -104,14 +110,29 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
     ? await safe('getGridDiagnostic', null, () => getGridDiagnostic(period))
     : null
 
+  // Text search — matches owner / tenant / contract number (plus co-owners,
+  // co-tenants and LFA code). Applied BEFORE the status split so the Estado
+  // counts and the KPI strip below track the search exactly the way they
+  // already track the status filter.
+  const searchedRows = q
+    ? allRows.filter(r => {
+        const hay = [
+          r.propietario, r.inquilino, r.contrato, r.lfa,
+          ...r.landlordsList.map(l => l.name),
+          ...r.tenantsList.map(t => t.name),
+        ]
+        return hay.some(v => (v ?? '').toLowerCase().includes(q))
+      })
+    : allRows
+
   // Status filter — applies to the grid view (only)
   const counts = {
-    todas: allRows.length,
-    draft: allRows.filter(r => r.status === 'draft').length,
-    sent:  allRows.filter(r => r.status === 'sent').length,
-    paid:  allRows.filter(r => r.status === 'paid').length,
+    todas: searchedRows.length,
+    draft: searchedRows.filter(r => r.status === 'draft').length,
+    sent:  searchedRows.filter(r => r.status === 'sent').length,
+    paid:  searchedRows.filter(r => r.status === 'paid').length,
   }
-  const rows = statusFilter === 'todas' ? allRows : allRows.filter(r => r.status === statusFilter)
+  const rows = statusFilter === 'todas' ? searchedRows : searchedRows.filter(r => r.status === statusFilter)
 
   // KPIs — header strip uses the grid totals when available, falls back when not
   const baseRows      = view === 'grilla' ? rows : allRows
@@ -134,6 +155,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
   const periodExtra = new URLSearchParams()
   if (view !== 'grilla')          periodExtra.set('view', view)
   if (statusFilter !== 'todas')   periodExtra.set('status', statusFilter)
+  if (qRaw)                       periodExtra.set('q', qRaw)
   const periodExtraQuery = periodExtra.toString()
 
   const linkWith = (overrides: Partial<{ period: string; status: StatusFilter; view: View }>) => {
@@ -142,6 +164,7 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
     if (merged.period)                                  qs.set('period', merged.period)
     if (merged.status && merged.status !== 'todas')     qs.set('status', merged.status)
     if (merged.view   && merged.view   !== 'grilla')    qs.set('view',   merged.view)
+    if (qRaw)                                           qs.set('q', qRaw)
     return qs.size > 0 ? `/liquidacion?${qs.toString()}` : '/liquidacion'
   }
 
@@ -226,6 +249,14 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
 
           {view === 'grilla' && (
             <>
+              <span className="label-cap text-slate shrink-0 ml-3">Buscar</span>
+              <div className="w-52 sm:w-64">
+                <AutoSearchInput
+                  initialValue={qRaw}
+                  placeholder="Propietario, inquilino o contrato..."
+                />
+              </div>
+
               <span className="label-cap text-slate shrink-0 ml-3">Estado</span>
               <div className="flex items-center gap-1 flex-wrap">
                 <StatusPill href={linkWith({ status: 'todas' })} active={statusFilter === 'todas'} label="Todas"    count={counts.todas} />
@@ -261,7 +292,18 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
             {/* Reads ?highlight=<contractId> on mount and scrolls/pulses
                 that row. Used by the "Ver fila →" jumps from /pendientes. */}
             <HighlightScroller />
-            <LiquidacionGrid rows={rows} totals={sumGridTotals(rows)} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
+            {q && rows.length === 0 && allRows.length > 0 ? (
+              <section className="bg-paper border border-line p-6 text-center">
+                <p className="text-[13px] text-slate">
+                  Sin resultados para <strong className="text-ink">&laquo;{qRaw}&raquo;</strong>.
+                </p>
+                <p className="text-[12px] text-slate mt-1">
+                  Proba con otro nombre, apellido o numero de contrato.
+                </p>
+              </section>
+            ) : (
+              <LiquidacionGrid rows={rows} totals={sumGridTotals(rows)} period={period} landlordOptions={landlordOptions} tenantOptions={tenantOptions} />
+            )}
           </>
         )}
         {view === 'resumen'     && <div className="h-full overflow-auto"><ResumenView    rows={allRows} period={period} honorarios={honorarios} /></div>}
