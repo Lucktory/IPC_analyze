@@ -1,9 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getSection } from '@/lib/sections'
 import { Avatar } from '@/components/usuarios/Avatar'
+import { ProfileModal } from '@/components/usuarios/ProfileModal'
+import { type UsuarioRole } from '@/lib/usuarios/types'
 
 interface NavItem {
   to: string
@@ -157,6 +160,11 @@ interface SideNavProps {
   userEmail?:          string | null
   userName?:           string | null
   userPhotoUrl?:       string | null
+  // Full profile for the footer "Mi perfil" modal.
+  userId?:             string | null
+  userRole?:           UsuarioRole
+  userPhone?:          string | null
+  userDni?:            string | null
   /** Super admins get the Usuarios management link. */
   isSuperAdmin?:       boolean
   /** Desktop icons-only mode. Mobile drawer always renders full labels. */
@@ -170,11 +178,16 @@ export function SideNav({
   userEmail,
   userName = null,
   userPhotoUrl = null,
+  userId = null,
+  userRole = 'user',
+  userPhone = null,
+  userDni = null,
   isSuperAdmin = false,
   collapsed = false,
   onToggleCollapsed,
 }: SideNavProps = {}) {
   const pathname = usePathname()
+  const [profileOpen, setProfileOpen] = useState(false)
   const isActive = (to: string) => pathname === to || pathname.startsWith(to + '/')
 
   // Display name: prefer the real name, then the email local-part.
@@ -247,34 +260,6 @@ export function SideNav({
           Configuración
         </p>
         <ul className="space-y-1">
-          {/* Mi perfil — every logged-in user. */}
-          <li>
-            {(() => {
-              const active = isActive('/mi-perfil')
-              return (
-                <Link
-                  href="/mi-perfil"
-                  onClick={onNavigate}
-                  title={collapsed ? 'Mi perfil' : undefined}
-                  style={active ? { backgroundColor: 'rgb(var(--color-info))' } : undefined}
-                  className={[
-                    'flex items-center gap-3.5 py-2.5 rounded-lg text-[15px] font-medium transition-colors',
-                    collapsed ? 'lg:justify-center lg:px-2 px-3' : 'px-3',
-                    active ? 'text-white shadow-sm' : 'text-nav-text/60 hover:bg-nav-text/[0.05] hover:text-nav-text',
-                  ].join(' ')}
-                >
-                  <span className={['w-[22px] h-[22px] shrink-0 flex items-center justify-center transition-colors', active ? 'text-white' : 'text-nav-text/45'].join(' ')}>
-                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="w-full h-full">
-                      <circle cx="10" cy="7.5" r="3" />
-                      <path d="M3 17 Q3 12 10 12 Q17 12 17 17" />
-                    </svg>
-                  </span>
-                  <span className={hideAtCollapsed}>Mi perfil</span>
-                </Link>
-              )
-            })()}
-          </li>
-
           {/* Usuarios — super admins only. */}
           {isSuperAdmin && (
             <li>
@@ -371,13 +356,34 @@ export function SideNav({
         </button>
       )}
 
-      <div className={`border-t border-nav-text/10 py-3 flex items-center gap-3 ${collapsed ? 'lg:justify-center lg:px-2 px-5' : 'px-5'}`}>
-        <Avatar url={userPhotoUrl} name={displayName} size={36} fallbackClassName="bg-info/15 text-info font-display font-semibold" />
-        <div className={`flex-col leading-tight min-w-0 flex ${hideAtCollapsed}`}>
-          <span className="font-medium text-[14px] text-nav-text truncate">{displayName}</span>
-          <span className="text-[11px] text-nav-text/50 truncate">Sesión activa</span>
-        </div>
+      <div className={`border-t border-nav-text/10 py-2 ${collapsed ? 'lg:px-2 px-3' : 'px-3'}`}>
+        <button
+          type="button"
+          onClick={() => setProfileOpen(true)}
+          title="Mi perfil"
+          className={`w-full flex items-center gap-3 rounded-lg py-1.5 hover:bg-nav-text/[0.06] transition-colors ${collapsed ? 'lg:justify-center lg:px-2 px-2' : 'px-2'}`}
+        >
+          <Avatar url={userPhotoUrl} name={displayName} size={36} fallbackClassName="bg-info/15 text-info font-display font-semibold" />
+          <div className={`flex-col leading-tight min-w-0 flex text-left ${hideAtCollapsed}`}>
+            <span className="font-medium text-[14px] text-nav-text truncate">{displayName}</span>
+            <span className="text-[11px] text-nav-text/50 truncate">Sesión activa</span>
+          </div>
+        </button>
       </div>
+
+      {userId && (
+        <ProfileModal
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          id={userId}
+          email={userEmail ?? null}
+          role={userRole}
+          fullName={userName}
+          phone={userPhone}
+          dni={userDni}
+          photoUrl={userPhotoUrl ?? null}
+        />
+      )}
     </>
   )
 }

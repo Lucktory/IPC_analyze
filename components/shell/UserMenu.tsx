@@ -8,7 +8,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowser } from '@/lib/supabase/client'
 import { Avatar } from '@/components/usuarios/Avatar'
-import { ProfileForm } from '@/components/usuarios/ProfileForm'
+import { ProfileModal } from '@/components/usuarios/ProfileModal'
 import { recordLogout } from '@/lib/audit/log'
 import { type UsuarioRole } from '@/lib/usuarios/types'
 
@@ -46,19 +46,6 @@ export function UserMenu({
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
   }, [open])
-
-  // Esc to close + lock body scroll while the profile modal is open.
-  useEffect(() => {
-    if (!profileOpen) return
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setProfileOpen(false) }
-    document.addEventListener('keydown', onKey)
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prevOverflow
-    }
-  }, [profileOpen])
 
   async function handleSignOut() {
     setSigningOut(true)
@@ -126,35 +113,19 @@ export function UserMenu({
         </div>
       )}
 
-      {/* Mi perfil modal — hosts the shared ProfileForm. */}
-      {profileOpen && userId && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[1100] flex items-center justify-center px-4">
-          <button
-            type="button"
-            aria-label="Cerrar"
-            onClick={() => setProfileOpen(false)}
-            className="absolute inset-0 bg-ink/50 backdrop-blur-[2px]"
-          />
-          <div className="relative bg-paper border border-line rounded-xl shadow-xl w-full max-w-[560px] max-h-[92vh] overflow-y-auto">
-            <div className="px-6 py-4 flex items-center justify-between border-b border-line sticky top-0 bg-paper z-10">
-              <h2 className="font-display text-[16px] font-semibold text-ink">Mi perfil</h2>
-              <button type="button" onClick={() => setProfileOpen(false)} className="text-slate hover:text-ink transition-colors p-1">
-                <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M5 5l10 10M15 5L5 15" /></svg>
-              </button>
-            </div>
-            <div className="px-6 py-5">
-              <ProfileForm
-                id={userId}
-                email={email}
-                role={role}
-                fullName={name}
-                phone={phone}
-                dni={dni}
-                photoUrl={photoUrl}
-              />
-            </div>
-          </div>
-        </div>
+      {/* Mi perfil modal — shared, portal-rendered. */}
+      {userId && (
+        <ProfileModal
+          open={profileOpen}
+          onClose={() => setProfileOpen(false)}
+          id={userId}
+          email={email}
+          role={role}
+          fullName={name}
+          phone={phone}
+          dni={dni}
+          photoUrl={photoUrl}
+        />
       )}
     </div>
   )

@@ -102,6 +102,10 @@ export function AppShell({ children, userEmail, userName = null, userPhotoUrl = 
           userEmail={userEmail}
           userName={userName}
           userPhotoUrl={userPhotoUrl}
+          userId={userId}
+          userRole={userRole}
+          userPhone={userPhone}
+          userDni={userDni}
           isSuperAdmin={isSuperAdmin}
           collapsed={collapsed}
           onToggleCollapsed={toggleCollapsed}
