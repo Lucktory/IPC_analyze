@@ -60,9 +60,20 @@ export async function listAuditLog(filters: AuditFilters): Promise<{
   if (filters.from)       q = q.gte('occurred_at', filters.from)
   if (filters.to)         q = q.lte('occurred_at', filters.to)
   if (filters.group && GROUP_CODES[filters.group]?.length) q = q.in('action', GROUP_CODES[filters.group])
+  // Contract search: the typed contract number is resolved to contract uuid(s),
+  // then we match audit rows either where the contract IS the entity, or where
+  // its uuid appears as contract_id inside the before/after snapshot (movimientos,
+  // liquidaciones, observaciones, recargos, etc.).
   if (filters.query?.trim()) {
-    const s = filters.query.trim().replace(/[%,]/g, ' ')
-    q = q.or(`entity_id.ilike.%${s}%,summary.ilike.%${s}%,entity_type.ilike.%${s}%,actor_email.ilike.%${s}%`)
+    const cq = filters.query.trim()
+    const { data: cs } = await admin.from('contracts').select('id').ilike('contract_number', `%${cq}%`)
+    const ids = [...new Set((cs ?? []).map((c: any) => c.id).filter(Boolean))] as string[]
+    if (!ids.length) {
+      // No contract matches -> no activity to show.
+      return { ok: true, error: null, entries: [], total: 0, pageSize: PAGE_SIZE, refs: {} }
+    }
+    const list = ids.map(uuid => `"${uuid}"`).join(',')
+    q = q.or(`entity_id.in.(${list}),before->>contract_id.in.(${list}),after->>contract_id.in.(${list})`)
   }
 
   q = q.range((page - 1) * PAGE_SIZE, (page - 1) * PAGE_SIZE + PAGE_SIZE - 1)

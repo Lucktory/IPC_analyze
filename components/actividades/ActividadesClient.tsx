@@ -99,14 +99,14 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
             {GROUP_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </Labeled>
-        <Labeled label="Buscar" grow>
+        <Labeled label="Contrato" grow>
           <div className="relative">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate"><IconSearch /></span>
             <input
               value={q}
               onChange={e => setQ(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') go({ q }) }}
-              placeholder="Buscar por entidad, ID, descripcion..."
+              placeholder="N. de contrato (ej. C-2026-0045)"
               className={INPUT + ' w-full pl-8'}
             />
           </div>
