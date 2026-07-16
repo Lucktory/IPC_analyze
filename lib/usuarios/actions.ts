@@ -14,6 +14,7 @@
 // ============================================================================
 
 import { revalidatePath } from 'next/cache'
+import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { createSupabaseAdmin } from '@/lib/supabase/admin'
 import { getCurrentUser, requireSuperAdmin } from '@/lib/auth/current-user'
@@ -224,12 +225,39 @@ export async function updateMyProfile(patch: {
 }
 
 // ── Self: change own password ────────────────────────────────────────────────
-export async function changeMyPassword(newPassword: string): Promise<Result> {
+// Requires the CURRENT password and verifies it before applying the new one.
+// The verification uses a throwaway client with persistSession:false, so a
+// wrong password is rejected without ever disturbing the live session cookies.
+export async function changeMyPassword(input: {
+  currentPassword: string
+  newPassword:     string
+}): Promise<Result> {
   const me = await getCurrentUser()
   if (!me) return { ok: false, error: 'No autorizado.' }
+  if (!me.email) return { ok: false, error: 'Tu cuenta no tiene email; no se puede verificar la contrasena.' }
+
+  const { currentPassword, newPassword } = input
+  if (!currentPassword) return { ok: false, error: 'Ingresa tu contrasena actual.' }
   if (!newPassword || newPassword.length < 6) {
-    return { ok: false, error: 'La contrasena debe tener al menos 6 caracteres.' }
+    return { ok: false, error: 'La nueva contrasena debe tener al menos 6 caracteres.' }
   }
+  if (currentPassword === newPassword) {
+    return { ok: false, error: 'La nueva contrasena debe ser distinta de la actual.' }
+  }
+
+  const url  = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anon) return { ok: false, error: 'Configuracion de Supabase incompleta.' }
+
+  // Verify the current password (isolated client — no cookie persistence).
+  const verifier = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } })
+  const { error: signInErr } = await verifier.auth.signInWithPassword({
+    email:    me.email,
+    password: currentPassword,
+  })
+  if (signInErr) return { ok: false, error: 'La contrasena actual no es correcta.' }
+
+  // Apply the new password on the real session client.
   const supabase = await createSupabaseServer()
   const { error } = await supabase.auth.updateUser({ password: newPassword })
   if (error) return { ok: false, error: error.message }
