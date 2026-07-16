@@ -832,9 +832,31 @@ begin
 end; $$;
 
 -- usuarios: UPDATE + DELETE only (creation captured as 'signup' on auth.users).
+-- Uses a dedicated function that SKIPS service-role / NULL-actor writes: admin
+-- user-management actions are logged in the app layer with the real actor
+-- (lib/usuarios/actions.ts), so skipping here avoids duplicate "Sistema" rows.
+-- Self edits (session client) still get logged with the real actor.
+create or replace function public.audit_usuarios_row()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_claims json; v_actor uuid; v_email text;
+begin
+  begin v_claims := nullif(current_setting('request.jwt.claims', true), '')::json;
+  exception when others then v_claims := null; end;
+  v_actor := nullif(v_claims ->> 'sub', '')::uuid;
+  v_email := v_claims ->> 'email';
+  if v_actor is null then return coalesce(NEW, OLD); end if;
+  insert into public.audit_log (occurred_at, actor_id, actor_email, action, entity_type, entity_id, before, after, source)
+  values (now(), v_actor, v_email, lower(tg_op), tg_table_name,
+    case when tg_op = 'DELETE' then (to_jsonb(OLD) ->> 'id') else (to_jsonb(NEW) ->> 'id') end,
+    case when tg_op in ('UPDATE','DELETE') then to_jsonb(OLD) else null end,
+    case when tg_op in ('INSERT','UPDATE') then to_jsonb(NEW) else null end,
+    'trigger');
+  return coalesce(NEW, OLD);
+end; $$;
+
 drop trigger if exists audit_usuarios on public.usuarios;
 create trigger audit_usuarios after update or delete on public.usuarios
-  for each row execute function public.audit_row();
+  for each row execute function public.audit_usuarios_row();
 
 -- auth.users: signup (insert) + login (last_sign_in_at change), all in-database.
 create or replace function public.audit_auth_event()

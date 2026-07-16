@@ -18,6 +18,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { createSupabaseAdmin } from '@/lib/supabase/admin'
 import { getCurrentUser, requireSuperAdmin } from '@/lib/auth/current-user'
+import { logAudit } from '@/lib/audit/log'
 import type { UsuarioRow, UsuarioRole } from '@/lib/usuarios/types'
 
 type Result = { ok: boolean; error: string | null }
@@ -112,6 +113,10 @@ export async function createUsuario(input: {
     return { ok: false, error: profErr.message }
   }
 
+  // Audit with the real actor (the admin creating the user).
+  const { data: createdRow } = await admin.from('usuarios').select('*').eq('id', created.user.id).maybeSingle()
+  await logAudit({ action: 'insert', entityType: 'usuarios', entityId: created.user.id, after: createdRow ?? null, summary: `Creo el usuario ${email}` })
+
   revalidatePath('/usuarios')
   return { ok: true, error: null, id: created.user.id }
 }
@@ -132,6 +137,9 @@ export async function updateUsuario(id: string, patch: {
   const _a = adminOrError()
   if (!_a.ok) return { ok: false, error: _a.error }
   const admin = _a.client
+
+  // Snapshot BEFORE for the audit diff (real actor logged below).
+  const { data: beforeRow } = await admin.from('usuarios').select('*').eq('id', id).maybeSingle()
 
   // Guard: don't strip the last super_admin (either by demotion or deactivation).
   if ((patch.role === 'user' || patch.active === false)) {
@@ -173,6 +181,10 @@ export async function updateUsuario(id: string, patch: {
   const { error } = await admin.from('usuarios').update(updates).eq('id', id)
   if (error) return { ok: false, error: error.message }
 
+  // Audit with the real actor + before/after so the diff shows what changed.
+  const { data: afterRow } = await admin.from('usuarios').select('*').eq('id', id).maybeSingle()
+  await logAudit({ action: 'update', entityType: 'usuarios', entityId: id, before: beforeRow ?? null, after: afterRow ?? null })
+
   revalidatePath('/usuarios')
   return { ok: true, error: null }
 }
@@ -190,12 +202,18 @@ export async function deleteUsuario(id: string): Promise<Result> {
     return { ok: false, error: 'No podes eliminar al ultimo administrador.' }
   }
 
+  // Snapshot BEFORE the cascade delete removes the row.
+  const { data: beforeRow } = await admin.from('usuarios').select('*').eq('id', id).maybeSingle()
+
   // Deleting the auth user cascades to the usuarios row (FK on delete cascade).
   const { error } = await admin.auth.admin.deleteUser(id)
   if (error) return { ok: false, error: error.message }
 
   // Best-effort: drop their avatar from storage so nothing is orphaned.
   await admin.storage.from('avatars').remove([`${id}/avatar`])
+
+  // Audit with the real actor (the admin deleting the user).
+  await logAudit({ action: 'delete', entityType: 'usuarios', entityId: id, before: beforeRow ?? null, summary: `Elimino el usuario ${(beforeRow as { email?: string } | null)?.email ?? ''}`.trim() })
 
   revalidatePath('/usuarios')
   return { ok: true, error: null }
@@ -300,6 +318,8 @@ export async function setUsuarioPhoto(
       .eq('id', userId)
     if (error) return { ok: false, error: error.message }
 
+    await logAudit({ action: 'update', entityType: 'usuarios', entityId: userId, summary: 'Actualizo la foto de perfil' })
+
     revalidatePath('/usuarios')
     revalidatePath('/mi-perfil')
     return { ok: true, error: null, photoUrl }
@@ -323,6 +343,8 @@ export async function removeUsuarioPhoto(userId: string): Promise<Result> {
     .update({ photo_url: null, updated_at: new Date().toISOString() })
     .eq('id', userId)
   if (error) return { ok: false, error: error.message }
+
+  await logAudit({ action: 'update', entityType: 'usuarios', entityId: userId, summary: 'Quito la foto de perfil' })
 
   revalidatePath('/usuarios')
   revalidatePath('/mi-perfil')
