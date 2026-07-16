@@ -32,10 +32,32 @@ export interface AuditFilters {
   entityType?: string | null
   query?:      string | null
   page?:       number
+  pageSize?:   number
 }
 
 export interface AuditActor {
   id:    string
   name:  string
   email: string
+}
+
+/** One category/time slice for the dashboard charts. */
+export interface AuditBucket { label: string; value: number }
+
+/** Aggregated view of the audit log for the Panel (charts) view. */
+export interface AuditAnalytics {
+  total:             number
+  capped:            boolean   // true when the row cap was hit (total is a floor)
+  created:           number
+  updated:           number
+  deleted:           number
+  session:           number
+  distinctActors:    number
+  distinctContracts: number
+  lastActivity:      string | null   // ISO
+  timeBuckets:       AuditBucket[]
+  bucketUnit:        'day' | 'month'
+  byEntity:          AuditBucket[]
+  byActor:           AuditBucket[]
+  byContract:        AuditBucket[]
 }

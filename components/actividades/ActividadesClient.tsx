@@ -10,7 +10,8 @@ import { Fragment, useEffect, useState } from 'react'
 import { useProgressRouter } from '@/components/shell/NavProgress'
 import { Avatar } from '@/components/usuarios/Avatar'
 import { actionMeta, entityLabel, summarize, diffRows, displayValue, type Tone } from '@/lib/audit/format'
-import type { AuditEntry, AuditActor } from '@/lib/audit/types'
+import type { AuditEntry, AuditActor, AuditAnalytics } from '@/lib/audit/types'
+import { ActividadesPanel } from './ActividadesPanel'
 
 interface Props {
   entries:  AuditEntry[]
@@ -21,6 +22,8 @@ interface Props {
   actors:   AuditActor[]
   /** Today (YYYY-MM-DD, AR time) — date filters can never go past it. */
   today:    string
+  view:     'lista' | 'panel'
+  analytics: AuditAnalytics | null
   filters:  { actor: string; from: string; to: string; group: string; q: string }
 }
 
@@ -33,6 +36,8 @@ const GROUP_OPTIONS = [
   { value: 'user',    label: 'Usuarios' },
 ]
 
+const PER_PAGE_OPTIONS = [50, 100]
+
 const TONE_BADGE: Record<Tone, string> = {
   success: 'bg-success/15 text-success',
   info:    'bg-info/15 text-info',
@@ -41,7 +46,7 @@ const TONE_BADGE: Record<Tone, string> = {
 }
 const INPUT = 'h-10 px-3 rounded-lg border border-line bg-cream/60 text-[13px] text-ink outline-none focus:border-info transition-colors'
 
-export function ActividadesClient({ entries, refs, total, pageSize, page, actors, today, filters }: Props) {
+export function ActividadesClient({ entries, refs, total, pageSize, page, actors, today, view, analytics, filters }: Props) {
   // Shared navigator: drives the global loading line while the server fetches.
   const { navigate } = useProgressRouter()
   const [expanded, setExpanded] = useState<number | null>(null)
@@ -49,14 +54,16 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  function go(overrides: Partial<{ actor: string; from: string; to: string; group: string; q: string; page: number }>) {
-    const cur = { actor: filters.actor, from: filters.from, to: filters.to, group: filters.group, q, page: 1, ...overrides }
+  function go(overrides: Partial<{ actor: string; from: string; to: string; group: string; q: string; page: number; perPage: number; view: string }>) {
+    const cur = { actor: filters.actor, from: filters.from, to: filters.to, group: filters.group, q, page: 1, perPage: pageSize, view, ...overrides }
     const p = new URLSearchParams()
     if (cur.actor) p.set('actor', cur.actor)
     if (cur.from)  p.set('from', cur.from)
     if (cur.to)    p.set('to', cur.to)
     if (cur.group) p.set('group', cur.group)
     if (cur.q)     p.set('q', cur.q)
+    if (cur.perPage && cur.perPage !== 50) p.set('perPage', String(cur.perPage))
+    if (cur.view === 'panel') p.set('view', 'panel')
     if (cur.page > 1) p.set('page', String(cur.page))
     navigate(`/actividades?${p.toString()}`)
   }
@@ -66,15 +73,20 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
   const to = Math.min(page * pageSize, total)
 
   return (
+    <div className="space-y-4">
     <div className="bg-paper border border-line rounded-xl shadow-card overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-5 border-b border-line">
+      <div className="px-6 py-5 border-b border-line flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2.5">
           <span className="w-8 h-8 rounded-lg bg-info/15 text-info flex items-center justify-center"><IconClock /></span>
           <div>
             <h1 className="font-display text-[19px] font-semibold text-ink">Actividades</h1>
             <p className="text-[13px] text-slate">Historial de acciones realizadas en el sistema.</p>
           </div>
+        </div>
+        <div className="flex gap-1 p-1 rounded-xl bg-cream-2/60 border border-line">
+          <ViewTab active={view === 'lista'} onClick={() => go({ view: 'lista' })} icon={<IconList />}>Lista</ViewTab>
+          <ViewTab active={view === 'panel'} onClick={() => go({ view: 'panel' })} icon={<IconChart />}>Panel</ViewTab>
         </div>
       </div>
 
@@ -113,6 +125,7 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
         </Labeled>
       </div>
 
+      {view === 'lista' && (<>
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-[13px] border-collapse min-w-[900px]">
@@ -230,7 +243,16 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
 
       {/* Footer / pagination */}
       <div className="px-6 py-4 flex items-center justify-between gap-3 border-t border-line flex-wrap">
-        <span className="text-[12.5px] text-slate">Mostrando {from} a {to} de {total} actividades</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <label className="flex items-center gap-2 text-[12.5px] text-slate">
+            <span>Por pagina</span>
+            <select value={pageSize} onChange={e => go({ perPage: Number(e.target.value), page: 1 })}
+              className="h-8 px-2 rounded-lg border border-line bg-cream/60 text-[12.5px] text-ink outline-none focus:border-info transition-colors">
+              {PER_PAGE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <span className="text-[12.5px] text-slate">Mostrando {from} a {to} de {total} actividades</span>
+        </div>
         <div className="flex items-center gap-1.5">
           <PagerBtn disabled={page <= 1} onClick={() => go({ page: page - 1 })}><IconChevronLeft /></PagerBtn>
           {pageNumbers(page, totalPages).map((p, i) =>
@@ -242,6 +264,9 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
           <PagerBtn disabled={page >= totalPages} onClick={() => go({ page: page + 1 })}><IconChevronRight /></PagerBtn>
         </div>
       </div>
+      </>)}
+    </div>
+    {view === 'panel' && analytics && <ActividadesPanel analytics={analytics} filters={filters} />}
     </div>
   )
 }
@@ -255,6 +280,18 @@ function Labeled({ label, grow, children }: { label: string; grow?: boolean; chi
     </label>
   )
 }
+
+function ViewTab({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`h-8 px-3 rounded-lg text-[12.5px] font-medium inline-flex items-center gap-1.5 transition-colors ${
+        active ? 'bg-info/15 text-info ring-1 ring-inset ring-info/30' : 'text-slate hover:text-ink'}`}>
+      <span className="w-4 h-4">{icon}</span>{children}
+    </button>
+  )
+}
+function IconList()  { return <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-full h-full"><path d="M7 5h9M7 10h9M7 15h9M3.5 5h.01M3.5 10h.01M3.5 15h.01" /></svg> }
+function IconChart() { return <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><path d="M3 3v14h14" /><rect x="6" y="9" width="2.5" height="5" /><rect x="11" y="6" width="2.5" height="8" /></svg> }
 
 function fmtDateTime(iso: string): string {
   try {
