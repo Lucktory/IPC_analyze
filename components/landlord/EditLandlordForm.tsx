@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { createLandlord, updateLandlord, deleteLandlord } from '@/lib/landlord/actions'
 import type { LandlordDetail } from '@/lib/landlord/queries'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
@@ -16,7 +17,7 @@ interface EditLandlordFormProps {
 }
 
 export function EditLandlordForm({ landlord, propertyCount = 0, contractCount = 0 }: EditLandlordFormProps) {
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [error, setError]          = useState<string | null>(null)
   const [savedAt, setSavedAt]      = useState<Date | null>(null)
   const formRef                    = useRef<HTMLFormElement>(null)

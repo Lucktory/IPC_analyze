@@ -8,7 +8,8 @@
 // reactivar. A two-step inline confirm guards the baja.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { Ban, RotateCcw } from 'lucide-react'
 import {
@@ -27,7 +28,7 @@ interface Props {
 export function PropertyStatusControl({ propertyId, isActive, activeContractCount = 0 }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const router = useRouter()
 
   function run(action: () => Promise<UpdatePropertyResult>) {

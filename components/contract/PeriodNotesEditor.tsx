@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { saveContractPeriodNote } from '@/lib/contract/actions'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
 import { fmtDateTime }         from '@/lib/format'
@@ -22,7 +23,7 @@ export function PeriodNotesEditor({
   initialUpdatedAt,
   initialUpdatedBy,
 }: PeriodNotesEditorProps) {
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [body, setBody]            = useState(initialBody)
   const [error, setError]          = useState<string | null>(null)
   const [meta, setMeta]            = useState<{ at: string; by: string | null }>({

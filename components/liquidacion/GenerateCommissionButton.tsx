@@ -9,7 +9,8 @@
 // Uses the same 10s arm-cancel safety as every money-touching action.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { generateCommissionForPeriod } from '@/lib/transaction/actions'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
@@ -20,7 +21,7 @@ interface Props {
 }
 
 export function GenerateCommissionButton({ contractId, period }: Props) {
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [error, setError]          = useState<string | null>(null)
   const router                     = useRouter()
 

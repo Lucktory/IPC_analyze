@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getSection } from '@/lib/sections'
 import { Avatar } from '@/components/usuarios/Avatar'
-import { useNavProgress } from './NavProgress'
 
 interface NavItem {
   to: string
@@ -177,13 +176,6 @@ export function SideNav({
 }: SideNavProps = {}) {
   const pathname = usePathname()
   const isActive = (to: string) => pathname === to || pathname.startsWith(to + '/')
-  const { start } = useNavProgress()
-  // Start the loading line on a real navigation (not when re-clicking the page
-  // you're already on, which would leave the bar spinning for nothing).
-  const onLinkClick = (to: string) => () => {
-    if (!isActive(to)) start()
-    onNavigate?.()
-  }
 
   // Display name: prefer the real name, then the email local-part.
   const displayName = userName?.trim()
@@ -221,7 +213,7 @@ export function SideNav({
               <li key={item.to}>
                 <Link
                   href={item.to}
-                  onClick={onLinkClick(item.to)}
+                  onClick={onNavigate}
                   title={collapsed ? item.label : undefined}
                   // Active item = bold FILLED pill in the section's colour (keeps
                   // the app's per-section identity while adopting the reference's
@@ -262,7 +254,7 @@ export function SideNav({
               return (
                 <Link
                   href="/mi-perfil"
-                  onClick={onLinkClick('/mi-perfil')}
+                  onClick={onNavigate}
                   title={collapsed ? 'Mi perfil' : undefined}
                   style={active ? { backgroundColor: 'rgb(var(--color-info))' } : undefined}
                   className={[
@@ -291,7 +283,7 @@ export function SideNav({
                 return (
                   <Link
                     href="/usuarios"
-                    onClick={onLinkClick('/usuarios')}
+                    onClick={onNavigate}
                     title={collapsed ? 'Usuarios' : undefined}
                     style={active ? { backgroundColor: 'rgb(var(--color-info))' } : undefined}
                     className={[
@@ -323,7 +315,7 @@ export function SideNav({
                 return (
                   <Link
                     href="/actividades"
-                    onClick={onLinkClick('/actividades')}
+                    onClick={onNavigate}
                     title={collapsed ? 'Actividades' : undefined}
                     style={active ? { backgroundColor: 'rgb(var(--color-info))' } : undefined}
                     className={[

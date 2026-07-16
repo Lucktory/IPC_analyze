@@ -13,7 +13,8 @@
 // the editor as suggested labels; free-text fallback for anything new.
 // ============================================================================
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { fmtMoney } from '@/lib/format'
 import {
@@ -83,7 +84,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
   const [loaded, setLoaded]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
   const [draft, setDraft]     = useState<DraftLine>(emptyDraft(toMonthInput(currentPeriod)))
-  const [pending, startTx]    = useTransition()
+  const [pending, startTx]    = useBusyTransition()
   const router = useRouter()
 
   useEffect(() => {

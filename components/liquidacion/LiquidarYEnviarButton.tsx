@@ -31,7 +31,8 @@
 // are automated; sending is always done by the encargada in her own mail UI.
 // ============================================================================
 
-import { Fragment, useEffect, useState, useTransition } from 'react'
+import { Fragment, useEffect, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import {
   prepareEmailDraft,
@@ -54,7 +55,7 @@ export function LiquidarYEnviarButton({
   contractId, landlordId, period, landlordName, landlordEmail, status,
 }: Props) {
   const [open, setOpen]                     = useState(false)
-  const [pending, startTransition]          = useTransition()
+  const [pending, startTransition]          = useBusyTransition()
   const [error, setError]                   = useState<string | null>(null)
   const [senderEmail, setSenderEmail]       = useState('')
   const [recipientDraft, setRecipientDraft] = useState(landlordEmail ?? '')

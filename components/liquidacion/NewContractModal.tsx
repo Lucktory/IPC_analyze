@@ -28,7 +28,8 @@
 // validates sums server-side and writes all the junction rows in one go.
 // ============================================================================
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import {
@@ -96,7 +97,7 @@ export function NewContractModal({
 }: Props) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const router = useRouter()
 
   // Option lists that grow as the user creates new entities inline.

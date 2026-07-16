@@ -7,7 +7,8 @@
 // the role-gated server actions.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import {
   createUsuario, updateUsuario, deleteUsuario, setUsuarioPhoto, removeUsuarioPhoto,
@@ -39,7 +40,7 @@ export function UsuariosClient({ initialUsuarios, currentUserId }: Props) {
   const [form, setForm]    = useState<FormState>(emptyForm())
   const [error, setError]  = useState<string | null>(null)
   const [showPass, setShowPass] = useState(false)
-  const [pending, startTx] = useTransition()
+  const [pending, startTx] = useBusyTransition()
   // Photo modal state.
   const [photoFile, setPhotoFile]       = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)

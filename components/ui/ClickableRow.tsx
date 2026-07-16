@@ -4,7 +4,7 @@
 // existing `<a>` or interactive element navigates; clicking an inner link
 // still works as expected (no double-navigation).
 
-import { useRouter } from 'next/navigation'
+import { useProgressRouter } from '@/components/shell/NavProgress'
 
 interface ClickableRowProps {
   href:       string
@@ -14,13 +14,13 @@ interface ClickableRowProps {
 }
 
 export function ClickableRow({ href, className = '', children, title }: ClickableRowProps) {
-  const router = useRouter()
+  const { navigate } = useProgressRouter()
 
   function handleClick(e: React.MouseEvent<HTMLTableRowElement>) {
     // Don't hijack clicks on existing links, buttons, or inputs
     const target = e.target as HTMLElement
     if (target.closest('a, button, input, label, select, textarea')) return
-    router.push(href)
+    navigate(href)
   }
 
   return (

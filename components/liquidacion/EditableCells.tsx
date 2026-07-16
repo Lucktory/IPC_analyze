@@ -11,7 +11,8 @@
 // ============================================================================
 
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { InlineNumberCell } from './InlineNumberCell'
 import { InlineSelectCell } from './InlineSelectCell'
 import { InlineDateRangeCell } from './InlineDateRangeCell'
@@ -241,7 +242,7 @@ export function EditableStatusCell({
   period:     string
   status:     LiquidacionStatus
 }) {
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [error, setError] = useState<string | null>(null)
   const [optimistic, setOptimistic] = useState<LiquidacionStatus | null>(null)
   const router = useRouter()

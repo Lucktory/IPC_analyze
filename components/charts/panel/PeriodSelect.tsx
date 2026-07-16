@@ -8,7 +8,8 @@
 // ============================================================================
 
 import { useRouter } from 'next/navigation'
-import { useTransition } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
+
 import { ChevronDown } from 'lucide-react'
 import { periodLabel } from '@/lib/period'
 
@@ -22,7 +23,7 @@ export function PeriodSelect({ current, periods, basePath = '/dashboard', extraQ
   extraQuery?: string
 }) {
   const router = useRouter()
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
 
   return (
     <div className="relative inline-flex items-center">

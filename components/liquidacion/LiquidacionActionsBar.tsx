@@ -14,7 +14,8 @@
 // everywhere else.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { transitionLiquidacionStatus } from '@/lib/liquidacion/actions'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
@@ -28,7 +29,7 @@ interface Props {
 }
 
 export function LiquidacionActionsBar({ contractId, landlordId, period, status }: Props) {
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [error, setError]          = useState<string | null>(null)
   const router                     = useRouter()
 

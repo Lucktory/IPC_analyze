@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { createContract } from '@/lib/contract/actions'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
 import { FormField }           from '@/components/ui/FormField'
@@ -32,7 +33,7 @@ const INDEXER_OPTIONS = [
 ]
 
 export function NewContractForm({ tenants, landlords, properties }: Props) {
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [error, setError]          = useState<string | null>(null)
   const formRef                    = useRef<HTMLFormElement>(null)
 

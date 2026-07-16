@@ -5,7 +5,8 @@
 // dni, photo) and password. Styled to match the Usuarios admin design.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import {
   updateMyProfile, changeMyPassword, setUsuarioPhoto, removeUsuarioPhoto,
@@ -31,7 +32,7 @@ export function MiPerfilClient({ id, email, role, fullName, phone, dni, photoUrl
   const [removePhoto, setRemovePhoto]   = useState(false)
   const [msg, setMsg]         = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [passMsg, setPassMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
-  const [pending, startTx]    = useTransition()
+  const [pending, startTx]    = useBusyTransition()
   const router = useRouter()
 
   const shownPhoto = photoPreview ?? (removePhoto ? null : photoUrl)

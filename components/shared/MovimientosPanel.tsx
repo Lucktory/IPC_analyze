@@ -14,7 +14,8 @@
 //   • Contract detail page — embedded as a section, no modal
 // ============================================================================
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { fmtMoney } from '@/lib/format'
 import {
@@ -40,7 +41,7 @@ export function MovimientosPanel({ contractId, period }: Props) {
   const [rows, setRows]       = useState<Movimiento[]>([])
   const [loaded, setLoaded]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
-  const [pending, startTx]    = useTransition()
+  const [pending, startTx]    = useBusyTransition()
   const router = useRouter()
 
   const [draft, setDraft] = useState({

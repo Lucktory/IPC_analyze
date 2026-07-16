@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { useSearchParams, usePathname } from 'next/navigation'
+import { useProgressRouter } from '@/components/shell/NavProgress'
 
 interface AutoSearchInputProps {
   initialValue:  string
@@ -33,7 +34,7 @@ export function AutoSearchInput({
   debounceMs  = 300,
   resetParams = [],
 }: AutoSearchInputProps) {
-  const router    = useRouter()
+  const { navigate } = useProgressRouter()
   const pathname  = usePathname()
   const params    = useSearchParams()
   const [value, setValue] = useState(initialValue)
@@ -47,11 +48,11 @@ export function AutoSearchInput({
       else       next.delete(paramName)
       for (const k of resetParams) next.delete(k)
       const qs = next.toString()
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      navigate(qs ? `${pathname}?${qs}` : pathname, { replace: true, scroll: false })
       committed.current = value
     }, debounceMs)
     return () => clearTimeout(t)
-  }, [value, params, paramName, debounceMs, pathname, router, resetParams])
+  }, [value, params, paramName, debounceMs, pathname, navigate, resetParams])
 
   return (
     <input

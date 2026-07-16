@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import {
   createBankInstitution,
   updateBankInstitution,
@@ -24,7 +25,7 @@ interface Props {
 }
 
 export function EditBankInstitutionForm({ bank, accountCount = 0 }: Props) {
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [error, setError]          = useState<string | null>(null)
   const [savedAt, setSavedAt]      = useState<Date | null>(null)
   const formRef                    = useRef<HTMLFormElement>(null)

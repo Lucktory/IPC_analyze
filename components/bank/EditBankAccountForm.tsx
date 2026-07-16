@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { updateBankAccount, deleteBankAccount } from '@/lib/bank/actions'
 import type { BankAccountDetail } from '@/lib/bank/queries'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
@@ -19,7 +20,7 @@ interface EditBankAccountFormProps {
 }
 
 export function EditBankAccountForm({ account, banks }: EditBankAccountFormProps) {
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [error, setError]          = useState<string | null>(null)
   const [savedAt, setSavedAt]      = useState<Date | null>(null)
   const formRef                    = useRef<HTMLFormElement>(null)

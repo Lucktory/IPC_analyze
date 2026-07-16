@@ -13,7 +13,8 @@
 // bespoke confirm logic here.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { RotateCcw } from 'lucide-react'
 import { rescindContract, reactivateContract, type InlineResult } from '@/lib/contract/inline-field-actions'
@@ -26,7 +27,7 @@ interface Props {
 
 export function ContractStatusControl({ contractId, status }: Props) {
   const [error, setError] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const router = useRouter()
 
   function run(action: () => Promise<InlineResult>) {

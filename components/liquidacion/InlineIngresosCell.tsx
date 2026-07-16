@@ -15,7 +15,8 @@
 // completes (so optimistic state stays consistent).
 // ============================================================================
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useFloatingPopover } from './useFloatingPopover'
@@ -114,7 +115,7 @@ export function InlineIngresosCell({
   const [open, setOpen]   = useState(false)
   const [drafts, setDrafts] = useState<DraftLine[]>([])
   const [error, setError]   = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const router    = useRouter()
 

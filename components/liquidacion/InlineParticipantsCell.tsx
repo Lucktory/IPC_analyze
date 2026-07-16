@@ -25,7 +25,8 @@
 // per the registry rule.
 // ============================================================================
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 
@@ -115,7 +116,7 @@ export function InlineParticipantsCell({
   useEffect(() => { setOptionList(initialOptions) }, [initialOptions])
 
   const [error, setError]     = useState<string | null>(null)
-  const [pending, startTrans] = useTransition()
+  const [pending, startTrans] = useBusyTransition()
   const [creating, setCreating] = useState<{ rowId: string; name: string } | null>(null)
 
   const buttonRef = useRef<HTMLButtonElement>(null)

@@ -17,7 +17,8 @@
 // is updated — the amount is preserved.
 // ============================================================================
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { upsertTransactionByContractPeriod, setRentBankDate, setLandlordPayoutBankDate } from '@/lib/transaction/actions'
 
@@ -43,7 +44,7 @@ export function InlineDateCell({ contractId, period, typeCode, initialDate, defa
   const [editing, setEditing]      = useState(false)
   const [value, setValue]          = useState(initialDate ?? '')
   const [error, setError]          = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const router   = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
 

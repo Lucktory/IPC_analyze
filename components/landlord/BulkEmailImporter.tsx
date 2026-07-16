@@ -13,7 +13,8 @@
 // the client.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import {
   previewEmailImport,
   applyEmailImport,
@@ -41,7 +42,7 @@ export function BulkEmailImporter() {
   const [preview, setPreview]   = useState<PreviewResult | null>(null)
   const [rows, setRows]         = useState<RowState[]>([])
   const [applyRes, setApplyRes] = useState<ApplyResult | null>(null)
-  const [pending, startTrans]   = useTransition()
+  const [pending, startTrans]   = useBusyTransition()
   const [error, setError]       = useState<string | null>(null)
 
   function handleAnalyze() {

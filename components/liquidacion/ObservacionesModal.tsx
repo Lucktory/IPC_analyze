@@ -18,7 +18,8 @@
 //           next), which is the day-20/day-10 deferral.
 // ============================================================================
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { fmtSignedMoney } from '@/lib/format'
@@ -75,7 +76,7 @@ export function ObservacionesModal({ open, onClose, contractId, period, summary,
   const [draft, setDraft] = useState<Draft>(emptyDraft())
   const [honDraft, setHonDraft] = useState({ description: '', amount: '', cuotas: '1', includesIva: false })
   const [error, setError] = useState<string | null>(null)
-  const [pending, startTx] = useTransition()
+  const [pending, startTx] = useBusyTransition()
   const router = useRouter()
 
   useEffect(() => {

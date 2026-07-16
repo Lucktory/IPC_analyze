@@ -20,7 +20,8 @@
 // Each has its own Save button + saved-at indicator.
 // ============================================================================
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import {
   createProperty,
@@ -98,7 +99,7 @@ export function EditPropertyForm({
   const isCreate = !property
 
   // ── Section 1: address + tipo (legacy submit) ──────────────────────────
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [error, setError]          = useState<string | null>(null)
   const [savedAt, setSavedAt]      = useState<Date | null>(null)
   const formRef                    = useRef<HTMLFormElement>(null)
@@ -141,7 +142,7 @@ export function EditPropertyForm({
   useEffect(() => { setLandlords(landlordOptions) }, [landlordOptions])
 
   const [creatingLandlord, setCreatingLandlord] = useState<{ rowId: string; name: string } | null>(null)
-  const [ownersPending, startOwnersTransition]  = useTransition()
+  const [ownersPending, startOwnersTransition]  = useBusyTransition()
   const [ownersError, setOwnersError]           = useState<string | null>(null)
   const [ownersSavedAt, setOwnersSavedAt]       = useState<Date | null>(null)
 
@@ -232,7 +233,7 @@ export function EditPropertyForm({
   useEffect(() => { setTenants(tenantOptions) }, [tenantOptions])
 
   const [creatingTenant, setCreatingTenant]   = useState<{ rowId: string; name: string } | null>(null)
-  const [tenantsPending, startTenantsTrans]   = useTransition()
+  const [tenantsPending, startTenantsTrans]   = useBusyTransition()
   const [tenantsError, setTenantsError]       = useState<string | null>(null)
   const [tenantsSavedAt, setTenantsSavedAt]   = useState<Date | null>(null)
 
@@ -304,7 +305,7 @@ export function EditPropertyForm({
     activeContract?.depositAmount != null ? String(activeContract.depositAmount) : '',
   )
   const [depositStatus, setDepositStatus] = useState<string>(activeContract?.depositStatus ?? 'held')
-  const [depositPending, startDepositTrans] = useTransition()
+  const [depositPending, startDepositTrans] = useBusyTransition()
   const [depositError, setDepositError]     = useState<string | null>(null)
   const [depositSavedAt, setDepositSavedAt] = useState<Date | null>(null)
 

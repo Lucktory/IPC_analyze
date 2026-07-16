@@ -9,7 +9,8 @@
 // (applyContractAumento) does the real math + records the adjustment.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { TrendingUp } from 'lucide-react'
 import { fmtMoney as fmt } from '@/lib/format'
@@ -29,7 +30,7 @@ export function AplicarAumentoControl({
   const [open, setOpen]     = useState(false)
   const [pctStr, setPctStr] = useState('')
   const [error, setError]   = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const router = useRouter()
 
   const pct      = Number(pctStr)

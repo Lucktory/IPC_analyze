@@ -16,7 +16,8 @@
 // Not every commission needs a bank — unpaid contracts have none, which is fine.
 // ============================================================================
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { generateCommissionForPeriod, tagCommissionBank } from '@/lib/transaction/actions'
 import { fmtMoney } from '@/lib/format'
@@ -38,7 +39,7 @@ interface Props {
 
 export function AdmiCell({ contractId, period, admi, ingresos, commissionPct, bankSum, textClass }: Props) {
   const [mode, setMode] = useState<Mode | null>(null)   // null = not picking
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 

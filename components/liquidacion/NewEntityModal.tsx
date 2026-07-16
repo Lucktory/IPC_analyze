@@ -15,7 +15,8 @@
 // grid's overflow + sticky stacking contexts.
 // ============================================================================
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect } from 'react'
+import { useBusyTransition } from '@/components/shell/NavProgress'
 import { createPortal } from 'react-dom'
 
 export type NewEntityFields =
@@ -38,7 +39,7 @@ export function NewEntityModal({ entityType, defaultName, onCancel, onCreate }: 
   const [email, setEmail]   = useState('')
   const [notes, setNotes]   = useState('')
   const [error, setError]   = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const [pending, startTransition] = useBusyTransition()
 
   // Close on Esc.
   useEffect(() => {
