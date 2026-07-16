@@ -48,6 +48,16 @@ export function entityLabel(entry: AuditEntry, refs?: Record<string, string>): s
   const base = entityBase(entry.entityType)
   if (entry.entityType === 'session') return 'Sesion'
   const j = (entry.after ?? entry.before ?? {}) as Record<string, unknown>
+  // Usuarios: show WHO the action targeted (name/email), not a raw id. Prefer
+  // the before/after snapshot (works even for a deleted user), then fall back
+  // to a resolved ref (photo-only entries carry no snapshot).
+  if (entry.entityType === 'usuarios') {
+    const who = ((j.full_name || j.email) as string | undefined)
+      || (entry.entityId ? refs?.[String(entry.entityId)] : undefined)
+    if (who) return `${base}: ${who}`
+    if (entry.entityId) return `${base} (${String(entry.entityId).slice(0, 8)})`
+    return base
+  }
   const friendly = (j.contract_number || j.name || j.label || j.code) as string | undefined
   if (friendly) return `${base} ${friendly}`
   // Resolve via a referenced contract (transactions, liquidaciones, events, recargos).

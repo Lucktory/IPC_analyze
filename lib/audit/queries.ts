@@ -97,7 +97,13 @@ async function resolveRefs(admin: ReturnType<typeof createSupabaseAdmin>, entrie
       if (typeof v === 'string' && v) buckets[f].add(v)
     }
   }
-  for (const e of entries) { scan(e.before); scan(e.after) }
+  // The TARGET of a usuarios action is the entry's entity_id — resolve it to a
+  // name/email so the UI can show WHO was promoted/demoted/edited.
+  const usuarioIds = new Set<string>()
+  for (const e of entries) {
+    scan(e.before); scan(e.after)
+    if (e.entityType === 'usuarios' && typeof e.entityId === 'string' && e.entityId) usuarioIds.add(e.entityId)
+  }
 
   const refs: Record<string, string> = {}
   const lookups: Array<[string, string, Set<string>]> = [
@@ -113,6 +119,15 @@ async function resolveRefs(admin: ReturnType<typeof createSupabaseAdmin>, entrie
     const { data } = await admin.from(table).select(`id, ${label}`).in('id', [...ids])
     for (const row of (data ?? []) as any[]) if (row.id && row[label]) refs[row.id] = String(row[label])
   }))
+
+  // Resolve usuarios targets to name (or email as fallback).
+  if (usuarioIds.size) {
+    const { data } = await admin.from('usuarios').select('id, full_name, email').in('id', [...usuarioIds])
+    for (const row of (data ?? []) as any[]) {
+      const label = row.full_name || row.email
+      if (row.id && label) refs[row.id] = String(label)
+    }
+  }
   return refs
 }
 
