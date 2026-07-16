@@ -19,6 +19,8 @@ interface Props {
   pageSize: number
   page:     number
   actors:   AuditActor[]
+  /** Today (YYYY-MM-DD, AR time) — date filters can never go past it. */
+  today:    string
   filters:  { actor: string; from: string; to: string; group: string; q: string }
 }
 
@@ -39,7 +41,7 @@ const TONE_BADGE: Record<Tone, string> = {
 }
 const INPUT = 'h-10 px-3 rounded-lg border border-line bg-cream/60 text-[13px] text-ink outline-none focus:border-info transition-colors'
 
-export function ActividadesClient({ entries, refs, total, pageSize, page, actors, filters }: Props) {
+export function ActividadesClient({ entries, refs, total, pageSize, page, actors, today, filters }: Props) {
   const router = useRouter()
   const [expanded, setExpanded] = useState<number | null>(null)
   const [q, setQ] = useState(filters.q)
@@ -84,10 +86,12 @@ export function ActividadesClient({ entries, refs, total, pageSize, page, actors
           </select>
         </Labeled>
         <Labeled label="Desde">
-          <input type="date" value={filters.from} onChange={e => go({ from: e.target.value })} className={INPUT} />
+          <input type="date" value={filters.from} max={filters.to || today}
+            onChange={e => go({ from: e.target.value })} className={INPUT} />
         </Labeled>
         <Labeled label="Hasta">
-          <input type="date" value={filters.to} onChange={e => go({ to: e.target.value })} className={INPUT} />
+          <input type="date" value={filters.to} min={filters.from || undefined} max={today}
+            onChange={e => go({ to: e.target.value })} className={INPUT} />
         </Labeled>
         <Labeled label="Tipo de accion">
           <select value={filters.group} onChange={e => go({ group: e.target.value })} className={INPUT + ' min-w-[150px]'}>

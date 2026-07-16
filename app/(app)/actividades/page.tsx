@@ -21,11 +21,18 @@ export default async function ActividadesPage({ searchParams }: PageProps) {
   const page = Math.max(1, Number(sp.page) || 1)
   const group = GROUPS.includes(sp.group as AuditActionGroup) ? (sp.group as AuditActionGroup) : null
 
+  // Activity can never be in the future: cap the date filters at today (AR time).
+  // Computed server-side so the value is stable (no hydration mismatch) and any
+  // future date already sitting in the URL gets clamped.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date())
+  const from = sp.from && sp.from > today ? today : (sp.from ?? '')
+  const to   = sp.to   && sp.to   > today ? today : (sp.to   ?? '')
+
   const [res, actors] = await Promise.all([
     listAuditLog({
       actorId: sp.actor || null,
-      from:    sp.from ? `${sp.from}T00:00:00` : null,
-      to:      sp.to ? `${sp.to}T23:59:59` : null,
+      from:    from ? `${from}T00:00:00` : null,
+      to:      to   ? `${to}T23:59:59`   : null,
       group,
       query:   sp.q || null,
       page,
@@ -47,7 +54,8 @@ export default async function ActividadesPage({ searchParams }: PageProps) {
         pageSize={res.pageSize ?? 10}
         page={page}
         actors={actors}
-        filters={{ actor: sp.actor ?? '', from: sp.from ?? '', to: sp.to ?? '', group: sp.group ?? '', q: sp.q ?? '' }}
+        today={today}
+        filters={{ actor: sp.actor ?? '', from, to, group: sp.group ?? '', q: sp.q ?? '' }}
       />
     </>
   )
