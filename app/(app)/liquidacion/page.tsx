@@ -26,7 +26,7 @@ import { NewContractModal } from '@/components/liquidacion/NewContractModal'
 import { ResumenView } from '@/components/liquidacion/ResumenView'
 import { MovimientosView } from '@/components/liquidacion/MovimientosView'
 import { DestinosView } from '@/components/liquidacion/DestinosView'
-import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
+import { TokenSearchInput } from '@/components/ui/TokenSearchInput'
 import { fmtMoney as fmt } from '@/lib/format'
 
 type StatusFilter = 'todas' | LiquidacionStatus
@@ -111,17 +111,23 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
     : null
 
   // Text search — matches owner / tenant / contract number (plus co-owners,
-  // co-tenants and LFA code). Applied BEFORE the status split so the Estado
-  // counts and the KPI strip below track the search exactly the way they
-  // already track the status filter.
-  const searchedRows = q
+  // co-tenants and LFA code). The query is split into space-separated tokens
+  // and a row matches only when EVERY token is found in some field (AND), so
+  // the user can stack conditions (owner + contract + tenant) in any order.
+  // Matching is accent- AND case-insensitive so "perez" finds "Perez".
+  // Applied BEFORE the status split so the Estado counts and the KPI strip
+  // below track the search exactly the way they already track the status
+  // filter.
+  const fold        = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+  const searchTokens = fold(qRaw).split(/\s+/).filter(Boolean)
+  const searchedRows = searchTokens.length
     ? allRows.filter(r => {
         const hay = [
           r.propietario, r.inquilino, r.contrato, r.lfa,
           ...r.landlordsList.map(l => l.name),
           ...r.tenantsList.map(t => t.name),
-        ]
-        return hay.some(v => (v ?? '').toLowerCase().includes(q))
+        ].map(v => fold(v ?? ''))
+        return searchTokens.every(tok => hay.some(v => v.includes(tok)))
       })
     : allRows
 
@@ -250,8 +256,8 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
           {view === 'grilla' && (
             <>
               <span className="label-cap text-slate shrink-0 ml-3">Buscar</span>
-              <div className="w-52 sm:w-64">
-                <AutoSearchInput
+              <div className="w-56 sm:w-72">
+                <TokenSearchInput
                   initialValue={qRaw}
                   placeholder="Propietario, inquilino o contrato..."
                 />
