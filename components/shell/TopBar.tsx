@@ -7,6 +7,7 @@ import { getSection, getBreadcrumbSuffix } from '@/lib/sections'
 import { useBreadcrumbTitle } from './BreadcrumbContext'
 import { UserMenu } from './UserMenu'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
+import { IpcRefreshControl } from '@/components/ipc/IpcRefreshControl'
 import { type UsuarioRole } from '@/lib/usuarios/types'
 
 interface TopBarProps {
@@ -99,6 +100,8 @@ export function TopBar({
           </span>
         )}
       </Link>
+
+      <IpcRefreshControl />
 
       <div className="self-center">
         <ThemeToggle />
