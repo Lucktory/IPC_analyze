@@ -28,6 +28,7 @@ export interface ContractDetail {
   startDate:       string
   endDate:         string
   nextAdjustmentDate: string | null
+  lastAdjustmentDate: string | null
   paymentDay:      number
   commissionPct:   number
   depositAmount:   number | null
@@ -46,7 +47,7 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     .select(`
       id, contract_number, status, current_rent, initial_rent, expensas,
       rent_facturado_neto, rent_no_facturado, rent_iva_rate, currency, cadence, indexer,
-      start_date, end_date, next_adjustment_date, payment_day, commission_pct, deposit_amount, deposit_status, notes,
+      start_date, end_date, next_adjustment_date, last_adjustment_date, payment_day, commission_pct, deposit_amount, deposit_status, notes,
       contract_landlords(ownership_pct, landlords(id, name, dni_or_cuit)),
       contract_tenants(is_primary, share_pct, tenants(id, name, phone, dni)),
       properties(id, address, unit, city, property_type)
@@ -73,6 +74,7 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     startDate:       c.start_date,
     endDate:         c.end_date,
     nextAdjustmentDate: c.next_adjustment_date,
+    lastAdjustmentDate: c.last_adjustment_date ?? null,
     paymentDay:      c.payment_day,
     commissionPct:   Number(c.commission_pct ?? 8),
     depositAmount:   c.deposit_amount != null ? Number(c.deposit_amount) : null,

@@ -8,6 +8,8 @@ import Link from 'next/link'
 import { AlertCircle, AlertTriangle, ShieldCheck, ChevronRight } from 'lucide-react'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { PeriodSelect } from '@/components/charts/panel/PeriodSelect'
+import { RefreshIpcButton } from '@/components/ipc/RefreshIpcButton'
+import { getIpcCoverage } from '@/lib/ipc/queries'
 import { getDiagnosticoDigest, type DiagnosticoItem } from '@/lib/liquidacion/diagnostico'
 import { getDashboardPeriod, getPeriodsWithData } from '@/lib/dashboard/queries'
 import { prettyValidationCode } from '@/components/shared/ValidationIssueRow'
@@ -35,7 +37,7 @@ export default async function DiagnosticoPage({ searchParams }: PageProps) {
   const regla = sp.regla ?? null
   const q     = (sp.q ?? '').trim().toLowerCase()
 
-  const [latest, dataPeriods] = await Promise.all([getDashboardPeriod(), getPeriodsWithData()])
+  const [latest, dataPeriods, ipcCoverage] = await Promise.all([getDashboardPeriod(), getPeriodsWithData(), getIpcCoverage()])
   const validReq = sp.period && /^\d{4}-\d{2}-01$/.test(sp.period) ? sp.period : null
   const period = validReq ?? latest
   const selectorPeriods = buildPeriodTabs(dataPeriods, period, 3)
@@ -90,7 +92,10 @@ export default async function DiagnosticoPage({ searchParams }: PageProps) {
             <span className="text-slate-dark">Diagnóstico</span>
           </nav>
         </div>
-        <PeriodSelect current={period} periods={selectorPeriods} basePath="/diagnostico" extraQuery={dgExtraQuery} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <RefreshIpcButton latest={ipcCoverage.latest} />
+          <PeriodSelect current={period} periods={selectorPeriods} basePath="/diagnostico" extraQuery={dgExtraQuery} />
+        </div>
       </header>
 
       {/* KPI cards */}

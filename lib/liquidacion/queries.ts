@@ -20,6 +20,8 @@ import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
 import { buildEventsSummariesBulk, buildReceiptAjustes, type EventsSummary, type AjusteLine } from '@/lib/contract/events-bulk'
 import { EVENT_KIND, EVENT_STATUS } from '@/lib/contract/events-types'
+import { CADENCE_MONTHS, nextAdjustmentDate, evaluatePendingAumento } from '@/lib/contract/aumento'
+import { getIpcIndexMap } from '@/lib/ipc/queries'
 import { getArgentinaToday } from '@/lib/period'
 
 export type { ValidationIssue, ContractExpiryRowStatus, DeudaBreakdown, RecurringChargesSummary, AjusteLine }
@@ -150,21 +152,8 @@ function periodHasAumentoApplied(
   }
 }
 
-// ── Cadence helpers — mirrors the function in lib/pending/queries.ts so
-// the orange-highlight rule (aumento ≤30d) uses the SAME logic as the
-// Pendientes bell. Don't divergent — refactor to a shared module if a third
-// caller appears.
-const CADENCE_MONTHS: Record<string, number> = {
-  mensual: 1, bimestral: 2, trimestral: 3, cuatrimestral: 4, semestral: 6, anual: 12,
-}
-function nextAdjustmentDate(startDate: string, cadence: string, today: Date): Date | null {
-  const months = CADENCE_MONTHS[cadence]
-  if (!months) return null
-  const next = new Date(startDate)
-  let safety = 1000
-  while (next <= today && safety-- > 0) next.setMonth(next.getMonth() + months)
-  return safety > 0 ? next : null
-}
+// Cadence helpers now live in the shared module (lib/contract/aumento.ts) —
+// CADENCE_MONTHS + nextAdjustmentDate are imported at the top of this file.
 
 export type LiquidacionStatus = 'draft' | 'sent' | 'paid'
 
@@ -665,16 +654,16 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
   const supabase = await createSupabaseServer()
   const today = getArgentinaToday()   // ART, so payment/expiry day-counts use the office's date
 
-  const [contractsRes, txnsRes, liqsRes] = await Promise.all([
+  const [contractsRes, txnsRes, liqsRes, ipcIndexMap] = await Promise.all([
     supabase
       .from('contracts')
       .select(`
-        id, status, contract_number, lfa_code, expensas, current_rent,
+        id, status, contract_number, lfa_code, expensas, current_rent, initial_rent,
         rent_facturado_neto, rent_no_facturado, rent_iva_rate,
         cadence, start_date, end_date, payment_day,
         created_at, updated_at, commission_pct, commission_includes_iva,
         late_interest_enabled, late_interest_rate,
-        next_adjustment_date, sellado_total, sellado_applied_at, deposit_status,
+        next_adjustment_date, last_adjustment_date, sellado_total, sellado_applied_at, deposit_status,
         billing_administrator_id,
         billing_administrator:administrators!billing_administrator_id(name, tax_category),
         contract_tenants(is_primary, share_pct, tenants(id, name)),
@@ -693,6 +682,8 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       .from('liquidaciones')
       .select('id, contract_id, landlord_id, status, sent_at, paid_at, notes, adjustment_amount')
       .eq('period', period),
+    // INDEC index levels for the AUMENTO_PENDIENTE check (one read, reused per row).
+    getIpcIndexMap(),
   ])
 
   // ── Aggregate transactions per contract ──
@@ -1130,6 +1121,18 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           observacionesACobrar: (eventsSummary?.esteMes ?? []).filter(
             e => e.kind !== EVENT_KIND.HONORARIOS && e.status !== EVENT_STATUS.APPLIED,
           ).length,
+          // ── Aumento IPC (2026-07) ──
+          cadence: c.cadence ?? null,
+          initialRent: Number(c.initial_rent ?? c.current_rent ?? 0),
+          lastAdjustmentDate: c.last_adjustment_date ?? null,
+          aumentoPending: (c.cadence && c.start_date)
+            ? evaluatePendingAumento({
+                startDate: c.start_date, cadence: c.cadence, currentRent,
+                rentFacturadoNeto: null, rentNoFacturado: 0, rentIvaRate: 0,
+                lastAdjustmentDate: c.last_adjustment_date ?? null,
+                today, indexByMonth: ipcIndexMap,
+              })
+            : null,
         },
         c.commission_pct != null ? Number(c.commission_pct) : undefined,
         commissionIncludesIva,

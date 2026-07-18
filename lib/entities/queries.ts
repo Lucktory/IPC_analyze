@@ -7,6 +7,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { getCurrentPeriod } from '@/lib/period'
 import { deriveOwner, type OwnerType } from '@/lib/owner'
 import { displayCity } from '@/lib/geo'
+import { nextAdjustmentIso } from '@/lib/contract/aumento'
 import { pickPrimaryLandlord } from '@/lib/contract/primary'
 
 // ---------------------------------------------------------------------------
@@ -477,32 +478,7 @@ export interface ContractRow {
   urgencyReasons:    string[]      // human-readable reasons, for the hover tooltip
 }
 
-// Cadence → step in months between adjustments
-const CADENCE_MONTHS: Record<string, number> = {
-  mensual:       1,
-  bimestral:     2,
-  trimestral:    3,
-  cuatrimestral: 4,
-  semestral:     6,
-  anual:         12,
-}
-
-// Next adjustment date = start_date + N × cadence months, where N is the
-// smallest positive integer such that the result is strictly after `today`.
-// Returns null for unknown cadences or non-active contracts.
-function computeNextAdjustment(startDate: string, cadence: string, status: string, today: Date): string | null {
-  if (status !== 'active') return null
-  const months = CADENCE_MONTHS[cadence]
-  if (!months) return null
-  const next = new Date(startDate)
-  // Guard against infinite loops on bad data
-  let safety = 1000
-  while (next <= today && safety-- > 0) {
-    next.setMonth(next.getMonth() + months)
-  }
-  if (safety <= 0) return null
-  return next.toISOString().slice(0, 10)
-}
+// Next adjustment date now lives in the shared module (lib/contract/aumento.ts).
 
 
 export interface ContractListFilters {
@@ -589,7 +565,7 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
     const cId            = c.id as string
     const status         = c.status as string
     const endDate        = c.end_date as string
-    const nextAdj        = computeNextAdjustment(c.start_date, c.cadence, status, today)
+    const nextAdj        = nextAdjustmentIso(c.start_date, c.cadence, status, today)
     const hasRentNow     = !!hasRent.get(cId)
     const hasNoteNow     = !!hasNote.get(cId)
     const recentlyTouchedNow = !!recentTxn.get(cId) || !!recentNote.get(cId)

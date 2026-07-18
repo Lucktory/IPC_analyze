@@ -46,6 +46,13 @@ export const VALIDATION_TOLERANCES = {
    *  Float-arithmetic slop is well under 0.5 so this tolerance only
    *  hides real-but-tiny rounding, never actual data bugs. */
   PCT_SUM_TOLERANCE:           0.5,
+
+  /** Aumento pending: how close the charged rent can be to current_rent and
+   *  still count as "not yet increased" (peso floor + fraction of rent). The
+   *  ARquiler rounding convention diverges by ≤1 peso across cadences, so this
+   *  band absorbs that and sub-peso index noise. */
+  AUMENTO_PESOS:               2,
+  AUMENTO_FRACTION:            0.01,
 } as const
 
 export interface ValidationIssue {
@@ -90,6 +97,8 @@ export type ValidationCode =
   | 'RECURRING_CHARGE_NOT_RECORDED'
   // ── Observaciones sin confirmar (2026-07-14) ──
   | 'OBSERVACION_SIN_CONFIRMAR'
+  // ── Aumento IPC pendiente (2026-07) ──
+  | 'AUMENTO_PENDIENTE'
 
 // ── Row shape the validators read. Keep it minimal — only the fields
 //    actually used by the rules. Lets us evolve LiquidacionGridRow
@@ -180,6 +189,18 @@ export interface ValidatableRow {
    *  value due this month wasn't cobrado yet → drives OBSERVACION_SIN_CONFIRMAR
    *  (non-blocking warning; the mail/transfer can still be sent). */
   observacionesACobrar:          number
+
+  // ── Aumento IPC (2026-07) ─────────────────────────────────────────────
+  /** Contract cadence label (drives the aumento window). */
+  cadence:           string | null
+  /** contracts.initial_rent — used to tell a "pristine" (never-bumped) rent
+   *  from one whose base we can't trust for the pending-aumento target. */
+  initialRent:       number
+  /** contracts.last_adjustment_date (ISO) — null on imported contracts. */
+  lastAdjustmentDate: string | null
+  /** The most recent DUE IPC aumento (as of today) evaluated by the shared
+   *  module, or null when none is due / cadence unknown. Drives AUMENTO_PENDIENTE. */
+  aumentoPending:    import('@/lib/contract/aumento').AumentoPending | null
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -516,6 +537,55 @@ function checkContractNextAdjustmentOverdue(r: ValidatableRow): ValidationIssue 
   }
 }
 
+// AUMENTO_PENDIENTE — a scheduled IPC aumento is due but the rent is still stuck
+// at the pre-aumento value (the charged rent hasn't moved past current_rent).
+// This uses the CHARGED rent as the reality signal, so it does NOT fire on
+// contracts whose rent already increased (that's RENT_AMOUNT_VARIANCE's job) —
+// only on genuinely-missed aumentos like C-2026-0012. If the IPC months aren't
+// loaded yet it still flags the pending aumento, just without the target value.
+function checkAumentoPendiente(r: ValidatableRow): ValidationIssue | null {
+  const a = r.aumentoPending
+  if (!a) return null
+  // Only flag when current_rent is a TRUSTWORTHY base for the due aumento:
+  //   • pristine — never bumped (current_rent == initial_rent, no last_adjustment_date), or
+  //   • the last recorded adjustment predates this due one.
+  // Otherwise we can't tell whether current_rent already absorbed the increase,
+  // so we stay silent rather than show a double-counted target.
+  const pristine = r.lastAdjustmentDate == null && Math.abs(r.currentRent - r.initialRent) < 1
+  const recordedEarlier = r.lastAdjustmentDate != null && r.lastAdjustmentDate < a.effectivePeriod
+  if (!pristine && !recordedEarlier) return null
+
+  const charged = r.ingresosLines
+    .filter(l => l.typeCode === 'RENT_IN' || l.typeCode === 'RENT_NF_IN')
+    .reduce((s, l) => s + l.amount, 0)
+  const tol = Math.max(VALIDATION_TOLERANCES.AUMENTO_PESOS, r.currentRent * VALIDATION_TOLERANCES.AUMENTO_FRACTION)
+  // Only "pending" when the rent is still at (or below) the old value. If the
+  // charged rent already jumped, the increase happened — don't double-flag.
+  const stillOld = charged <= r.currentRent + tol
+  if (!stillOld) return null
+
+  if (a.ipcMissing || a.expectedNewRent == null) {
+    return {
+      code:     'AUMENTO_PENDIENTE',
+      severity: 'warning',
+      message:  `Aumento programado para ${a.effectivePeriod} sin aplicar (falta cargar el IPC para calcular el nuevo valor).`,
+      expected: null,
+      actual:   r.currentRent,
+      diff:     0,
+    }
+  }
+  const diff = a.expectedNewRent - r.currentRent
+  if (diff <= tol) return null   // computed increase negligible → nothing to flag
+  return {
+    code:     'AUMENTO_PENDIENTE',
+    severity: 'warning',
+    message:  `Aumento de ${a.effectivePeriod} sin aplicar: el alquiler debería pasar de ${fmtMoney(r.currentRent)} a ${fmtMoney(a.expectedNewRent)}.`,
+    expected: a.expectedNewRent,
+    actual:   r.currentRent,
+    diff,
+  }
+}
+
 const SELLADO_GRACE_DAYS = 35
 
 // 17. CONTRACT_SELLADO_PENDING — one-time sellado not yet applied past grace.
@@ -635,6 +705,8 @@ export function validateRow(
   push(checkBillingIvaMismatch(r))
   // ── Recurring charges (2026-06-20) ──
   push(checkRecurringChargeNotRecorded(r))
+  // ── Aumento IPC pendiente (2026-07) ──
+  push(checkAumentoPendiente(r))
 
   // Commission MISSING entirely: income + a configured % but ADMI = 0 means the
   // commission was never recorded, so the owner's transfer doesn't discount it

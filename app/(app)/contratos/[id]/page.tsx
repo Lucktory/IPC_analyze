@@ -12,6 +12,8 @@ import { PeriodNotesEditor } from '@/components/contract/PeriodNotesEditor'
 import { MovimientosPanel } from '@/components/shared/MovimientosPanel'
 import { RecurringChargesEditor } from '@/components/contract/RecurringChargesEditor'
 import { AplicarAumentoControl } from '@/components/contract/AplicarAumentoControl'
+import { CadenceControl } from '@/components/contract/CadenceControl'
+import { getSuggestedAumento } from '@/lib/contract/aumento-suggest'
 import { ContractStatusControl } from '@/components/contract/ContractStatusControl'
 import { InlineParticipantsCell } from '@/components/liquidacion/InlineParticipantsCell'
 import { CommissionPctEditor } from '@/components/contract/CommissionPctEditor'
@@ -24,21 +26,9 @@ import { getContractDiagnostico } from '@/lib/liquidacion/diagnostico'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { computeUrgency, hasRentForAudit, isRecentlyTouched, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 import { getCurrentPeriod } from '@/lib/period'
+import { nextAdjustmentIso } from '@/lib/contract/aumento'
 import { fmtMoney as fmt, fmtDate } from '@/lib/format'
 
-const CADENCE_MONTHS: Record<string, number> = {
-  mensual: 1, bimestral: 2, trimestral: 3, cuatrimestral: 4, semestral: 6, anual: 12,
-}
-function computeNextAdjustment(startDate: string, cadence: string, status: string): string | null {
-  if (status !== 'active') return null
-  const months = CADENCE_MONTHS[cadence]
-  if (!months) return null
-  const today = new Date()
-  const next  = new Date(startDate)
-  let safety  = 1000
-  while (next <= today && safety-- > 0) next.setMonth(next.getMonth() + months)
-  return safety > 0 ? next.toISOString().slice(0, 10) : null
-}
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const fmtMonthYear = (s: string) => { const d = new Date(s); return `${MONTHS_ES[d.getMonth()]} ${d.getFullYear()}` }
 const daysUntil = (s: string) => Math.round((new Date(s).getTime() - Date.now()) / 86400000)
@@ -77,7 +67,14 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
 
   const primaryTenant  = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
   const topLandlord    = contract.landlords.slice().sort((a, b) => b.ownershipPct - a.ownershipPct)[0]
-  const nextAdjustment = computeNextAdjustment(contract.startDate, contract.cadence, contract.status)
+  const nextAdjustment = nextAdjustmentIso(contract.startDate, contract.cadence, contract.status, new Date())
+  const suggestedAumento = contract.status === 'active'
+    ? await getSuggestedAumento({
+        startDate: contract.startDate, cadence: contract.cadence, currentRent: contract.currentRent,
+        rentFacturadoNeto: contract.rentFacturadoNeto, rentNoFacturado: contract.rentNoFacturado,
+        rentIvaRate: contract.rentIvaRate, lastAdjustmentDate: contract.lastAdjustmentDate,
+      })
+    : null
   const commissionPct  = embudo.totalIn > 0 ? (embudo.commissionTotal / embudo.totalIn) * 100 : 0
 
   const audit = computeUrgency({
@@ -163,13 +160,17 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
       </section>
 
       {/* Aumento — scales both parts for two-part contracts */}
-      <div className="flex justify-end">
+      <div className="flex items-start justify-end gap-3 flex-wrap">
+        <span className="inline-flex items-center gap-1.5 text-[12px] text-slate mt-1.5">
+          Cadencia: <CadenceControl contractId={contract.id} cadence={contract.cadence} />
+        </span>
         <AplicarAumentoControl
           contractId={contract.id}
           currentRent={contract.currentRent}
           rentFacturadoNeto={contract.rentFacturadoNeto}
           rentNoFacturado={contract.rentNoFacturado}
           rentIvaRate={contract.rentIvaRate}
+          suggested={suggestedAumento}
         />
       </div>
 
