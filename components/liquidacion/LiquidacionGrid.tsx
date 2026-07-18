@@ -322,8 +322,13 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               // muted, not catastrophic.
               if (!r) return null
               const issues          = r.validationIssues ?? []
+              // "cobrado" (rent bank date set) blacks the whole recibo row —
+              // alquiler + Admi + IVA + banks + otros + transferencia — since once
+              // the rent is collected those amounts form the recibo. Per Alejandro:
+              // only notas/observaciones stay grey until separately confirmed.
+              // The transfer date (r.diaTransf) still records when the payout was
+              // made; it just no longer gates these colors.
               const cobrado         = !!r.fechaBanco
-              const transferido     = !!r.diaTransf
               const expiryStatus    = r.expiryRowStatus ?? 'normal'
               const expiryClass     = CONTRACT_EXPIRY_ROW_CLASSES[expiryStatus] ?? ''
               const aumentoClass    = r.periodHasAumento ? ALQUILER_AUMENTO_CELL_CLASS : ''
@@ -686,7 +691,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       period={r.periodo}
                       typeCode="LANDLORD_PAYOUT"
                       value={r.transferencia}
-                      cobrado={transferido}
+                      cobrado={cobrado}
                       accent="text-success font-semibold"
                       label={`Transferencia ${fmtPeriodo(r.periodo)}`}
                     />
@@ -699,7 +704,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       period={r.periodo}
                       typeCode="OTHER_OUT"
                       value={r.otros}
-                      cobrado={transferido}
+                      cobrado={cobrado}
                       label={`Otros descuentos ${fmtPeriodo(r.periodo)}`}
                     />
                   </Td>
@@ -746,7 +751,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       ingresos={r.ingresos}
                       commissionPct={r.commissionPctConfigured}
                       bankSum={r.admGalicia + r.admFrances509 + r.admFrances516}
-                      textClass={cellTextClass(transferido)}
+                      textClass={cellTextClass(cobrado)}
                     />
                   </Td>
 
@@ -760,7 +765,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       includesIva={r.commissionIncludesIva}
                       ivaAmount={r.iva}
                       adminNet={r.admi - r.iva}
-                      amountClassName={cellTextClass(transferido)}
+                      amountClassName={cellTextClass(cobrado)}
                     />
                   </Td>
 
@@ -782,7 +787,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       typeCode="COMMISSION_OUT"
                       destination="ADM_GALICIA"
                       value={r.admGalicia}
-                      cobrado={transferido}
+                      cobrado={cobrado}
                       label="Comisión administración"
                       maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
                     />
@@ -796,7 +801,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       typeCode="COMMISSION_OUT"
                       destination="ADM_FRANCES_50_9"
                       value={r.admFrances509}
-                      cobrado={transferido}
+                      cobrado={cobrado}
                       label="Comisión administración"
                       maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
                     />
@@ -810,7 +815,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       typeCode="COMMISSION_OUT"
                       destination="ADM_FRANCES_51_6"
                       value={r.admFrances516}
-                      cobrado={transferido}
+                      cobrado={cobrado}
                       label="Comisión administración"
                       maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
                     />
