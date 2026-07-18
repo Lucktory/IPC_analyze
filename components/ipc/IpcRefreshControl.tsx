@@ -80,15 +80,17 @@ export function IpcRefreshControl() {
         onClick={() => doRefresh(false, status?.latestMonth ?? null)}
         disabled={pending}
         title={`Actualizar IPC (INDEC)${status?.latestMonth ? ` · último ${mLabel(status.latestMonth)}` : ''}`}
-        className={`h-9 px-2 sm:px-2.5 rounded inline-flex items-center gap-1.5 transition-colors self-center disabled:opacity-60 ${
-          status?.needsRefresh ? 'text-warn hover:bg-warn/10' : 'text-slate-dark hover:bg-cream-2 hover:text-ink'
+        className={`h-8 px-2.5 rounded-lg border inline-flex items-center gap-1.5 text-[12px] font-semibold transition-colors self-center disabled:opacity-60 ${
+          status?.needsRefresh
+            ? 'border-warn/60 text-warn bg-warn/15 hover:bg-warn/25'
+            : 'border-line text-ink bg-cream-2 hover:border-info/60 hover:text-info'
         }`}
       >
-        <RefreshCw className={`w-[18px] h-[18px] ${pending ? 'animate-spin' : ''}`} strokeWidth={1.5} />
-        <span className="hidden sm:inline text-[12px] font-medium">IPC</span>
+        <RefreshCw className={`w-4 h-4 ${pending ? 'animate-spin' : ''}`} strokeWidth={2} />
+        <span>IPC</span>
         {status?.needsRefresh && !pending && <span className="w-1.5 h-1.5 rounded-full bg-warn" aria-hidden />}
       </button>
-      {lastUpdated && <span className="hidden lg:inline text-[10px] text-slate whitespace-nowrap">act. {lastUpdated}</span>}
+      {lastUpdated && <span className="hidden xl:inline text-[10px] text-slate whitespace-nowrap">act. {lastUpdated}</span>}
 
       {modal && <IpcModal modal={modal} onClose={() => setModal(null)} />}
     </div>
