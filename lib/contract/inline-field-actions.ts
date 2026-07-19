@@ -16,7 +16,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { normalizeLfa } from '@/lib/contract/lfa'
 import { buildCommissionMarker } from '@/lib/bancos/destination'
-import { CADENCE_MONTHS, nextAdjustmentDate, lastScheduledAdjustment, firstUnappliedAdjustment, aumentoWindow, computeAumento } from '@/lib/contract/aumento'
+import { CADENCE_MONTHS, nextAdjustmentDate, lastScheduledAdjustment, pendingAdjustment, aumentoWindow, computeAumento } from '@/lib/contract/aumento'
 import { getIpcIndexMap } from '@/lib/ipc/queries'
 
 export interface InlineResult {
@@ -179,7 +179,7 @@ export async function applyIpcAumento(contractId: string, effectivePeriod: strin
   // Idempotency + correct effective date: recompute the earliest UNAPPLIED
   // scheduled adjustment. Null → already applied / nothing due → no-op (so a
   // second click, or the panel re-rendering after refresh, can't double-apply).
-  const eff = firstUnappliedAdjustment(startDate, cadence, (c as any).last_adjustment_date ?? null, new Date())
+  const eff = pendingAdjustment(startDate, cadence, (c as any).last_adjustment_date ?? null, new Date())
   if (!eff) return { ok: true, error: null }
   const effMonth = `${eff.getUTCFullYear()}-${String(eff.getUTCMonth() + 1).padStart(2, '0')}`
   if (effMonth !== effectivePeriod.slice(0, 7)) {

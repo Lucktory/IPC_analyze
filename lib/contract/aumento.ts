@@ -113,6 +113,72 @@ export function firstUnappliedAdjustment(
   return null
 }
 
+/**
+ * The adjustment to treat as pending as of `asOf`, branching on the applied
+ * history:
+ *   • last_adjustment_date SET  → catch up the earliest unapplied one after it
+ *     (firstUnappliedAdjustment) — the rent was recorded up to that date.
+ *   • last_adjustment_date NULL → the MOST RECENT scheduled one on-or-before asOf
+ *     (lastScheduledAdjustment). Imported contracts have a null date but their
+ *     current_rent is already the CURRENT value, so there is nothing to catch up
+ *     from the start — only the upcoming window applies. (Walking from the start
+ *     would wrongly pick a years-old window for a long-running contract.)
+ * After an aumento is applied, last_adjustment_date is set, so the branch flips
+ * and it stops offering the same one (idempotent).
+ */
+export function pendingAdjustment(
+  startDate: string, cadence: string, lastAdjustmentDate: string | null, asOf: Date,
+): Date | null {
+  return lastAdjustmentDate
+    ? firstUnappliedAdjustment(startDate, cadence, lastAdjustmentDate, asOf)
+    : lastScheduledAdjustment(startDate, cadence, asOf)
+}
+
+/** True when `period` (YYYY-MM-01) is exactly k×N months after start (k≥1) —
+ *  i.e. a scheduled adjustment lands in that month. */
+export function periodHasAdjustment(startDate: string, cadence: string, period: string): boolean {
+  const N = CADENCE_MONTHS[cadence]
+  if (!N) return false
+  const s = parseYMD(startDate), p = parseYMD(period)
+  const months = (p.y - s.y) * 12 + (p.m0 - s.m0)
+  return months > 0 && months % N === 0
+}
+
+export interface ExpectedRent {
+  value:      number    // rent to show for the period
+  hasAumento: boolean   // the period is an adjustment period
+  ipcMissing: boolean   // aumento period but the IPC isn't loaded → shows current_rent
+}
+
+/**
+ * The alquiler value to display for a viewed `period`: current_rent adjusted by
+ * the aumento effective IN that period (current_rent × índice[M-2]/índice[M-2-N]),
+ * when that period is an adjustment period and it hasn't been applied yet. Falls
+ * back to current_rent otherwise (non-adjustment period, already applied, or IPC
+ * not loaded). The actual RENT_IN cobro, once recorded, overrides this estimate.
+ */
+export function expectedRentForPeriod(args: {
+  startDate:          string
+  cadence:            string
+  currentRent:        number
+  lastAdjustmentDate: string | null
+  period:             string             // YYYY-MM-01
+  indexByMonth:       Record<string, number>
+}): ExpectedRent {
+  const hasAumento = periodHasAdjustment(args.startDate, args.cadence, args.period)
+  if (!hasAumento) return { value: args.currentRent, hasAumento: false, ipcMissing: false }
+  // Already applied for this (or a later) period → current_rent is the new value.
+  if (args.lastAdjustmentDate != null && args.lastAdjustmentDate >= args.period) {
+    return { value: args.currentRent, hasAumento: true, ipcMissing: false }
+  }
+  const win = aumentoWindow(args.period, args.cadence)
+  if (!win) return { value: args.currentRent, hasAumento: true, ipcMissing: false }
+  const idxEnd   = args.indexByMonth[win.numeratorMonth]
+  const idxStart = args.indexByMonth[win.denominatorMonth]
+  if (idxEnd == null || idxStart == null) return { value: args.currentRent, hasAumento: true, ipcMissing: true }
+  return { value: round2(args.currentRent * (idxEnd / idxStart)), hasAumento: true, ipcMissing: false }
+}
+
 // ── IPC aumento window + calculation ────────────────────────────────────────
 
 export interface AumentoWindow {
@@ -229,7 +295,7 @@ export function evaluatePendingAumento(args: {
   today:              Date
   indexByMonth:       Record<string, number>
 }): AumentoPending | null {
-  const eff = firstUnappliedAdjustment(args.startDate, args.cadence, args.lastAdjustmentDate, args.today)
+  const eff = pendingAdjustment(args.startDate, args.cadence, args.lastAdjustmentDate, args.today)
   if (!eff) return null
   const effIso = `${eff.getUTCFullYear()}-${String(eff.getUTCMonth() + 1).padStart(2, '0')}-01`
   const result = computeAumento({
@@ -277,7 +343,7 @@ export function buildSuggestedAumento(args: {
   today:              Date
   indexByMonth:       Record<string, number>
 }): SuggestedAumento | null {
-  const eff = firstUnappliedAdjustment(args.startDate, args.cadence, args.lastAdjustmentDate, args.today)
+  const eff = pendingAdjustment(args.startDate, args.cadence, args.lastAdjustmentDate, args.today)
   if (!eff) return null
   const effIso = `${eff.getUTCFullYear()}-${String(eff.getUTCMonth() + 1).padStart(2, '0')}-01`
   const win = aumentoWindow(effIso, args.cadence)

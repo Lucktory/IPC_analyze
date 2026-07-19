@@ -599,14 +599,14 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       displayOverride={isNF
                         ? (
                           <span className="block leading-tight">
-                            <span className="tabular-nums">{fmtMoney(alquilerSum > 0 ? alquilerSum : r.currentRent)}</span>
+                            <span className="tabular-nums">{fmtMoney(alquilerSum > 0 ? alquilerSum : r.alquilerEsperado)}</span>
                             <span className="block text-[9px] text-slate normal-case font-normal tabular-nums whitespace-nowrap">
                               F {fmtMoney(nfFactCiva).slice(1)} · NF {fmtMoney(r.rentNoFacturado).slice(1)}
                             </span>
                           </span>
                         )
-                        : (alquilerSum === 0 && r.currentRent > 0
-                            ? <span className="tabular-nums">{fmtMoney(r.currentRent)}</span>
+                        : (alquilerSum === 0 && r.alquilerEsperado > 0
+                            ? <span className="tabular-nums">{fmtMoney(r.alquilerEsperado)}</span>
                             : undefined)}
                     />
                   </Td>

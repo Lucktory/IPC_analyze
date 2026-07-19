@@ -20,7 +20,7 @@ import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
 import { buildEventsSummariesBulk, buildReceiptAjustes, type EventsSummary, type AjusteLine } from '@/lib/contract/events-bulk'
 import { EVENT_KIND, EVENT_STATUS } from '@/lib/contract/events-types'
-import { CADENCE_MONTHS, nextAdjustmentDate, evaluatePendingAumento } from '@/lib/contract/aumento'
+import { CADENCE_MONTHS, nextAdjustmentDate, evaluatePendingAumento, expectedRentForPeriod } from '@/lib/contract/aumento'
 import { getIpcIndexMap } from '@/lib/ipc/queries'
 import { getArgentinaToday } from '@/lib/period'
 
@@ -419,6 +419,9 @@ export interface LiquidacionGridRow {
    *  persistent light-blue tint on the Alquiler cell that survives the
    *  cobrado transition (= proof the cobro arrived WITH the increase). */
   periodHasAumento:     boolean
+  /** Alquiler to show before a cobro arrives: current_rent adjusted by the
+   *  aumento effective in this period (auto-shows the new value), else current_rent. */
+  alquilerEsperado:     number
 }
 
 export interface IngresosLine {
@@ -1054,10 +1057,19 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         const periodStart = new Date(period)
         const tier        = computeExpiryRowStatus(c.end_date ?? null, periodStart)
         const hasAumento  = periodHasAumentoApplied(c.start_date ?? null, c.cadence ?? null, periodStart)
+        // Alquiler "esperado" for this period: current_rent adjusted by the aumento
+        // effective IN this period (auto-shows the new value in grey until cobrado).
+        const esperado = (c.cadence && c.start_date)
+          ? expectedRentForPeriod({
+              startDate: c.start_date, cadence: c.cadence, currentRent: Number(c.current_rent ?? 0),
+              lastAdjustmentDate: c.last_adjustment_date ?? null, period, indexByMonth: ipcIndexMap,
+            }).value
+          : Number(c.current_rent ?? 0)
         return {
           expiryRowStatus:      tier.status,
           daysUntilContractEnd: tier.daysUntil,
           periodHasAumento:     hasAumento,
+          alquilerEsperado:     esperado,
         }
       })(),
       // Phase 7A validations: pure-function checks over the row data.
