@@ -350,12 +350,13 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               const nfScale         = isNF && r.currentRent > 0 ? alquilerShown / r.currentRent : 1
               const nfFactShown     = nfFactCiva * nfScale
               const nfShown         = r.rentNoFacturado * nfScale
-              // Paid, but meaningfully SHORT of the live rent (e.g. the tenant
-              // paid the pre-aumento value). Tolerance = a fraction of the rent
-              // (with a peso floor) so rounding differences don't flag. Shown as a
-              // red "de <vigente>" note WITHOUT hiding the N/F split.
+              // Paid, but SHORT of the live rent — flag ANY real shortfall
+              // (Alejandro: marcá la diferencia exacta, sea $150 o $80.000; el
+              // operador decide por dueño si reclama el saldo). Peso floor of 1
+              // only absorbs our own sub-peso rounding. Shown as a red
+              // "faltan <diff>" note WITHOUT hiding the N/F split.
               const paidShort       = cobrado && alquilerSum > 0
-                                        && r.alquilerEsperado - alquilerSum > Math.max(100, r.alquilerEsperado * 0.005)
+                                        && r.alquilerEsperado - alquilerSum > 1
 
               // Row background priority (high → low):
               //   1. Validation ERROR        → pale red tint   (most urgent)
@@ -609,7 +610,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       popoverTitle="Alquiler — cobros c/factura (RENT_IN) + s/factura (N/F)"
                       cellBgClass={aumentoClass}
                       buttonTitle={paidShort
-                        ? `Cobraron ${fmtMoney(alquilerSum)} pero el alquiler vigente es ${fmtMoney(r.alquilerEsperado)}. ¿Pagaron el valor viejo, sin el aumento? Faltan ${fmtMoney(r.alquilerEsperado - alquilerSum)}.`
+                        ? `Cobraste ${fmtMoney(alquilerSum)}; el alquiler vigente es ${fmtMoney(r.alquilerEsperado)}. Faltan ${fmtMoney(r.alquilerEsperado - alquilerSum)}. Revisá si reclamás el saldo (según el dueño).`
                         : isNF
                           ? `Alquiler en dos partes — Facturado c/IVA ${fmtMoney(nfFactShown)} + N/F ${fmtMoney(nfShown)} = ${fmtMoney(alquilerShown)}`
                           : r.periodHasAumento
@@ -626,7 +627,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                               F {fmtMoney(nfFactShown).slice(1)} · NF {fmtMoney(nfShown).slice(1)}
                             </span>
                             {paidShort && (
-                              <span className="block text-[9px] text-danger normal-case font-normal tabular-nums whitespace-nowrap">de {fmtMoney(r.alquilerEsperado)}</span>
+                              <span className="block text-[9px] text-danger normal-case font-normal tabular-nums whitespace-nowrap">faltan {fmtMoney(r.alquilerEsperado - alquilerSum)}</span>
                             )}
                           </span>
                         )
@@ -636,7 +637,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                               ? (
                                 <span className="block leading-tight">
                                   <span className="tabular-nums">{fmtMoney(alquilerSum)}</span>
-                                  <span className="block text-[9px] text-danger normal-case font-normal tabular-nums whitespace-nowrap">de {fmtMoney(r.alquilerEsperado)}</span>
+                                  <span className="block text-[9px] text-danger normal-case font-normal tabular-nums whitespace-nowrap">faltan {fmtMoney(r.alquilerEsperado - alquilerSum)}</span>
                                 </span>
                               )
                             : undefined)}
