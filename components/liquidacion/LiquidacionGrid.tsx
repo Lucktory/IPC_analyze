@@ -339,11 +339,23 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               // Alquiler amount so the encargada records BOTH parts.
               const isNF            = r.rentFacturadoNeto != null
               const nfFactCiva      = isNF ? (r.rentFacturadoNeto as number) * (1 + r.rentIvaRate / 100) : 0
-              // Paid, but SHORT of the live rent (e.g. the tenant paid the
-              // pre-aumento value because they forgot the increase). Flag it in
-              // red right on the cell so the encargada catches it at a glance,
-              // without having to open the Deuda popover.
-              const paidShort       = cobrado && alquilerSum > 0 && r.alquilerEsperado - alquilerSum > 1
+              // The number shown in the cell: the actual cobro once recorded,
+              // else the live expected rent (current_rent carried forward by IPC).
+              const alquilerShown   = alquilerSum > 0 ? alquilerSum : r.alquilerEsperado
+              // N/F split scaled to RECONCILE with the shown total: each part is
+              // scaled by the same factor as the total, so Facturado + N-F ===
+              // the number above. They used to show the raw pre-aumento parts,
+              // which didn't add up to the IPC-increased total (e.g. 757k + 757k
+              // shown under a 1.641k total).
+              const nfScale         = isNF && r.currentRent > 0 ? alquilerShown / r.currentRent : 1
+              const nfFactShown     = nfFactCiva * nfScale
+              const nfShown         = r.rentNoFacturado * nfScale
+              // Paid, but meaningfully SHORT of the live rent (e.g. the tenant
+              // paid the pre-aumento value). Tolerance = a fraction of the rent
+              // (with a peso floor) so rounding differences don't flag. Shown as a
+              // red "de <vigente>" note WITHOUT hiding the N/F split.
+              const paidShort       = cobrado && alquilerSum > 0
+                                        && r.alquilerEsperado - alquilerSum > Math.max(100, r.alquilerEsperado * 0.005)
 
               // Row background priority (high → low):
               //   1. Validation ERROR        → pale red tint   (most urgent)
@@ -599,7 +611,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       buttonTitle={paidShort
                         ? `Cobraron ${fmtMoney(alquilerSum)} pero el alquiler vigente es ${fmtMoney(r.alquilerEsperado)}. ¿Pagaron el valor viejo, sin el aumento? Faltan ${fmtMoney(r.alquilerEsperado - alquilerSum)}.`
                         : isNF
-                          ? `Alquiler en dos partes — Facturado c/IVA ${fmtMoney(nfFactCiva)} + N/F ${fmtMoney(r.rentNoFacturado)} = ${fmtMoney(nfFactCiva + r.rentNoFacturado)}`
+                          ? `Alquiler en dos partes — Facturado c/IVA ${fmtMoney(nfFactShown)} + N/F ${fmtMoney(nfShown)} = ${fmtMoney(alquilerShown)}`
                           : r.periodHasAumento
                             ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
                             : undefined}
@@ -609,12 +621,13 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       displayOverride={isNF
                         ? (
                           <span className="block leading-tight">
-                            <span className="tabular-nums">{fmtMoney(alquilerSum > 0 ? alquilerSum : r.alquilerEsperado)}</span>
-                            {paidShort
-                              ? <span className="block text-[9px] text-danger normal-case font-normal tabular-nums whitespace-nowrap">de {fmtMoney(r.alquilerEsperado)}</span>
-                              : <span className="block text-[9px] text-slate normal-case font-normal tabular-nums whitespace-nowrap">
-                                  F {fmtMoney(nfFactCiva).slice(1)} · NF {fmtMoney(r.rentNoFacturado).slice(1)}
-                                </span>}
+                            <span className="tabular-nums">{fmtMoney(alquilerShown)}</span>
+                            <span className="block text-[9px] text-slate normal-case font-normal tabular-nums whitespace-nowrap">
+                              F {fmtMoney(nfFactShown).slice(1)} · NF {fmtMoney(nfShown).slice(1)}
+                            </span>
+                            {paidShort && (
+                              <span className="block text-[9px] text-danger normal-case font-normal tabular-nums whitespace-nowrap">de {fmtMoney(r.alquilerEsperado)}</span>
+                            )}
                           </span>
                         )
                         : (alquilerSum === 0 && r.alquilerEsperado > 0
