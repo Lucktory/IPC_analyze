@@ -24,6 +24,7 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { periodLabel, getArgentinaToday } from '@/lib/period'
+import { getLiveRent } from '@/lib/contract/live-rent'
 
 export const CARRYOVER_PERIODS = 3
 const DAYS_PER_MONTH = 30
@@ -97,6 +98,10 @@ export async function buildDeudaBreakdownsBulk(
   contracts: Array<{
     id:                    string
     currentRent:           number
+    /** Rent that actually applies THIS period (current_rent adjusted by an
+     *  unapplied aumento) — the same value the planilla Alquiler cell shows.
+     *  Falls back to currentRent when the caller doesn't compute it. */
+    expectedRentCurrentPeriod?: number
     paymentDay:            number
     startDate:             string | null
     lateInterestEnabled:   boolean
@@ -135,8 +140,14 @@ export async function buildDeudaBreakdownsBulk(
   }
 
   for (const c of contracts) {
+    // Current period is measured against the rent that applies THIS period
+    // (same value the Alquiler cell shows), so an unpaid aumento shows the right
+    // debt and a cobro at the new value clears it. Prior periods keep the
+    // documented V1 approximation (current_rent) — the correct historical rent
+    // per past month needs the adjustments history, flagged in the popover.
+    const expectedCurrent   = c.expectedRentCurrentPeriod ?? c.currentRent
     const cobradoThisPeriod = cobradoByKey.get(`${c.id}|${period}`) ?? 0
-    const deudaCurrent = Math.max(0, c.currentRent - cobradoThisPeriod)
+    const deudaCurrent = Math.max(0, expectedCurrent - cobradoThisPeriod)
 
     const carryover: DeudaCarryoverEntry[] = []
     for (const p of priors) {
@@ -164,7 +175,7 @@ export async function buildDeudaBreakdownsBulk(
     out.set(c.id, {
       contractId:          c.id,
       period,
-      expectedRent:        c.currentRent,
+      expectedRent:        expectedCurrent,
       cobradoThisPeriod,
       deudaCurrent,
       carryover,
@@ -186,15 +197,27 @@ export async function getDeudaBreakdown(
   const supabase = await createSupabaseServer()
   const { data: c } = await supabase
     .from('contracts')
-    .select('id, current_rent, payment_day, start_date, late_interest_enabled, late_interest_rate')
+    .select('id, current_rent, payment_day, start_date, cadence, last_adjustment_date, created_at, late_interest_enabled, late_interest_rate')
     .eq('id', contractId)
     .maybeSingle()
   if (!c) return null
+
+  // Current-period expected = the LIVE rent (current_rent carried forward by
+  // IPC), the same value the planilla + contract page show.
+  const expectedRentCurrentPeriod = await getLiveRent({
+    id:                 (c as any).id,
+    currentRent:        Number((c as any).current_rent ?? 0),
+    cadence:            (c as any).cadence ?? null,
+    startDate:          (c as any).start_date ?? null,
+    lastAdjustmentDate: (c as any).last_adjustment_date ?? null,
+    createdAt:          (c as any).created_at ?? null,
+  }, period)
 
   const map = await buildDeudaBreakdownsBulk(
     [{
       id:                  (c as any).id,
       currentRent:         Number((c as any).current_rent ?? 0),
+      expectedRentCurrentPeriod,
       paymentDay:          Number((c as any).payment_day ?? 5),
       startDate:           (c as any).start_date ?? null,
       lateInterestEnabled: (c as any).late_interest_enabled === true,

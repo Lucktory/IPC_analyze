@@ -55,6 +55,10 @@ function addMonthsFrom(startDate: string, k: number): Date {
   const lastDay = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate()
   return new Date(Date.UTC(ty, tm, Math.min(d, lastDay)))
 }
+/** A Date → 'YYYY-MM' month key (UTC). */
+function ymKey(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
 
 /** Next adjustment date = start + k×N months, smallest k strictly after `today`. */
 export function nextAdjustmentDate(startDate: string, cadence: string, today: Date): Date | null {
@@ -146,37 +150,88 @@ export function periodHasAdjustment(startDate: string, cadence: string, period: 
 
 export interface ExpectedRent {
   value:      number    // rent to show for the period
-  hasAumento: boolean   // the period is an adjustment period
-  ipcMissing: boolean   // aumento period but the IPC isn't loaded → shows current_rent
+  hasAumento: boolean   // the period is an adjustment period (drives the tint)
+  ipcMissing: boolean   // a needed index month isn't loaded → best-effort value
 }
 
 /**
- * The alquiler value to display for a viewed `period`: current_rent adjusted by
- * the aumento effective IN that period (current_rent × índice[M-2]/índice[M-2-N]),
- * when that period is an adjustment period and it hasn't been applied yet. Falls
- * back to current_rent otherwise (non-adjustment period, already applied, or IPC
- * not loaded). The actual RENT_IN cobro, once recorded, overrides this estimate.
+ * The 'YYYY-MM' the contract's current_rent is anchored at (known-correct as of):
+ *   • last_adjustment_date, when an aumento was applied (current_rent is that value)
+ *   • else the most recent scheduled adjustment on-or-before created_at — an
+ *     imported/created contract captured current_rent at that moment
+ *   • else the contract start (no adjustment had occurred yet)
+ */
+function anchorMonthKey(
+  startDate: string, cadence: string, lastAdjustmentDate: string | null, createdAt: string | null,
+): string {
+  if (lastAdjustmentDate) return monthKey(lastAdjustmentDate)
+  if (createdAt) {
+    const last = lastScheduledAdjustment(startDate, cadence, new Date(ymdMs(createdAt)))
+    if (last) return ymKey(last)
+  }
+  return monthKey(startDate)
+}
+
+/** Public wrapper: the 'YYYY-MM' the contract's current_rent is anchored at —
+ *  used by the contract page to show "de dónde salió" (since when this rent). */
+export function rentAnchorMonth(
+  startDate: string, cadence: string, lastAdjustmentDate: string | null, createdAt: string | null,
+): string {
+  return anchorMonthKey(startDate, cadence, lastAdjustmentDate, createdAt)
+}
+
+/**
+ * The alquiler value to display for a viewed `period`, computed FORWARD from the
+ * anchor (see anchorMonthKey):
+ *
+ *   value = current_rent × ∏ factor(w)   for every scheduled adjustment w with
+ *   anchor < month(w) ≤ period,   factor(w) = índice[w-2] / índice[w-2-N]
+ *
+ * ONE function for ALL cadences (N = CADENCE_MONTHS[cadence]). It carries an
+ * increase forward across the following months instead of only showing it in the
+ * exact adjustment month, so the value never "reverts" the month after an
+ * increase — no persistence required. `hasAumento` marks only the month an
+ * increase kicks in (orange tint). `ipcMissing` flags a missing index month
+ * (value is best-effort). The actual RENT_IN cobro, once recorded, overrides
+ * this estimate in the grid.
  */
 export function expectedRentForPeriod(args: {
   startDate:          string
   cadence:            string
   currentRent:        number
   lastAdjustmentDate: string | null
+  createdAt:          string | null      // import/creation stamp — anchors imported contracts
   period:             string             // YYYY-MM-01
   indexByMonth:       Record<string, number>
 }): ExpectedRent {
+  const N = CADENCE_MONTHS[args.cadence]
   const hasAumento = periodHasAdjustment(args.startDate, args.cadence, args.period)
-  if (!hasAumento) return { value: args.currentRent, hasAumento: false, ipcMissing: false }
-  // Already applied for this (or a later) period → current_rent is the new value.
-  if (args.lastAdjustmentDate != null && args.lastAdjustmentDate >= args.period) {
-    return { value: args.currentRent, hasAumento: true, ipcMissing: false }
+  if (!N) return { value: args.currentRent, hasAumento: false, ipcMissing: false }
+
+  const anchorMonth = anchorMonthKey(args.startDate, args.cadence, args.lastAdjustmentDate, args.createdAt)
+  const periodMonth = monthKey(args.period)
+
+  // Compound every scheduled adjustment after the anchor, up to the viewed
+  // period. Comparison is by MONTH (not exact day) so a start day ≠ 1 still
+  // applies its window in the right month.
+  let value = args.currentRent
+  let ipcMissing = false
+  let k = N, safety = 4000
+  while (safety-- > 0) {
+    const stepMonth = ymKey(addMonthsFrom(args.startDate, k))
+    if (stepMonth > periodMonth) break                 // beyond the viewed period
+    if (stepMonth > anchorMonth) {                     // not already baked into current_rent
+      const win = aumentoWindow(`${stepMonth}-01`, args.cadence)
+      if (win) {
+        const idxEnd   = args.indexByMonth[win.numeratorMonth]
+        const idxStart = args.indexByMonth[win.denominatorMonth]
+        if (idxEnd == null || idxStart == null) ipcMissing = true
+        else value = value * (idxEnd / idxStart)
+      }
+    }
+    k += N
   }
-  const win = aumentoWindow(args.period, args.cadence)
-  if (!win) return { value: args.currentRent, hasAumento: true, ipcMissing: false }
-  const idxEnd   = args.indexByMonth[win.numeratorMonth]
-  const idxStart = args.indexByMonth[win.denominatorMonth]
-  if (idxEnd == null || idxStart == null) return { value: args.currentRent, hasAumento: true, ipcMissing: true }
-  return { value: round2(args.currentRent * (idxEnd / idxStart)), hasAumento: true, ipcMissing: false }
+  return { value: round2(value), hasAumento, ipcMissing }
 }
 
 // ── IPC aumento window + calculation ────────────────────────────────────────

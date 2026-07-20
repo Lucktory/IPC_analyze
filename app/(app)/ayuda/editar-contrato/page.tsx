@@ -66,10 +66,11 @@ export default function EditarContratoPage() {
             </tbody>
           </table>
         </div>
-        <Callout tone="warn" title="Importante: el alquiler no se cambia acá">
-          La celda <strong className="text-ink">Alquiler</strong> de la planilla es <strong className="text-ink">lo cobrado</strong> ese mes.
-          Para cambiar el <strong className="text-ink">alquiler del contrato</strong> (que sube con el tiempo), usá{' '}
-          <strong className="text-ink">Aplicar aumento</strong> en la ficha (ver más abajo).
+        <Callout tone="tip" title="El alquiler sube solo por IPC">
+          El <strong className="text-ink">alquiler del contrato</strong> se actualiza <strong className="text-ink">solo</strong>: cada período que
+          toca aumento, la app calcula el nuevo valor por IPC y lo muestra en la celda <strong className="text-ink">Alquiler</strong> (en gris)
+          hasta que cargás lo cobrado. No hay que tocar nada para que suba.{' '}
+          <strong className="text-ink">Aplicar aumento</strong> en la ficha queda como opción para dejarlo registrado o poner un <strong className="text-ink">%</strong> a mano (ver más abajo).
         </Callout>
       </GuideCard>
 
@@ -77,10 +78,14 @@ export default function EditarContratoPage() {
       <GuideCard title="B. Desde la ficha del contrato" tint="#0F766E">
         <div className="space-y-4">
           <div>
-            <h3 className="text-[13.5px] font-semibold text-ink mb-1.5">Aplicar aumento</h3>
+            <h3 className="text-[13.5px] font-semibold text-ink mb-1.5">Aplicar aumento (opcional)</h3>
+            <p className="text-[13px] text-slate-dark leading-relaxed mb-2">
+              El alquiler <strong className="text-ink">ya sube solo por IPC</strong> cada período. Este paso es opcional: sirve para dejar
+              el aumento <strong className="text-ink">registrado</strong> o para poner un <strong className="text-ink">%</strong> a mano.
+            </p>
             <ul className="space-y-1.5">
-              <Step n={1}>Arriba a la derecha, tocá <strong className="text-ink">Aplicar aumento</strong>.</Step>
-              <Step n={2}>Escribí el <strong className="text-ink">%</strong>; te muestra los montos <strong className="text-ink">nuevos</strong> antes de aplicar.</Step>
+              <Step n={1}>Arriba a la derecha, tocá <strong className="text-ink">Aplicar aumento</strong>. Te muestra el valor <strong className="text-ink">nuevo</strong> (por IPC) antes de aplicar.</Step>
+              <Step n={2}>Dejalo como está (IPC) o escribí un <strong className="text-ink">%</strong> propio.</Step>
               <Step n={3}>Confirmá. En contratos con <strong className="text-ink">N/F</strong>, escala las dos partes (facturado y no facturado) con el mismo factor.</Step>
             </ul>
           </div>

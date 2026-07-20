@@ -8,6 +8,7 @@ import { getCurrentPeriod } from '@/lib/period'
 import { deriveOwner, type OwnerType } from '@/lib/owner'
 import { displayCity } from '@/lib/geo'
 import { nextAdjustmentIso } from '@/lib/contract/aumento'
+import { buildLiveRentMap } from '@/lib/contract/live-rent'
 import { pickPrimaryLandlord } from '@/lib/contract/primary'
 
 // ---------------------------------------------------------------------------
@@ -187,7 +188,7 @@ export async function listTenants(period?: string): Promise<TenantRow[]> {
       .select('contract_id, tenant_id, is_primary'),
     supabase
       .from('contracts')
-      .select('id, contract_number, current_rent, status, properties(address, city)'),
+      .select('id, contract_number, current_rent, cadence, start_date, last_adjustment_date, created_at, status, properties(address, city)'),
     supabase
       .from('transactions')
       .select('contract_id, amount, transaction_types!inner(code)')
@@ -203,11 +204,20 @@ export async function listTenants(period?: string): Promise<TenantRow[]> {
     tenantsData = fallback.data
   }
 
+  // Live "Alquiler vigente" per contract (carried forward by IPC), so the tenant
+  // list's rent + monthlyRent match the planilla.
+  const tenantLiveRent = await buildLiveRentMap(
+    ((contractsRes.data ?? []) as any[]).map(c => ({
+      id: c.id, currentRent: Number(c.current_rent ?? 0), cadence: c.cadence,
+      startDate: c.start_date, lastAdjustmentDate: c.last_adjustment_date ?? null, createdAt: c.created_at ?? null,
+    })),
+    p,
+  )
   const contractInfo = new Map<string, { number: string | null; rent: number; active: boolean; address: string | null; city: string | null }>()
   for (const c of (contractsRes.data ?? []) as any[]) {
     contractInfo.set(c.id, {
       number:  c.contract_number ?? null,
-      rent:    Number(c.current_rent),
+      rent:    tenantLiveRent.get(c.id) ?? Number(c.current_rent),
       active:  c.status === 'active',
       address: c.properties?.address ?? null,
       city:    displayCity(c.properties?.city),
@@ -511,6 +521,7 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
       .from('contracts')
       .select(`
         id, contract_number, current_rent, cadence, indexer, payment_day, status, start_date, end_date,
+        last_adjustment_date, created_at,
         properties(address, unit, city),
         contract_tenants(is_primary, tenants(name)),
         contract_landlords(ownership_pct, landlords(id, name))
@@ -557,6 +568,16 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
     }
   }
 
+  // Live "Alquiler vigente" for the audit period — current_rent carried forward
+  // by any IPC increase since the anchor, so the list matches the planilla.
+  const liveRentMap = await buildLiveRentMap(
+    ((contractsRes.data ?? []) as any[]).map(c => ({
+      id: c.id, currentRent: Number(c.current_rent ?? 0), cadence: c.cadence,
+      startDate: c.start_date, lastAdjustmentDate: c.last_adjustment_date ?? null, createdAt: c.created_at ?? null,
+    })),
+    auditPeriod,
+  )
+
   // Normalise to ContractRow shape + compute urgency
   const all: (ContractRow & { landlordId: string })[] = (contractsRes.data ?? []).map((c: any) => {
     const primary  = c.contract_tenants?.find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
@@ -589,7 +610,7 @@ export async function listContracts(filters: ContractListFilters = {}): Promise<
       propertyUnit:      c.properties?.unit ?? null,
       propertyCity:      displayCity(c.properties?.city),
       landlordId:        topOwner?.landlords?.id ?? '',
-      currentRent:       Number(c.current_rent),
+      currentRent:       liveRentMap.get(cId) ?? Number(c.current_rent),
       cadence:           c.cadence,
       indexer:           c.indexer ?? 'IPC_GENERAL',
       paymentDay:        c.payment_day ?? 5,
@@ -709,11 +730,20 @@ export async function listProperties(): Promise<PropertyRow[]> {
     supabase
       .from('contracts')
       .select(`
-        id, property_id, current_rent, status,
+        id, property_id, current_rent, cadence, start_date, last_adjustment_date, created_at, status,
         contract_tenants(is_primary, share_pct, tenants(id, name))
       `)
       .eq('status', 'active'),
   ])
+
+  // Live "Alquiler vigente" per active contract (carried forward by IPC), so the
+  // properties list/detail match the planilla.
+  const propLiveRent = await buildLiveRentMap(
+    ((contractsRes.data ?? []) as any[]).map(c => ({
+      id: c.id, currentRent: Number(c.current_rent ?? 0), cadence: c.cadence,
+      startDate: c.start_date, lastAdjustmentDate: c.last_adjustment_date ?? null, createdAt: c.created_at ?? null,
+    })),
+  )
 
   // Map property_id → its ACTIVE contract (tenant / rent / ocupada). Only active
   // contracts count as "occupied": a property whose only contract is ended/draft
@@ -757,7 +787,7 @@ export async function listProperties(): Promise<PropertyRow[]> {
         .sort((a, b) => b.sharePct - a.sharePct)
       const primary = (contract.contract_tenants as any[]).find(ct => ct.is_primary) ?? contract.contract_tenants?.[0]
       tenant = primary?.tenants?.name ?? null
-      rent   = Number(contract.current_rent)
+      rent   = propLiveRent.get(contract.id) ?? Number(contract.current_rent)
     }
 
     const isActive = p.is_active !== false

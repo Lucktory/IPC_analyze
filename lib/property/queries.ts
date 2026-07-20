@@ -3,6 +3,7 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { displayCity, displayProvince } from '@/lib/geo'
+import { buildLiveRentMap } from '@/lib/contract/live-rent'
 
 // ── Property autocomplete option (id + label only) ─────────────────────────
 export interface PropertyOption {
@@ -92,7 +93,7 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
       id, address, unit, city, province, property_type, rooms, surface_m2, notes, is_active,
       property_landlords(ownership_pct, landlords(id, name, dni_or_cuit)),
       contracts(
-        id, current_rent, status, cadence, start_date, end_date, payment_day, deposit_amount, deposit_status,
+        id, current_rent, status, cadence, start_date, last_adjustment_date, created_at, end_date, payment_day, deposit_amount, deposit_status,
         contract_tenants(is_primary, share_pct, tenants(id, name))
       )
     `)
@@ -109,6 +110,14 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
     cuit:         pl.landlords?.dni_or_cuit ?? null,
   })).filter((l: any) => l.id)
 
+  // Live "Alquiler vigente" (current_rent carried forward by IPC) so the
+  // property page matches the planilla.
+  const propLiveRent = await buildLiveRentMap(
+    ((p.contracts ?? []) as any[]).map((c: any) => ({
+      id: c.id, currentRent: Number(c.current_rent ?? 0), cadence: c.cadence,
+      startDate: c.start_date, lastAdjustmentDate: c.last_adjustment_date ?? null, createdAt: c.created_at ?? null,
+    })),
+  )
   const contracts: PropertyContract[] = (p.contracts ?? []).map((c: any) => {
     const tenants = (c.contract_tenants ?? [])
       .map((ct: any) => ({
@@ -122,7 +131,7 @@ export async function getPropertyDetail(id: string): Promise<PropertyDetail | nu
     return {
       id:             c.id,
       status:         c.status,
-      currentRent:    Number(c.current_rent),
+      currentRent:    propLiveRent.get(c.id) ?? Number(c.current_rent),
       cadence:        c.cadence,
       startDate:      c.start_date ?? null,
       endDate:        c.end_date ?? null,

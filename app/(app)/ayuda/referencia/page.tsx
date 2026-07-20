@@ -64,7 +64,7 @@ export default function ReferenciaPage() {
               <ColRow col="Contrato">Número y vigencia (inicio / fin) del contrato.</ColRow>
               <ColRow col="Deuda">Lo que debe el inquilino (este mes + arrastrado).</ColRow>
               <ColRow col="Pago">Día de pago del mes.</ColRow>
-              <ColRow col="Alquiler">El alquiler cobrado del período.</ColRow>
+              <ColRow col="Alquiler">El alquiler del período. Sube solo por IPC: muestra el valor nuevo (en gris) hasta que cargás lo cobrado.</ColRow>
               <ColRow col="Recargos">Cargos que se repiten cada mes (ABL, gas…) + punto verde/rojo.</ColRow>
               <ColRow col="Extras">Recuperos y otros ingresos que no son alquiler.</ColRow>
               <ColRow col="Honorarios">El fee de la inmobiliaria (ingreso propio, no va al dueño).</ColRow>
@@ -104,7 +104,7 @@ export default function ReferenciaPage() {
         <dl className="-my-2">
           <Term t="Un mes se ve vacío, ¿está mal?">No. Cada mes se carga por separado; si todavía no lo cargaste, se ve vacío. No es un error.</Term>
           <Term t="Los honorarios, ¿le descuentan algo al dueño?">No. Los honorarios son ingreso de la inmobiliaria y nunca entran en la liquidación del dueño.</Term>
-          <Term t="¿Cómo cambio el alquiler del contrato?">No se edita la celda Alquiler (esa es lo cobrado): usá «Aplicar aumento» en la ficha del contrato.</Term>
+          <Term t="¿Cómo cambio el alquiler del contrato?">El alquiler sube solo por IPC según la cadencia — no hace falta cambiarlo a mano. Para dejarlo registrado o poner un % propio, usá «Aplicar aumento» en la ficha.</Term>
           <Term t="Rescindí / di de baja algo por error, ¿lo puedo recuperar?">Sí. Todo es reversible: Reactivar contrato o Reactivar propiedad.</Term>
         </dl>
       </GuideCard>

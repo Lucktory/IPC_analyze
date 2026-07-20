@@ -26,7 +26,8 @@ import { getContractDiagnostico } from '@/lib/liquidacion/diagnostico'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { computeUrgency, hasRentForAudit, isRecentlyTouched, URGENCY_LABEL, URGENCY_BANNER, type UrgencyTier } from '@/lib/contract/urgency'
 import { getCurrentPeriod } from '@/lib/period'
-import { nextAdjustmentIso } from '@/lib/contract/aumento'
+import { nextAdjustmentIso, lastScheduledAdjustment } from '@/lib/contract/aumento'
+import { getLiveRent } from '@/lib/contract/live-rent'
 import { fmtMoney as fmt, fmtDate } from '@/lib/format'
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -68,6 +69,19 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
   const primaryTenant  = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
   const topLandlord    = contract.landlords.slice().sort((a, b) => b.ownershipPct - a.ownershipPct)[0]
   const nextAdjustment = nextAdjustmentIso(contract.startDate, contract.cadence, contract.status, new Date())
+  // "Alquiler vigente" = the LIVE rent for the viewed period (current_rent
+  // carried forward by IPC), matching the planilla + the lists. Its "desde" is
+  // the month that live value took effect (most recent scheduled adjustment).
+  const liveRent = await getLiveRent({
+    id:                 contract.id,
+    currentRent:        contract.currentRent,
+    cadence:            contract.cadence,
+    startDate:          contract.startDate,
+    lastAdjustmentDate: contract.lastAdjustmentDate,
+    createdAt:          contract.createdAt,
+  }, period)
+  const effAdj = lastScheduledAdjustment(contract.startDate, contract.cadence, new Date(period))
+  const rentEffectiveMonth = effAdj ? effAdj.toISOString().slice(0, 7) : contract.startDate.slice(0, 7)
   const suggestedAumento = contract.status === 'active'
     ? await getSuggestedAumento({
         startDate: contract.startDate, cadence: contract.cadence, currentRent: contract.currentRent,
@@ -99,7 +113,7 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
   const endDays   = daysUntil(contract.endDate)
 
   const kpis = [
-    { Icon: DollarSign,   color: '#3B82F6', label: 'Alquiler vigente', value: fmt(contract.currentRent), sub: `Desde ${fmtDate(contract.startDate)}` },
+    { Icon: DollarSign,   color: '#3B82F6', label: 'Alquiler vigente', value: fmt(liveRent), sub: `Desde ${fmtMonthYear(`${rentEffectiveMonth}-01`)}` },
     { Icon: RefreshCw,    color: '#8B5CF6', label: 'Cadencia',         value: cap(contract.cadence),      sub: `Día de pago: ${contract.paymentDay}` },
     { Icon: TrendingUp,   color: '#F59E0B', label: 'Índice',           value: indexerLabel(contract.indexer), sub: nextAdjustment ? `Próx. ${fmtMonthYear(nextAdjustment)}` : 'Sin ajuste' },
     { Icon: CalendarDays, color: '#16A34A', label: 'Inicio',           value: fmtDate(contract.startDate), sub: startDays < 0 ? `Hace ${monthsRound(startDays)} meses` : `En ${monthsRound(startDays)} meses` },

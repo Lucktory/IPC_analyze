@@ -390,14 +390,17 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                     <EditableLfaCell contractId={r.contractId} value={r.lfa} />
                   </Td>
 
-                  {/* 3. FECHA BANCO — sticky, click-to-edit (drives the RENT_IN cobro) */}
+                  {/* 3. FECHA BANCO — sticky, click-to-edit (drives the RENT_IN cobro).
+                       defaultAmount = r.alquilerEsperado (the rent that applies this
+                       period, same value the Alquiler cell shows) so the F.banco
+                       shortcut seeds the aumento amount, not the stale current_rent. */}
                   <Td sticky left={STICKY_LEFTS.fbanco} width={W.fbanco} bg={zebra} align="center">
                     <InlineDateCell
                       contractId={r.contractId}
                       period={r.periodo}
                       typeCode="RENT_IN"
                       initialDate={r.fechaBanco}
-                      defaultAmount={r.currentRent}
+                      defaultAmount={r.alquilerEsperado}
                     />
                   </Td>
 

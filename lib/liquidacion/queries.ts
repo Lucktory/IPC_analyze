@@ -20,7 +20,7 @@ import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
 import { buildEventsSummariesBulk, buildReceiptAjustes, type EventsSummary, type AjusteLine } from '@/lib/contract/events-bulk'
 import { EVENT_KIND, EVENT_STATUS } from '@/lib/contract/events-types'
-import { CADENCE_MONTHS, nextAdjustmentDate, evaluatePendingAumento, expectedRentForPeriod } from '@/lib/contract/aumento'
+import { nextAdjustmentDate, evaluatePendingAumento, expectedRentForPeriod, type ExpectedRent } from '@/lib/contract/aumento'
 import { getIpcIndexMap } from '@/lib/ipc/queries'
 import { getArgentinaToday } from '@/lib/period'
 
@@ -121,39 +121,17 @@ function computeExpiryRowStatus(
   }
 }
 
-// Does this period contain a rent-adjustment date for the contract?
-// Used to drive the persistent light-blue tint on the Alquiler cell.
-// Pure function — fails closed.
-function periodHasAumentoApplied(
-  startDate:   string | null,
-  cadence:     string | null,
-  periodStart: Date,
-): boolean {
-  try {
-    if (!startDate || !cadence) return false
-    const months = CADENCE_MONTHS[cadence]
-    if (!months) return false
-    const periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 1)
-    // Walk forward from start_date in cadence-month steps. Return true the
-    // moment any non-initial step lands inside [periodStart, periodEnd).
-    const candidate = new Date(startDate)
-    if (isNaN(candidate.getTime())) return false
-    const initialStamp = candidate.getTime()
-    let safety = 1000
-    while (candidate < periodEnd && safety-- > 0) {
-      if (candidate.getTime() !== initialStamp && candidate >= periodStart && candidate < periodEnd) {
-        return true
-      }
-      candidate.setMonth(candidate.getMonth() + months)
-    }
-    return false
-  } catch {
-    return false
-  }
-}
+// "Does this period have an aumento?" and "what rent applies this period?" are
+// ONE concern with ONE source of truth: expectedRentForPeriod() in
+// lib/contract/aumento.ts (its .hasAumento === periodHasAdjustment). The old
+// local periodHasAumentoApplied() duplicated that check with a drifting
+// setMonth + local-timezone walk that could disagree with the value on
+// day-29/30/31 starts (tint on, but amount not bumped — or vice versa). It was
+// removed: the row now reads the tint flag AND the alquiler value from the same
+// expectedRentForPeriod() result (see expectedRentByContract below).
 
-// Cadence helpers now live in the shared module (lib/contract/aumento.ts) —
-// CADENCE_MONTHS + nextAdjustmentDate are imported at the top of this file.
+// Cadence helpers live in the shared module (lib/contract/aumento.ts) —
+// nextAdjustmentDate + expectedRentForPeriod are imported at the top of this file.
 
 export type LiquidacionStatus = 'draft' | 'sent' | 'paid'
 
@@ -789,11 +767,38 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
   //     by the planilla Recargos cell's status dot and the
   //     RECURRING_CHARGE_NOT_RECORDED validation rule.
   // Both attach to each row below so the inline cells don't fetch again.
+
+  // SINGLE SOURCE OF TRUTH for "the rent that applies this period". One
+  // expectedRentForPeriod() call per contract, reused by the Alquiler cell
+  // (value + orange tint), the Deuda breakdown, and the F.banco cobro default —
+  // so they can never show different numbers. Non-adjustment periods just get
+  // current_rent; an unapplied aumento period gets current_rent × IPC factor.
+  const expectedRentByContract = new Map<string, ExpectedRent>()
+  for (const c of (contractsRes.data ?? []) as any[]) {
+    expectedRentByContract.set(
+      c.id,
+      c.cadence && c.start_date
+        ? expectedRentForPeriod({
+            startDate:          c.start_date,
+            cadence:            c.cadence,
+            currentRent:        Number(c.current_rent ?? 0),
+            lastAdjustmentDate: c.last_adjustment_date ?? null,
+            createdAt:          c.created_at ?? null,
+            period,
+            indexByMonth:       ipcIndexMap,
+          })
+        : { value: Number(c.current_rent ?? 0), hasAumento: false, ipcMissing: false },
+    )
+  }
+
   const [deudaBreakdownsByContract, recurringChargesByContract, eventsByContract] = await Promise.all([
     buildDeudaBreakdownsBulk(
       ((contractsRes.data ?? []) as any[]).map((c: any) => ({
         id:                  c.id,
         currentRent:         Number(c.current_rent ?? 0),
+        // Current-period debt is measured against the rent that actually applies
+        // this period (same value the Alquiler cell shows), not the stale base.
+        expectedRentCurrentPeriod: expectedRentByContract.get(c.id)?.value ?? Number(c.current_rent ?? 0),
         paymentDay:          Number(c.payment_day ?? 5),
         startDate:           c.start_date ?? null,
         lateInterestEnabled: c.late_interest_enabled === true,
@@ -1056,20 +1061,17 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       ...(() => {
         const periodStart = new Date(period)
         const tier        = computeExpiryRowStatus(c.end_date ?? null, periodStart)
-        const hasAumento  = periodHasAumentoApplied(c.start_date ?? null, c.cadence ?? null, periodStart)
-        // Alquiler "esperado" for this period: current_rent adjusted by the aumento
-        // effective IN this period (auto-shows the new value in grey until cobrado).
-        const esperado = (c.cadence && c.start_date)
-          ? expectedRentForPeriod({
-              startDate: c.start_date, cadence: c.cadence, currentRent: Number(c.current_rent ?? 0),
-              lastAdjustmentDate: c.last_adjustment_date ?? null, period, indexByMonth: ipcIndexMap,
-            }).value
-          : Number(c.current_rent ?? 0)
+        // Alquiler value AND the orange "this period has an aumento" tint come
+        // from the SAME expectedRentForPeriod() result (computed once above), so
+        // the amount shown and the tint can never disagree. The actual RENT_IN
+        // cobro overrides the value once recorded; the tint stays on the period.
+        const er = expectedRentByContract.get(c.id)
+          ?? { value: Number(c.current_rent ?? 0), hasAumento: false, ipcMissing: false }
         return {
           expiryRowStatus:      tier.status,
           daysUntilContractEnd: tier.daysUntil,
-          periodHasAumento:     hasAumento,
-          alquilerEsperado:     esperado,
+          periodHasAumento:     er.hasAumento,
+          alquilerEsperado:     er.value,
         }
       })(),
       // Phase 7A validations: pure-function checks over the row data.

@@ -26,6 +26,7 @@ import { getCurrentPeriod, getRecentPeriods, periodAxisLabel } from '@/lib/perio
 import { EVENTS_TABLE, EVENT_KIND, EVENT_STATUS } from '@/lib/contract/events-types'
 import { classifyDestination } from '@/lib/bancos/destination'
 import { pickPrimaryLandlord } from '@/lib/contract/primary'
+import { buildLiveRentMap } from '@/lib/contract/live-rent'
 
 // ── Filter primitives — applied to the joined transaction_types row.
 //    Centralized so a single typo can't desync the dashboard from the
@@ -496,7 +497,7 @@ export async function getCollectionHealth(period?: string): Promise<CollectionHe
     const [contractsRes, rentRes, ingresosRes] = await Promise.all([
       supabase
         .from('contracts')
-        .select('id, current_rent')
+        .select('id, current_rent, cadence, start_date, last_adjustment_date, created_at')
         .eq('status', 'active'),
       supabase
         .from('transactions')
@@ -511,9 +512,19 @@ export async function getCollectionHealth(period?: string): Promise<CollectionHe
         .eq('period', p),
     ])
 
-    const contracts    = (contractsRes.data ?? []) as { id: string; current_rent: number | string }[]
+    const contracts    = (contractsRes.data ?? []) as Array<{ id: string; current_rent: number | string; cadence: string | null; start_date: string | null; last_adjustment_date: string | null; created_at: string | null }>
     const rentPayments = (rentRes.data ?? [])      as { amount: number | string; contract_id: string | null }[]
     const allIngresos  = (ingresosRes.data ?? []) as { amount: number | string }[]
+
+    // Expected rent = the LIVE rent for the period (current_rent carried forward
+    // by any IPC increase), so "morosidad"/pending matches the planilla.
+    const liveRentMap = await buildLiveRentMap(
+      contracts.map(c => ({
+        id: c.id, currentRent: Number(c.current_rent ?? 0), cadence: c.cadence,
+        startDate: c.start_date, lastAdjustmentDate: c.last_adjustment_date ?? null, createdAt: c.created_at ?? null,
+      })),
+      p,
+    )
 
     const paidContractIds = new Set<string>(
       rentPayments.map(p => p.contract_id).filter((id): id is string => !!id),
@@ -521,7 +532,7 @@ export async function getCollectionHealth(period?: string): Promise<CollectionHe
     const totalContracts  = contracts.length
     const paidCount       = contracts.filter(c => paidContractIds.has(c.id)).length
     const unpaidCount     = totalContracts - paidCount
-    const expectedAmount  = contracts   .reduce((s, c) => s + Number(c.current_rent ?? 0), 0)
+    const expectedAmount  = contracts   .reduce((s, c) => s + (liveRentMap.get(c.id) ?? Number(c.current_rent ?? 0)), 0)
     const rentCollected   = rentPayments.reduce((s, p) => s + Number(p.amount       ?? 0), 0)
     const collectedAmount = allIngresos .reduce((s, p) => s + Number(p.amount       ?? 0), 0)
     const pendingAmount   = Math.max(0, expectedAmount - rentCollected)
@@ -571,13 +582,21 @@ export async function getContractsWithoutPayment(): Promise<TenantWithoutPayment
     const { data: contracts } = await supabase
       .from('contracts')
       .select(`
-        id, current_rent,
+        id, current_rent, cadence, start_date, last_adjustment_date, created_at,
         contract_tenants(is_primary, tenants(name)),
         contract_landlords(ownership_pct, landlords(name))
       `)
       .eq('status', 'active')
 
     if (!contracts) return []
+
+    // Live rent for the current period (current_rent carried forward by IPC).
+    const liveRentMap = await buildLiveRentMap(
+      (contracts as any[]).map(c => ({
+        id: c.id, currentRent: Number(c.current_rent ?? 0), cadence: c.cadence,
+        startDate: c.start_date, lastAdjustmentDate: c.last_adjustment_date ?? null, createdAt: c.created_at ?? null,
+      })),
+    )
 
     // For each contract, check if there's a RENT_IN in the current period.
     // "Without payment" is specifically rent — recuperos paid without rent
@@ -600,7 +619,7 @@ export async function getContractsWithoutPayment(): Promise<TenantWithoutPayment
         contractId:   c.id,
         tenantName:   primary?.tenants?.name ?? '(sin inquilino)',
         landlordName: firstLandlord?.landlords?.name ?? '(sin propietario)',
-        expectedRent: Number(c.current_rent),
+        expectedRent: liveRentMap.get(c.id) ?? Number(c.current_rent),
       }
     })
   } catch (err) {

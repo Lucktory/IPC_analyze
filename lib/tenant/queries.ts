@@ -1,6 +1,7 @@
 // Per-tenant detail (for the /inquilinos/[id] edit page).
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { buildLiveRentMap } from '@/lib/contract/live-rent'
 
 export interface TenantContractRow {
   id:              string
@@ -48,7 +49,7 @@ export async function getTenantDetail(id: string): Promise<TenantDetail | null> 
       id, name, email, phone, dni, notes,
       contract_tenants(
         contracts(
-          id, current_rent, status,
+          id, current_rent, status, cadence, start_date, last_adjustment_date, created_at,
           contract_landlords(ownership_pct, landlords(id, name)),
           contract_tenants(share_pct, tenants(id, name))
         )
@@ -60,9 +61,18 @@ export async function getTenantDetail(id: string): Promise<TenantDetail | null> 
   if (!data) return null
   const t = data as any
 
-  const contracts: TenantContractRow[] = (t.contract_tenants ?? [])
+  const rawContracts = (t.contract_tenants ?? [])
     .map((ct: any) => ct.contracts)
     .filter(Boolean)
+  // Live "Alquiler vigente" (current_rent carried forward by IPC) so the tenant
+  // page matches the planilla.
+  const tenantLiveRent = await buildLiveRentMap(
+    rawContracts.map((c: any) => ({
+      id: c.id, currentRent: Number(c.current_rent ?? 0), cadence: c.cadence,
+      startDate: c.start_date, lastAdjustmentDate: c.last_adjustment_date ?? null, createdAt: c.created_at ?? null,
+    })),
+  )
+  const contracts: TenantContractRow[] = rawContracts
     .map((c: any) => {
       // All co-owners with their pct, biggest stake first.
       const landlords = ((c.contract_landlords ?? []) as any[])
@@ -88,7 +98,7 @@ export async function getTenantDetail(id: string): Promise<TenantDetail | null> 
       return {
         id:              c.id,
         status:          c.status,
-        currentRent:     Number(c.current_rent),
+        currentRent:     tenantLiveRent.get(c.id) ?? Number(c.current_rent),
         primaryLandlord: landlords[0]?.name ?? null,
         landlords,
         tenants,
