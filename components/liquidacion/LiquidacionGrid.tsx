@@ -264,7 +264,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
           the bottom, vertical at the right) live here. The header row is
           sticky-top inside this container, and the sticky-left columns
           form a frozen freeze-panes corner. */}
-      <div className="overflow-auto flex-1 min-h-0">
+      <div className="overflow-auto flex-1 min-h-0 scroll-arrows">
         <table className="w-full text-[12px] border-collapse" style={{ minWidth: tableMinWidth }}>
           <thead className="bg-header text-[10px] uppercase tracking-wider text-ink font-semibold">
             {/* Group header row (2-level headers). Not sticky-top, so it
@@ -339,6 +339,11 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               // Alquiler amount so the encargada records BOTH parts.
               const isNF            = r.rentFacturadoNeto != null
               const nfFactCiva      = isNF ? (r.rentFacturadoNeto as number) * (1 + r.rentIvaRate / 100) : 0
+              // Paid, but SHORT of the live rent (e.g. the tenant paid the
+              // pre-aumento value because they forgot the increase). Flag it in
+              // red right on the cell so the encargada catches it at a glance,
+              // without having to open the Deuda popover.
+              const paidShort       = cobrado && alquilerSum > 0 && r.alquilerEsperado - alquilerSum > 1
 
               // Row background priority (high → low):
               //   1. Validation ERROR        → pale red tint   (most urgent)
@@ -591,11 +596,13 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       defaultNewLineType="RENT_IN"
                       popoverTitle="Alquiler — cobros c/factura (RENT_IN) + s/factura (N/F)"
                       cellBgClass={aumentoClass}
-                      buttonTitle={isNF
-                        ? `Alquiler en dos partes — Facturado c/IVA ${fmtMoney(nfFactCiva)} + N/F ${fmtMoney(r.rentNoFacturado)} = ${fmtMoney(nfFactCiva + r.rentNoFacturado)}`
-                        : r.periodHasAumento
-                          ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
-                          : undefined}
+                      buttonTitle={paidShort
+                        ? `Cobraron ${fmtMoney(alquilerSum)} pero el alquiler vigente es ${fmtMoney(r.alquilerEsperado)}. ¿Pagaron el valor viejo, sin el aumento? Faltan ${fmtMoney(r.alquilerEsperado - alquilerSum)}.`
+                        : isNF
+                          ? `Alquiler en dos partes — Facturado c/IVA ${fmtMoney(nfFactCiva)} + N/F ${fmtMoney(r.rentNoFacturado)} = ${fmtMoney(nfFactCiva + r.rentNoFacturado)}`
+                          : r.periodHasAumento
+                            ? 'Este período tuvo un aumento aplicado — confirmá que el cobro vino con el nuevo monto.'
+                            : undefined}
                       // Light-gray expected current_rent until the cobro
                       // arrives. For N/F contracts, show the facturado / N-F
                       // split under the amount so BOTH parts get recorded.
@@ -603,13 +610,22 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                         ? (
                           <span className="block leading-tight">
                             <span className="tabular-nums">{fmtMoney(alquilerSum > 0 ? alquilerSum : r.alquilerEsperado)}</span>
-                            <span className="block text-[9px] text-slate normal-case font-normal tabular-nums whitespace-nowrap">
-                              F {fmtMoney(nfFactCiva).slice(1)} · NF {fmtMoney(r.rentNoFacturado).slice(1)}
-                            </span>
+                            {paidShort
+                              ? <span className="block text-[9px] text-danger normal-case font-normal tabular-nums whitespace-nowrap">de {fmtMoney(r.alquilerEsperado)}</span>
+                              : <span className="block text-[9px] text-slate normal-case font-normal tabular-nums whitespace-nowrap">
+                                  F {fmtMoney(nfFactCiva).slice(1)} · NF {fmtMoney(r.rentNoFacturado).slice(1)}
+                                </span>}
                           </span>
                         )
                         : (alquilerSum === 0 && r.alquilerEsperado > 0
                             ? <span className="tabular-nums">{fmtMoney(r.alquilerEsperado)}</span>
+                            : paidShort
+                              ? (
+                                <span className="block leading-tight">
+                                  <span className="tabular-nums">{fmtMoney(alquilerSum)}</span>
+                                  <span className="block text-[9px] text-danger normal-case font-normal tabular-nums whitespace-nowrap">de {fmtMoney(r.alquilerEsperado)}</span>
+                                </span>
+                              )
                             : undefined)}
                     />
                   </Td>

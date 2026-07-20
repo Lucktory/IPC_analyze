@@ -1089,6 +1089,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           admFrances509:    a.frances509,
           admFrances516:    a.frances516,
           currentRent,
+          alquilerEsperado: expectedRentByContract.get(c.id)?.value ?? currentRent,
           pct,
           deuda,
           status:           (liq?.status ?? 'draft') as LiquidacionStatus,

@@ -117,6 +117,9 @@ export interface ValidatableRow {
   admFrances509:     number
   admFrances516:     number
   currentRent:       number
+  /** Live rent that applies THIS period (current_rent carried forward by IPC) —
+   *  the real "vigente". Use this, not currentRent, as the cobro baseline. */
+  alquilerEsperado:  number
   pct:               number   // effective % shown in the cell (admi/ingresos*100)
   deuda:             number
   status:            'draft' | 'sent' | 'paid'
@@ -346,23 +349,27 @@ function checkPaymentOverdue(r: ValidatableRow): ValidationIssue | null {
 // them in the planilla. Flagging underpayment as an "error" produced
 // false positives on every partial-collection row.
 function checkRentAmountVariance(r: ValidatableRow): ValidationIssue | null {
-  if (r.currentRent <= 0) return null
+  // Baseline is the LIVE rent (current_rent carried forward by IPC), not the
+  // stored anchor — otherwise a CORRECT payment of a big compounded increase
+  // (e.g. an anual contract) would false-flag as "¿cero extra?".
+  const vigente = r.alquilerEsperado > 0 ? r.alquilerEsperado : r.currentRent
+  if (vigente <= 0) return null
   const rentInSum = r.ingresosLines
     .filter(l => l.typeCode === 'RENT_IN' || l.typeCode === 'RENT_NF_IN')
     .reduce((s, l) => s + l.amount, 0)
-  if (rentInSum <= 0) return null              // not yet recorded
-  if (rentInSum <= r.currentRent) return null  // underpayment → Deuda handles it
-  const variance = (rentInSum - r.currentRent) / r.currentRent
+  if (rentInSum <= 0) return null          // not yet recorded
+  if (rentInSum <= vigente) return null     // underpayment → Deuda + the planilla flag it
+  const variance = (rentInSum - vigente) / vigente
   if (variance < VALIDATION_TOLERANCES.RENT_VARIANCE_WARN) return null
   const severity: 'error' | 'warning' =
     variance >= VALIDATION_TOLERANCES.RENT_VARIANCE_ERROR ? 'error' : 'warning'
   return {
     code:     'RENT_AMOUNT_VARIANCE',
     severity,
-    message:  `Alquiler cobrado (${fmtMoney(rentInSum)}) es ${(variance * 100).toFixed(0)}% mayor que el vigente (${fmtMoney(r.currentRent)}). Verificá que no sea un error de tipeo (¿cero extra?).`,
-    expected: r.currentRent,
+    message:  `Alquiler cobrado (${fmtMoney(rentInSum)}) es ${(variance * 100).toFixed(0)}% mayor que el vigente (${fmtMoney(vigente)}). Verificá que no sea un error de tipeo (¿cero extra?).`,
+    expected: vigente,
     actual:   rentInSum,
-    diff:     rentInSum - r.currentRent,
+    diff:     rentInSum - vigente,
   }
 }
 
