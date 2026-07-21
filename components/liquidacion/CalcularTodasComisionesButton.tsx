@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { useState } from 'react'
+import { Calculator } from 'lucide-react'
 import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import {
@@ -57,9 +58,9 @@ export function CalcularTodasComisionesButton({ period }: { period: string }) {
         type="button"
         onClick={openModal}
         title="Ver y calcular todas las comisiones pendientes del período"
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium text-paper bg-ink hover:opacity-90 transition-opacity"
+        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-success text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0 shadow-sm"
       >
-        Calcular todas
+        <Calculator size={15} /> Calcular todas
       </button>
 
       {open && (
