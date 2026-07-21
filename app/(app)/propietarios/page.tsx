@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Users, CircleCheck, Coins, TriangleAlert, SlidersHorizontal, Plus, ChevronRight } from 'lucide-react'
+import { Users, CircleCheck, Coins, TriangleAlert, SlidersHorizontal, Plus, ChevronRight, Upload } from 'lucide-react'
 import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { FilterPill } from '@/components/ui/FilterPill'
 import { ClickableRow } from '@/components/ui/ClickableRow'
@@ -117,6 +117,9 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
             </div>
           </div>
         </details>
+        <Link href="/propietarios/cargar-emails" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-success text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0">
+          <Upload size={16} /> Cargar emails
+        </Link>
         <Link href="/propietarios/nuevo" className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-info text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0">
           <Plus size={16} /> Nuevo propietario
         </Link>
