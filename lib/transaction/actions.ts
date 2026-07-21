@@ -25,7 +25,8 @@ import { dbFailure } from '@/lib/db-errors'
 import { updateContractCommissionPct } from '@/lib/contract/inline-field-actions'
 import { COMMISSION_IVA_RATE } from '@/lib/liquidacion/thresholds'
 import { isManagedRow, managedRowMessage, stripOtrosMarker, OTROS_CELL_MARKER, OTROS_CELL_ILIKE } from '@/lib/transaction/managed-rows'
-import { deriveCommissionDest, buildCommissionMarker, COMMISSION_MARKER_RE, type CommissionDest } from '@/lib/bancos/destination'
+import { deriveCommissionDest, buildCommissionMarker, COMMISSION_MARKER_RE, DESTINATION_SHORT_LABEL, type CommissionDest } from '@/lib/bancos/destination'
+import { pickPrimaryLandlord } from '@/lib/contract/primary'
 
 export interface TransactionResult {
   ok:    boolean
@@ -203,80 +204,81 @@ export async function createTransaction(formData: FormData): Promise<CreateTrans
 }
 
 // ============================================================================
-// generateCommissionForPeriod — auto-calculate Pampa's commission for a
-// (contract, period) based on total cobrado × contract.commission_pct.
+// computeCommissionForPeriod — the SINGLE commission calculation (total cobrado
+// × commission_pct, +21% IVA for RI) plus the contract's default bank. READ-ONLY:
+// it computes but writes nothing. Both generateCommissionForPeriod (which writes
+// it) and the "Calcular todas" PREVIEW use this one function, so what the preview
+// shows and what gets saved can never diverge.
 //
-// Per Alejandro's spec #2: applies to TOTAL COBRADO (alquiler + recuperos),
-// not just the rent. Sums all IN transactions where affects_liquidacion=true.
-//
-// Idempotent: if a COMMISSION_OUT already exists for the (contract, period),
-// updates its amount in place rather than inserting a duplicate.
-// ============================================================================
-export async function generateCommissionForPeriod(
+// Per Alejandro's spec #2: applies to TOTAL COBRADO (alquiler + recuperos), i.e.
+// every IN transaction with affects_liquidacion=true. Returns a reason (not a
+// value) when there is no income / no valid %, so callers keep the same messages.
+export interface CommissionComputation {
+  amount:      number
+  pct:         number
+  includesIva: boolean
+  ingresos:    number
+  destination: CommissionDest | null   // contract's default bank (or null)
+}
+export async function computeCommissionForPeriod(
   contractId: string,
   period:     string,
-  /** Optional bank destination. When set, the COMMISSION_OUT is tagged with the
-   *  marker so it lands in that bank column (Galicia / BBVA) instead of the
-   *  unclassified ADMI total — avoiding the ADMI_DESTINATIONS_UNCLASSIFIED
-   *  warning. The consolidate-then-upsert below keeps it a single row, so
-   *  re-tagging an existing (unclassified) commission never duplicates it. */
-  destination?: 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6',
-): Promise<TransactionResult> {
+): Promise<{ ok: true; value: CommissionComputation } | { ok: false; error: string; code?: 'NO_INCOME' }> {
   const supabase = await createSupabaseServer()
-
   const { data: contract, error: contractErr } = await supabase
     .from('contracts')
-    .select('administration_id, commission_pct, commission_includes_iva')
+    .select('commission_pct, commission_includes_iva, commission_destination')
     .eq('id', contractId)
     .maybeSingle()
-  if (contractErr) return dbFailure(contractErr)
+  if (contractErr) return { ok: false, error: contractErr.message }
   if (!contract)   return { ok: false, error: 'Contrato no encontrado.' }
 
   const pct = Number((contract as any).commission_pct ?? 8)
   if (!isFinite(pct) || pct <= 0) {
     return { ok: false, error: 'El contrato no tiene un % de comisión válido.' }
   }
-  // RI invoicers record the commission + 21% IVA on top ("ADM 9% + IVA"); the
-  // same factor the deviation check and the IVA column use. Without this the
-  // recompute wrote a 21%-short ADMI for IVA contracts, leaving the row
-  // inconsistent. Monotributo: no IVA.
+  // RI invoicers record the commission + 21% IVA on top ("ADM 9% + IVA"); same
+  // factor the deviation check and the IVA column use. Monotributo: no IVA.
   const includesIva = (contract as any).commission_includes_iva === true
   const ivaFactor   = includesIva ? 1 + COMMISSION_IVA_RATE : 1
 
-  // Sum total cobrado for the period
   const { data: ins, error: insErr } = await supabase
     .from('transactions')
     .select('amount, transaction_types!inner(direction, affects_liquidacion)')
     .eq('contract_id', contractId)
     .eq('period', period)
-  if (insErr) return dbFailure(insErr)
+  if (insErr) return { ok: false, error: insErr.message }
 
-  let totalCobrado = 0
+  let ingresos = 0
   for (const t of (ins ?? []) as any[]) {
     const typ = t.transaction_types
-    if (typ.affects_liquidacion && typ.direction === 'IN') {
-      totalCobrado += Number(t.amount)
-    }
+    if (typ.affects_liquidacion && typ.direction === 'IN') ingresos += Number(t.amount)
   }
-  if (totalCobrado <= 0) {
-    return {
-      ok: false,
-      error: 'No hay ingresos cobrados todavía para este período — la comisión sería $0.',
-      code: 'NO_INCOME',
-    }
+  if (ingresos <= 0) {
+    return { ok: false, error: 'No hay ingresos cobrados todavía para este período — la comisión sería $0.', code: 'NO_INCOME' }
   }
 
-  const commissionAmount =
-    Math.round((totalCobrado * pct / 100) * ivaFactor * 100) / 100  // 2-decimal precision
+  const amount = Math.round((ingresos * pct / 100) * ivaFactor * 100) / 100  // 2-decimal precision
+  const destination = deriveCommissionDest((contract as any).commission_destination ?? null) ?? null
+  return { ok: true, value: { amount, pct, includesIva, ingresos, destination } }
+}
 
-  // Single writer: setCommission guarantees exactly one COMMISSION_OUT row,
-  // preserves the existing bank marker when `destination` is omitted, and never
-  // duplicates — so every commission surface (this, the Pct recompute, the
-  // detail-page button, the ADMI cell, the bank columns) stays consistent.
+// generateCommissionForPeriod — compute (above) + WRITE via setCommission. The
+// single writer guarantees exactly one COMMISSION_OUT row, preserves an existing
+// bank marker when `destination` is omitted, and inherits the contract's default
+// bank for a new one — so every commission surface (Calcular, the bulk button,
+// the Pct recompute, the ADMI cell, the bank columns) stays consistent.
+export async function generateCommissionForPeriod(
+  contractId: string,
+  period:     string,
+  destination?: 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6',
+): Promise<TransactionResult> {
+  const c = await computeCommissionForPeriod(contractId, period)
+  if (!c.ok) return { ok: false, error: c.error, code: c.code }
   return setCommission(contractId, period, {
-    amount:      commissionAmount,
+    amount:      c.value.amount,
     destination,
-    label:       `Comisión ${pct}%${includesIva ? ' + IVA' : ''} sobre total cobrado`,
+    label:       `Comisión ${c.value.pct}%${c.value.includesIva ? ' + IVA' : ''} sobre total cobrado`,
   })
 }
 
@@ -465,6 +467,77 @@ export async function generateAllCommissionsForPeriod(
     return { ok: true, generated, error: null }
   } catch (e) {
     return { ok: false, generated: 0, error: (e as Error).message }
+  }
+}
+
+export interface CommissionPreviewRow {
+  contractId: string
+  label:      string   // contract number + primary tenant/owner
+  ingresos:   number
+  pct:        number
+  amount:     number
+  bank:       string   // short bank label, or 'sin banco'
+}
+
+// Read-only PREVIEW of what "Calcular todas" would create: the SAME target
+// contracts (rent cobro, no commission yet) and the SAME math
+// (computeCommissionForPeriod) as generateAllCommissionsForPeriod — but writes
+// nothing. So the numbers in the confirmation are exactly what gets saved.
+export async function previewAllCommissionsForPeriod(
+  period: string,
+): Promise<{ ok: boolean; rows: CommissionPreviewRow[]; error: string | null }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(period)) return { ok: false, rows: [], error: 'Período inválido.' }
+  try {
+    const supabase = await createSupabaseServer()
+    const { data: tx, error: txErr } = await supabase
+      .from('transactions')
+      .select('contract_id, transaction_types!inner(code)')
+      .eq('period', period)
+      .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
+    if (txErr) return { ok: false, rows: [], error: txErr.message }
+    const cobroIds = [...new Set(((tx ?? []) as any[]).map(t => t.contract_id).filter(Boolean))]
+    if (cobroIds.length === 0) return { ok: true, rows: [], error: null }
+
+    // Exclude contracts that already have a commission this period.
+    const { data: commType } = await supabase
+      .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
+    const { data: comm } = await supabase
+      .from('transactions').select('contract_id')
+      .eq('period', period).eq('transaction_type_id', (commType as any)?.id).in('contract_id', cobroIds)
+    const haveComm = new Set(((comm ?? []) as any[]).map(c => c.contract_id))
+    const pending = cobroIds.filter(id => !haveComm.has(id))
+    if (pending.length === 0) return { ok: true, rows: [], error: null }
+
+    // Labels for display (contract number + primary tenant, else owner).
+    const { data: cs } = await supabase
+      .from('contracts')
+      .select('id, contract_number, contract_tenants(is_primary, tenants(name)), contract_landlords(ownership_pct, landlords(name))')
+      .in('id', pending)
+    const labelById = new Map<string, string>()
+    for (const c of (cs ?? []) as any[]) {
+      const primaryT = (c.contract_tenants ?? []).find((ct: any) => ct.is_primary) ?? (c.contract_tenants ?? [])[0]
+      const owner    = pickPrimaryLandlord(c.contract_landlords)
+      const who      = primaryT?.tenants?.name ?? owner?.landlords?.name ?? ''
+      labelById.set(c.id, [c.contract_number, who].filter(Boolean).join(' · '))
+    }
+
+    const rows: CommissionPreviewRow[] = []
+    for (const id of pending) {
+      const c = await computeCommissionForPeriod(id, period)
+      if (!c.ok) continue
+      rows.push({
+        contractId: id,
+        label:      labelById.get(id) ?? id,
+        ingresos:   c.value.ingresos,
+        pct:        c.value.pct,
+        amount:     c.value.amount,
+        bank:       c.value.destination ? DESTINATION_SHORT_LABEL[c.value.destination] : 'sin banco',
+      })
+    }
+    rows.sort((a, b) => b.amount - a.amount)
+    return { ok: true, rows, error: null }
+  } catch (e) {
+    return { ok: false, rows: [], error: (e as Error).message }
   }
 }
 
