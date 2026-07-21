@@ -59,6 +59,7 @@ export function LiquidarYEnviarButton({
   const [error, setError]                   = useState<string | null>(null)
   const [senderEmail, setSenderEmail]       = useState('')
   const [recipientDraft, setRecipientDraft] = useState(landlordEmail ?? '')
+  const [ccDraft, setCcDraft]               = useState('')
   const [subjectDraft, setSubjectDraft]     = useState('')
   const [bodyDraft, setBodyDraft]           = useState('')
   // After the mail UI is opened we wait for the encargada to confirm she
@@ -91,6 +92,7 @@ export function LiquidarYEnviarButton({
     setAwaitingConfirm(false)
     setSubjectDraft('')
     setBodyDraft('')
+    setCcDraft('')
     setSummary(null)
     startTransition(async () => {
       // prepareEmailDraft is pure READ — does NOT transition the liquidación.
@@ -100,6 +102,7 @@ export function LiquidarYEnviarButton({
         return
       }
       setRecipientDraft(res.recipient ?? landlordEmail ?? '')
+      setCcDraft((res.cc ?? []).join(', '))
       setSubjectDraft(res.subject ?? '')
       setBodyDraft(res.body ?? '')
       setSummary(res.summary ?? null)
@@ -129,6 +132,7 @@ export function LiquidarYEnviarButton({
       url.searchParams.set('view', 'cm')
       url.searchParams.set('fs', '1')
       url.searchParams.set('to', recipientDraft.trim())
+      if (ccDraft.trim()) url.searchParams.set('cc', ccDraft.trim())
       url.searchParams.set('su', subjectDraft)
       url.searchParams.set('body', bodyDraft)
       if (senderEmail.trim()) url.searchParams.set('authuser', senderEmail.trim())
@@ -138,6 +142,7 @@ export function LiquidarYEnviarButton({
       const href =
         `mailto:${encodeURIComponent(recipientDraft.trim())}` +
         `?subject=${encodeURIComponent(subjectDraft)}` +
+        (ccDraft.trim() ? `&cc=${encodeURIComponent(ccDraft.trim())}` : '') +
         `&body=${encodeURIComponent(bodyDraft)}`
       window.location.href = href
     }
@@ -255,6 +260,20 @@ export function LiquidarYEnviarButton({
                   value={recipientDraft}
                   onChange={e => setRecipientDraft(e.target.value)}
                   placeholder="propietario@example.com"
+                  className="w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[10px] uppercase tracking-wider text-slate-dark block mb-1">
+                  Con copia (CC)
+                  <span className="text-slate ml-1 normal-case font-normal">— reciben la misma liquidación</span>
+                </span>
+                <input
+                  type="text"
+                  value={ccDraft}
+                  onChange={e => setCcDraft(e.target.value)}
+                  placeholder="Opcional — separá varios con comas"
                   className="w-full h-9 px-2 rounded border border-line bg-paper text-[13px] outline-none focus:border-info"
                 />
               </label>

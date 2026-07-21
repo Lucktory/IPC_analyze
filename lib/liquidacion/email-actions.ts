@@ -33,6 +33,9 @@ export interface PrepareEmailResult {
   ok:    boolean
   error: string | null
   recipient?:  string | null
+  /** Alternate emails (landlords.alt_emails) — pre-filled as CC so the same
+   *  liquidación reaches the spouse / secretary / relative "con copia". */
+  cc?:         string[]
   subject?:    string
   body?:       string
   summary?:    {
@@ -97,7 +100,7 @@ export async function prepareEmailDraft(
 
   // Landlord (for recipient + name) + primary tenant (for body context).
   const [landlordRes, contractRes] = await Promise.all([
-    supabase.from('landlords').select('name, email').eq('id', landlordId).maybeSingle(),
+    supabase.from('landlords').select('name, email, alt_emails').eq('id', landlordId).maybeSingle(),
     supabase
       .from('contracts')
       .select('id, contract_tenants(is_primary, tenants(name))')
@@ -109,6 +112,8 @@ export async function prepareEmailDraft(
 
   const landlordName  = (landlordRes.data as any).name as string
   const landlordEmail = (landlordRes.data as any).email as string | null
+  const altRaw        = (landlordRes.data as any).alt_emails
+  const cc            = Array.isArray(altRaw) ? (altRaw as any[]).map(e => String(e).trim()).filter(Boolean) : []
 
   const tenant = (contractRes.data as any)?.contract_tenants?.find((ct: any) => ct.is_primary)
               ?? (contractRes.data as any)?.contract_tenants?.[0]
@@ -149,6 +154,7 @@ export async function prepareEmailDraft(
     ok:        true,
     error:     null,
     recipient: landlordEmail,
+    cc,
     subject,
     body,
     summary: {
