@@ -20,6 +20,7 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { isAllowedIngresosLineType } from './ingresos-line-types'
+import { resyncCommissionForPeriod } from '@/lib/transaction/actions'
 
 // Files marked 'use server' in Next.js can only export async functions.
 // The result interface is TypeScript-only (erased at compile time), so
@@ -71,6 +72,11 @@ export async function createIngresosLine(input: {
   })
   if (error) return dbFailure(error)
 
+  // A rent cobro was just added → auto-generate the commission on its own
+  // (Option A). Only rent triggers it; only-if-missing (see the helper).
+  if (input.typeCode === 'RENT_IN' || input.typeCode === 'RENT_NF_IN') {
+    await resyncCommissionForPeriod(input.contractId, input.period)
+  }
   revalidatePath('/liquidacion')
   revalidatePath(`/contratos/${input.contractId}`)
   return { ok: true, error: null }

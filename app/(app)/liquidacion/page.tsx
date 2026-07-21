@@ -23,6 +23,7 @@ import { LiquidacionGrid } from '@/components/liquidacion/LiquidacionGrid'
 import { EmptyGridDiagnostic } from '@/components/liquidacion/EmptyGridDiagnostic'
 import { HighlightScroller } from '@/components/liquidacion/HighlightScroller'
 import { NewContractModal } from '@/components/liquidacion/NewContractModal'
+import { CalcularTodasComisionesButton } from '@/components/liquidacion/CalcularTodasComisionesButton'
 import { ResumenView } from '@/components/liquidacion/ResumenView'
 import { MovimientosView } from '@/components/liquidacion/MovimientosView'
 import { DestinosView } from '@/components/liquidacion/DestinosView'
@@ -271,7 +272,8 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
                 <StatusPill href={linkWith({ status: 'paid'  })} active={statusFilter === 'paid'}  label="Pagadas"  count={counts.paid}  tone="info" />
               </div>
 
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
+                <CalcularTodasComisionesButton period={period} />
                 <NewContractModal
                   landlordOptions={landlordOptions}
                   tenantOptions={tenantOptions}

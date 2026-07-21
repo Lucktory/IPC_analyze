@@ -408,6 +408,66 @@ export async function setCommission(
   return { ok: true, error: null, transactionId: (created as any).id }
 }
 
+// ── Auto-generate the commission when a cobro is recorded (Alejandro/Option A) ─
+// The commission should appear on ADMI and land in the contract's bank on its
+// own, without pressing "Calcular". This is the SINGLE auto-generate entry point
+// and it DELEGATES to generateCommissionForPeriod (the one commission-computation
+// function) — it re-implements nothing. "Only if missing": it never overwrites
+// an existing commission (a hand-typed bank amount, or a manually moved bank,
+// stays put). generateCommissionForPeriod with no `destination` inherits the
+// contract's commission_destination (default bank). Best-effort: a commission
+// problem must never block the underlying cobro write.
+// Returns true only when it actually created a commission (used by the bulk
+// "Calcular todas" action to count). Callers on the cobro path ignore the value.
+export async function resyncCommissionForPeriod(contractId: string, period: string): Promise<boolean> {
+  try {
+    const supabase = await createSupabaseServer()
+    const { data: commType } = await supabase
+      .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
+    if (!commType) return false
+    const { data: existing } = await supabase
+      .from('transactions').select('id')
+      .eq('contract_id', contractId).eq('period', period)
+      .eq('transaction_type_id', (commType as any).id).limit(1)
+    if (existing && existing.length > 0) return false   // already recorded → respect it
+    const res = await generateCommissionForPeriod(contractId, period)   // create it → default bank
+    return res.ok
+  } catch { return false }   // best-effort — never break the cobro
+}
+
+// ── "Calcular todas" — one-click backfill of a whole period's commissions ─────
+// Reuses resyncCommissionForPeriod per contract (which delegates to
+// generateCommissionForPeriod → setCommission → default bank). Targets only
+// contracts that HAVE a rent cobro this period, and skips any that already have
+// a commission. Nothing is hardcoded: the period is a parameter, the contracts
+// come from the transactions of that period, and every % / bank comes from the
+// contract itself via the existing calc.
+export async function generateAllCommissionsForPeriod(
+  period: string,
+): Promise<{ ok: boolean; generated: number; error: string | null }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(period)) {
+    return { ok: false, generated: 0, error: 'Período inválido.' }
+  }
+  try {
+    const supabase = await createSupabaseServer()
+    const { data: tx, error } = await supabase
+      .from('transactions')
+      .select('contract_id, transaction_types!inner(code)')
+      .eq('period', period)
+      .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
+    if (error) return { ok: false, generated: 0, error: error.message }
+    const contractIds = [...new Set(((tx ?? []) as any[]).map(t => t.contract_id).filter(Boolean))]
+    let generated = 0
+    for (const id of contractIds) {
+      if (await resyncCommissionForPeriod(id, period)) generated++
+    }
+    revalidatePath('/liquidacion'); revalidatePath('/movimientos')
+    return { ok: true, generated, error: null }
+  } catch (e) {
+    return { ok: false, generated: 0, error: (e as Error).message }
+  }
+}
+
 // tagCommissionBank — assign an already-recorded commission to a bank WITHOUT
 // recomputing the amount (the ADMI cell "banco?" affordance).
 export async function tagCommissionBank(
@@ -494,6 +554,9 @@ export async function setRentBankDate(
     })
     if (error) return dbFailure(error)
   }
+  // Cobro recorded → make the commission appear + land in the bank on its own
+  // (Option A). Best-effort, only-if-missing (see resyncCommissionForPeriod).
+  await resyncCommissionForPeriod(contractId, period)
   revalidatePath('/liquidacion')
   revalidatePath(`/contratos/${contractId}`)
   return { ok: true, error: null }
