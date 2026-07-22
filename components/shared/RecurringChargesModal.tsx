@@ -82,7 +82,7 @@ export function RecurringChargesModal({
           {/* Top: read-only breakdown for this period (status of every line). */}
           {summary && summary.lines.length > 0 && (
             <section>
-              <RecurringChargesPanel summary={summary} period={period} />
+              <RecurringChargesPanel summary={summary} period={period} contractId={contractId} />
             </section>
           )}
 

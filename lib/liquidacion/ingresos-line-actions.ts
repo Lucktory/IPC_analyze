@@ -145,3 +145,66 @@ export async function deleteIngresosLine(
   revalidatePath(`/contratos/${contractId}`)
   return { ok: true, error: null }
 }
+
+// ── Mark a recurring charge (recargo) as COBRADO for the period ──────────────
+// Powers the "Cobrado" checkbox in the recargos panel. The green/recorded state
+// comes purely from a transaction of the recargo's recupero_type_code existing
+// for (contract, period) — see recurring-charges-bulk — so this is the single
+// lever: tildar CREATES that recupero (idempotent, at the configured amount);
+// destildar DELETES it. Commission drift from the new cobrado is left to
+// "Calcular todas" (confirm-first), same as any other recupero edit.
+export async function setRecurringChargeCollected(input: {
+  contractId:       string
+  period:           string
+  recuperoTypeCode: string
+  amount:           number
+  collected:        boolean
+}): Promise<IngresosLineResult> {
+  const { contractId, period, recuperoTypeCode, amount, collected } = input
+  if (!isAllowedIngresosLineType(recuperoTypeCode)) {
+    return { ok: false, error: `Tipo de recupero inválido: ${recuperoTypeCode}.` }
+  }
+  const supabase = await createSupabaseServer()
+  const { data: typeRow, error: typeErr } = await supabase
+    .from('transaction_types').select('id').eq('code', recuperoTypeCode).maybeSingle()
+  if (typeErr) return dbFailure(typeErr)
+  if (!typeRow) return { ok: false, error: `Tipo ${recuperoTypeCode} no encontrado.` }
+  const typeId = (typeRow as any).id
+
+  const { data: existing, error: findErr } = await supabase
+    .from('transactions').select('id')
+    .eq('contract_id', contractId).eq('period', period).eq('transaction_type_id', typeId)
+  if (findErr) return dbFailure(findErr)
+  const rows = (existing ?? []) as any[]
+
+  if (collected) {
+    // Idempotent — only create when there is no matching recupero yet (so an
+    // amount already entered via Extras is respected, not duplicated).
+    if (rows.length === 0) {
+      if (!isFinite(amount) || amount <= 0) {
+        return { ok: false, error: 'El monto del recargo debe ser mayor a 0.' }
+      }
+      const { data: contract, error: cErr } = await supabase
+        .from('contracts').select('administration_id').eq('id', contractId).maybeSingle()
+      if (cErr) return dbFailure(cErr)
+      if (!contract) return { ok: false, error: 'Contrato no encontrado.' }
+      const { error } = await supabase.from('transactions').insert({
+        administration_id:   (contract as any).administration_id,
+        contract_id:         contractId,
+        transaction_type_id: typeId,
+        amount,
+        period,
+        bank_date:           null,
+        description:         null,
+      })
+      if (error) return dbFailure(error)
+    }
+  } else if (rows.length > 0) {
+    const { error } = await supabase.from('transactions').delete().in('id', rows.map(r => r.id))
+    if (error) return dbFailure(error)
+  }
+
+  revalidatePath('/liquidacion')
+  revalidatePath(`/contratos/${contractId}`)
+  return { ok: true, error: null }
+}

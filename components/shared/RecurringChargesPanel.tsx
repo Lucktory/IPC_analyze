@@ -14,17 +14,22 @@
 
 import { fmtMoney } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
+import { RecargoCobradoToggle } from './RecargoCobradoToggle'
 import type { RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
 
 interface Props {
   summary: RecurringChargesSummary
   /** YYYY-MM-DD of the period being viewed (for the header label). */
   period:  string
+  /** When provided, each TYPED line shows an interactive "Cobrado" checkbox
+   *  (tildar records the recupero for this month; destildar removes it).
+   *  Omit for a read-only breakdown (✓ / ⚠ only). */
+  contractId?: string
   /** Optional href so the popover can offer "Editar en contrato →". */
   editHref?: string
 }
 
-export function RecurringChargesPanel({ summary, period, editHref }: Props) {
+export function RecurringChargesPanel({ summary, period, contractId, editHref }: Props) {
   const hasLines      = summary.lines.length > 0
   const recordedTotal = summary.lines
     .filter(l => l.recorded === true)
@@ -47,10 +52,22 @@ export function RecurringChargesPanel({ summary, period, editHref }: Props) {
           <ul className="space-y-1">
             {summary.lines.map(l => (
               <li key={l.id} className="grid grid-cols-[28px_1fr_auto] gap-2 items-center">
-                <span aria-hidden className="text-[18px] text-center font-medium leading-none">
-                  {l.recorded === true && <span className="text-success">✓</span>}
-                  {l.recorded === false && <span className="text-warn">⚠</span>}
-                  {l.recorded === null && <span className="text-slate">·</span>}
+                <span className="text-[18px] text-center font-medium leading-none flex items-center justify-center">
+                  {contractId && l.recuperoTypeCode ? (
+                    <RecargoCobradoToggle
+                      contractId={contractId}
+                      period={period}
+                      recuperoTypeCode={l.recuperoTypeCode}
+                      amount={l.amount}
+                      collected={l.recorded === true}
+                    />
+                  ) : (
+                    <>
+                      {l.recorded === true && <span className="text-success" aria-hidden>✓</span>}
+                      {l.recorded === false && <span className="text-warn" aria-hidden>⚠</span>}
+                      {l.recorded === null && <span className="text-slate" aria-hidden>·</span>}
+                    </>
+                  )}
                 </span>
                 <span className="text-slate-dark">
                   <strong className="text-ink font-medium">{l.label}</strong>
