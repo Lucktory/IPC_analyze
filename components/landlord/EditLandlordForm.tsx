@@ -52,6 +52,20 @@ export function EditLandlordForm({ landlord, propertyCount = 0, contractCount = 
     <form ref={formRef} action={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
       <FormField name="name"        label="Nombre del propietario" defaultValue={landlord?.name ?? ''} required wide />
       <FormField name="dni_or_cuit" label="CUIT / DNI"             defaultValue={landlord?.dniOrCuit ?? ''} placeholder="20-12345678-9" />
+      <label className="flex flex-col gap-1.5">
+        <span className="label-cap">Condición fiscal</span>
+        <select
+          name="tax_category"
+          defaultValue={landlord?.taxCategory ?? 'CF'}
+          className="h-10 px-3 rounded border border-line bg-cream text-[13px] text-ink outline-none focus:border-ink focus:bg-paper transition-colors"
+        >
+          <option value="CF">Consumidor Final</option>
+          <option value="RI">Responsable Inscripto</option>
+          <option value="MONOTRIBUTO">Monotributo</option>
+          <option value="EXENTO">Exento</option>
+        </select>
+        <span className="text-[11px] text-slate">Responsable Inscripto agrega el IVA (21%) en la planilla al liquidar.</span>
+      </label>
       <FormField name="phone"       label="Teléfono"               defaultValue={landlord?.phone ?? ''}     placeholder="+54 9 11 1234 5678" />
       <FormField name="email"       label="Correo electrónico"     defaultValue={landlord?.email ?? ''}     placeholder="propietario@dominio.com" type="email" wide />
       <FormField name="notes"       label="Notas internas"         defaultValue={landlord?.notes ?? ''}     textarea wide />
