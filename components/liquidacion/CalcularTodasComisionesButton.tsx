@@ -57,7 +57,7 @@ export function CalcularTodasComisionesButton({ period }: { period: string }) {
       <button
         type="button"
         onClick={openModal}
-        title="Ver y calcular todas las comisiones pendientes del período"
+        title="Ver, calcular y actualizar las comisiones del período"
         className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-success text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0 shadow-sm"
       >
         <Calculator size={15} /> Calcular todas
@@ -69,7 +69,7 @@ export function CalcularTodasComisionesButton({ period }: { period: string }) {
           <div className="relative bg-paper border border-line rounded shadow-xl w-full max-w-[660px] max-h-[85vh] overflow-y-auto">
             <div className="px-5 py-3 border-b border-line sticky top-0 bg-paper">
               <h2 className="font-display text-[15px] font-medium text-ink">Calcular todas las comisiones</h2>
-              <p className="text-[11.5px] text-slate mt-0.5">Revisá lo que se va a calcular y confirmá.</p>
+              <p className="text-[11.5px] text-slate mt-0.5">Comisiones sin calcular o desactualizadas (por un cambio en el cobrado). Revisá y confirmá.</p>
             </div>
 
             <div className="px-5 py-4 space-y-3">
@@ -78,7 +78,7 @@ export function CalcularTodasComisionesButton({ period }: { period: string }) {
               {done  && <div className="text-[12px] text-success bg-success/10 border border-success/30 rounded px-3 py-2">{done}</div>}
 
               {rows && rows.length === 0 && !done && (
-                <p className="text-[13px] text-slate py-4 text-center">No hay comisiones pendientes — todas ya están calculadas.</p>
+                <p className="text-[13px] text-slate py-4 text-center">Todas las comisiones están al día.</p>
               )}
 
               {rows && rows.length > 0 && (
@@ -99,7 +99,12 @@ export function CalcularTodasComisionesButton({ period }: { period: string }) {
                           <td className="px-2.5 py-1.5 text-ink truncate max-w-[220px]">{r.label}</td>
                           <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-dark">{fmtMoney(r.ingresos)}</td>
                           <td className="px-2.5 py-1.5 text-right tabular-nums text-slate-dark">{r.pct}%</td>
-                          <td className="px-2.5 py-1.5 text-right tabular-nums text-ink font-medium">{fmtMoney(r.amount)}</td>
+                          <td className="px-2.5 py-1.5 text-right tabular-nums text-ink font-medium whitespace-nowrap">
+                            {r.current != null && Math.abs(r.current - r.amount) >= 0.5 && (
+                              <span className="text-slate font-normal line-through mr-1.5">{fmtMoney(r.current)}</span>
+                            )}
+                            {fmtMoney(r.amount)}
+                          </td>
                           <td className="px-2.5 py-1.5 text-slate-dark">{r.bank}</td>
                         </tr>
                       ))}

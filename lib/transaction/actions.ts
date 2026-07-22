@@ -437,13 +437,53 @@ export async function resyncCommissionForPeriod(contractId: string, period: stri
   } catch { return false }   // best-effort — never break the cobro
 }
 
-// ── "Calcular todas" — one-click backfill of a whole period's commissions ─────
-// Reuses resyncCommissionForPeriod per contract (which delegates to
-// generateCommissionForPeriod → setCommission → default bank). Targets only
-// contracts that HAVE a rent cobro this period, and skips any that already have
-// a commission. Nothing is hardcoded: the period is a parameter, the contracts
-// come from the transactions of that period, and every % / bank comes from the
-// contract itself via the existing calc.
+// ── "Calcular todas" — one-click sync of a whole period's commissions ─────────
+// Finds every contract with a rent cobro whose commission is MISSING or has
+// DRIFTED out of sync (recorded total != recomputed — e.g. after adding an ABL
+// recupero), with both the current and the new amount. Preview + apply share
+// this one function, so the modal shows exactly what gets saved. Every % / bank
+// comes from the contract via computeCommissionForPeriod — nothing hardcoded.
+async function commissionsToSyncForPeriod(
+  period: string,
+): Promise<{ ok: boolean; error: string | null; items: Array<{
+  contractId: string; current: number | null; next: number
+  pct: number; ingresos: number; destination: CommissionDest | null
+}> }> {
+  const supabase = await createSupabaseServer()
+  const { data: tx, error: txErr } = await supabase
+    .from('transactions')
+    .select('contract_id, transaction_types!inner(code)')
+    .eq('period', period)
+    .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
+  if (txErr) return { ok: false, error: txErr.message, items: [] }
+  const cobroIds = [...new Set(((tx ?? []) as any[]).map(t => t.contract_id).filter(Boolean))] as string[]
+  if (!cobroIds.length) return { ok: true, error: null, items: [] }
+
+  // Recorded commission TOTAL per contract (a split across banks sums to ADMI).
+  const { data: commType } = await supabase
+    .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
+  const recordedById = new Map<string, number>()
+  if (commType) {
+    const { data: comm } = await supabase
+      .from('transactions').select('contract_id, amount')
+      .eq('period', period).eq('transaction_type_id', (commType as any).id).in('contract_id', cobroIds)
+    for (const r of (comm ?? []) as any[]) {
+      recordedById.set(r.contract_id, (recordedById.get(r.contract_id) ?? 0) + Number(r.amount))
+    }
+  }
+
+  const items: Array<{ contractId: string; current: number | null; next: number; pct: number; ingresos: number; destination: CommissionDest | null }> = []
+  for (const id of cobroIds) {
+    const c = await computeCommissionForPeriod(id, period)
+    if (!c.ok) continue
+    const next    = c.value.amount
+    const current = recordedById.has(id) ? (recordedById.get(id) as number) : null
+    if (current !== null && Math.abs(current - next) < 0.5) continue   // already in sync — skip
+    items.push({ contractId: id, current, next, pct: c.value.pct, ingresos: c.value.ingresos, destination: c.value.destination })
+  }
+  return { ok: true, error: null, items }
+}
+
 export async function generateAllCommissionsForPeriod(
   period: string,
 ): Promise<{ ok: boolean; generated: number; error: string | null }> {
@@ -451,17 +491,15 @@ export async function generateAllCommissionsForPeriod(
     return { ok: false, generated: 0, error: 'Período inválido.' }
   }
   try {
-    const supabase = await createSupabaseServer()
-    const { data: tx, error } = await supabase
-      .from('transactions')
-      .select('contract_id, transaction_types!inner(code)')
-      .eq('period', period)
-      .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
-    if (error) return { ok: false, generated: 0, error: error.message }
-    const contractIds = [...new Set(((tx ?? []) as any[]).map(t => t.contract_id).filter(Boolean))]
+    const { ok, error, items } = await commissionsToSyncForPeriod(period)
+    if (!ok) return { ok: false, generated: 0, error }
     let generated = 0
-    for (const id of contractIds) {
-      if (await resyncCommissionForPeriod(id, period)) generated++
+    for (const it of items) {
+      // generateCommissionForPeriod -> setCommission (session client) writes the
+      // COMMISSION_OUT, which the audit trigger logs with the real actor. It
+      // updates the amount and PRESERVES the existing bank marker.
+      const res = await generateCommissionForPeriod(it.contractId, period)
+      if (res.ok) generated++
     }
     revalidatePath('/liquidacion'); revalidatePath('/movimientos')
     return { ok: true, generated, error: null }
@@ -475,7 +513,11 @@ export interface CommissionPreviewRow {
   label:      string   // contract number + primary tenant/owner
   ingresos:   number
   pct:        number
-  amount:     number
+  amount:     number   // the NEW commission that would be recorded
+  /** Currently-recorded commission, or null when there is none yet (a new one).
+   *  When it differs from `amount`, the row is a re-sync (drifted), shown as
+   *  current -> new in the confirmation. */
+  current:    number | null
   bank:       string   // short bank label, or 'sin banco'
 }
 
@@ -488,31 +530,17 @@ export async function previewAllCommissionsForPeriod(
 ): Promise<{ ok: boolean; rows: CommissionPreviewRow[]; error: string | null }> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(period)) return { ok: false, rows: [], error: 'Período inválido.' }
   try {
-    const supabase = await createSupabaseServer()
-    const { data: tx, error: txErr } = await supabase
-      .from('transactions')
-      .select('contract_id, transaction_types!inner(code)')
-      .eq('period', period)
-      .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
-    if (txErr) return { ok: false, rows: [], error: txErr.message }
-    const cobroIds = [...new Set(((tx ?? []) as any[]).map(t => t.contract_id).filter(Boolean))]
-    if (cobroIds.length === 0) return { ok: true, rows: [], error: null }
-
-    // Exclude contracts that already have a commission this period.
-    const { data: commType } = await supabase
-      .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
-    const { data: comm } = await supabase
-      .from('transactions').select('contract_id')
-      .eq('period', period).eq('transaction_type_id', (commType as any)?.id).in('contract_id', cobroIds)
-    const haveComm = new Set(((comm ?? []) as any[]).map(c => c.contract_id))
-    const pending = cobroIds.filter(id => !haveComm.has(id))
-    if (pending.length === 0) return { ok: true, rows: [], error: null }
+    const { ok, error, items } = await commissionsToSyncForPeriod(period)
+    if (!ok) return { ok: false, rows: [], error }
+    if (items.length === 0) return { ok: true, rows: [], error: null }
 
     // Labels for display (contract number + primary tenant, else owner).
+    const supabase = await createSupabaseServer()
+    const ids = items.map(i => i.contractId)
     const { data: cs } = await supabase
       .from('contracts')
       .select('id, contract_number, contract_tenants(is_primary, tenants(name)), contract_landlords(ownership_pct, landlords(name))')
-      .in('id', pending)
+      .in('id', ids)
     const labelById = new Map<string, string>()
     for (const c of (cs ?? []) as any[]) {
       const primaryT = (c.contract_tenants ?? []).find((ct: any) => ct.is_primary) ?? (c.contract_tenants ?? [])[0]
@@ -521,19 +549,15 @@ export async function previewAllCommissionsForPeriod(
       labelById.set(c.id, [c.contract_number, who].filter(Boolean).join(' · '))
     }
 
-    const rows: CommissionPreviewRow[] = []
-    for (const id of pending) {
-      const c = await computeCommissionForPeriod(id, period)
-      if (!c.ok) continue
-      rows.push({
-        contractId: id,
-        label:      labelById.get(id) ?? id,
-        ingresos:   c.value.ingresos,
-        pct:        c.value.pct,
-        amount:     c.value.amount,
-        bank:       c.value.destination ? DESTINATION_SHORT_LABEL[c.value.destination] : 'sin banco',
-      })
-    }
+    const rows: CommissionPreviewRow[] = items.map(i => ({
+      contractId: i.contractId,
+      label:      labelById.get(i.contractId) ?? i.contractId,
+      ingresos:   i.ingresos,
+      pct:        i.pct,
+      amount:     i.next,
+      current:    i.current,
+      bank:       i.destination ? DESTINATION_SHORT_LABEL[i.destination] : 'sin banco',
+    }))
     rows.sort((a, b) => b.amount - a.amount)
     return { ok: true, rows, error: null }
   } catch (e) {
