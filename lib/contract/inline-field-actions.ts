@@ -71,6 +71,12 @@ export async function updateContractCommissionPct(contractId: string, pct: numbe
 export async function updateContractCommissionIncludesIva(
   contractId: string,
   includesIva: boolean,
+  /** When provided, re-sync THAT period's commission so the recorded ADMI
+   *  matches the new IVA setting in one action — otherwise the toggle only
+   *  changes the display and the recorded commission stays stale until the
+   *  encargada clicks Calcular. Only re-generates when a COMMISSION_OUT
+   *  already exists for the period (never creates one here). */
+  period?: string,
 ): Promise<InlineResult> {
   const supabase = await createSupabaseServer()
   const { error } = await supabase
@@ -78,6 +84,25 @@ export async function updateContractCommissionIncludesIva(
     .update({ commission_includes_iva: includesIva })
     .eq('id', contractId)
   if (error) return dbFailure(error)
+
+  if (period && /^\d{4}-\d{2}-01$/.test(period)) {
+    const { data: typeRow } = await supabase
+      .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
+    if (typeRow) {
+      const { data: existing } = await supabase
+        .from('transactions').select('id')
+        .eq('contract_id', contractId)
+        .eq('period', period)
+        .eq('transaction_type_id', (typeRow as any).id)
+        .limit(1)
+      if ((existing ?? []).length > 0) {
+        // Recompute + rewrite the COMMISSION_OUT with the new IVA factor.
+        const { generateCommissionForPeriod } = await import('@/lib/transaction/actions')
+        await generateCommissionForPeriod(contractId, period)
+      }
+    }
+  }
+
   revalidate(contractId)
   return { ok: true, error: null }
 }

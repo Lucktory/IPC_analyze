@@ -19,6 +19,9 @@ import { fmtMoney } from '@/lib/format'
 
 interface Props {
   contractId:           string
+  /** The row's period (YYYY-MM-01) — lets the toggle re-sync that period's
+   *  commission so the ADMI corrects itself without a second "Calcular" click. */
+  period:               string
   /** Current value of contracts.commission_includes_iva. */
   includesIva:          boolean
   /** Derived IVA portion (admi × 0.21 / 1.21) — already computed by the grid. */
@@ -30,7 +33,7 @@ interface Props {
 }
 
 export function InlineIvaToggleCell({
-  contractId, includesIva, ivaAmount, adminNet, amountClassName,
+  contractId, period, includesIva, ivaAmount, adminNet, amountClassName,
 }: Props) {
   const [open, setOpen]             = useState(false)
   const [error, setError]           = useState<string | null>(null)
@@ -52,7 +55,7 @@ export function InlineIvaToggleCell({
     setOptimistic(next)
     setOpen(false)
     setPending(true)
-    updateContractCommissionIncludesIva(contractId, next)
+    updateContractCommissionIncludesIva(contractId, next, period)
       .then(res => {
         if (!res.ok) {
           setOptimistic(undefined)

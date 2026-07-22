@@ -795,6 +795,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                   <Td width={W.iva} align="right">
                     <InlineIvaToggleCell
                       contractId={r.contractId}
+                      period={r.periodo}
                       includesIva={r.commissionIncludesIva}
                       ivaAmount={r.iva}
                       adminNet={r.admi - r.iva}
