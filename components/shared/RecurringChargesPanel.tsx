@@ -31,9 +31,10 @@ interface Props {
 
 export function RecurringChargesPanel({ summary, period, contractId, editHref }: Props) {
   const hasLines      = summary.lines.length > 0
-  const recordedTotal = summary.lines
-    .filter(l => l.recorded === true)
-    .reduce((s, l) => s + l.amount, 0)
+  // recordedTotal + pendingTotal = totalExpected. pendingTotal is the single
+  // source of truth computed once in the builder (recurring-charges-bulk), so
+  // the panel and the planilla cell can never drift apart.
+  const recordedTotal = summary.totalExpected - summary.pendingTotal
 
   return (
     <div className="text-[12.5px]">
@@ -102,7 +103,7 @@ export function RecurringChargesPanel({ summary, period, contractId, editHref }:
             <div className="grid grid-cols-[1fr_auto] gap-x-3 text-[11.5px]">
               <span className="text-warn font-medium">Falta cobrar</span>
               <span className="tabular-nums text-warn font-medium">
-                {fmtMoney(summary.totalExpected - recordedTotal)}
+                {fmtMoney(summary.pendingTotal)}
               </span>
             </div>
           )}

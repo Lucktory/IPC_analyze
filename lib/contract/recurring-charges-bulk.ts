@@ -51,6 +51,10 @@ export interface RecurringChargesSummary {
   contractId:       string
   /** Sum of all active charges' `amount`. */
   totalExpected:    number
+  /** Sum still to collect this period: every line NOT yet recorded
+   *  (missing-typed + untyped). Equals totalExpected minus what's recorded.
+   *  Drives the planilla cell number when status='missing'. */
+  pendingTotal:     number
   /** Per-line breakdown (active charges only, ordered by sort_order). */
   lines:            RecurringChargeLine[]
   /** Number of active charges with a recupero_type_code set (eligible for
@@ -78,6 +82,7 @@ export async function buildRecurringChargesSummariesBulk(
     out.set(id, {
       contractId:    id,
       totalExpected: 0,
+      pendingTotal:  0,
       lines:         [],
       typedCount:    0,
       recordedCount: 0,
@@ -145,6 +150,9 @@ export async function buildRecurringChargesSummariesBulk(
       if (recorded) summary.recordedCount += 1
     }
     summary.totalExpected += amount
+    // Uncompleted = anything not confirmed recorded this period (missing-typed
+    // OR untyped-so-unverifiable). This is the number the planilla cell shows.
+    if (recorded !== true) summary.pendingTotal += amount
     summary.lines.push({
       id:               c.id,
       label:            c.label,
@@ -177,6 +185,7 @@ export async function buildRecurringChargesSummary(
   return map.get(contractId) ?? {
     contractId,
     totalExpected: 0,
+    pendingTotal:  0,
     lines:         [],
     typedCount:    0,
     recordedCount: 0,

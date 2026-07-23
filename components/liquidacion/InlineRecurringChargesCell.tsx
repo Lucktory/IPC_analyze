@@ -50,7 +50,7 @@ export function InlineRecurringChargesCell({
   if (hasLines && summary) {
     tooltipParts.push(`Total esperado: ${fmtMoney(summary.totalExpected)}`)
     if (summary.status === 'complete') tooltipParts.push('✓ todos los recargos registrados')
-    if (summary.status === 'missing')  tooltipParts.push(`⚠ ${summary.typedCount - summary.recordedCount} sin registrar`)
+    if (summary.status === 'missing')  tooltipParts.push(`Falta cobrar: ${fmtMoney(summary.pendingTotal)} · ${summary.typedCount - summary.recordedCount} sin registrar`)
     tooltipParts.push('Click para ver / editar')
   } else {
     tooltipParts.push('Sin recargos cargados — click para agregar')
@@ -67,7 +67,12 @@ export function InlineRecurringChargesCell({
       >
         {hasLines && summary ? (
           <>
-            <span className="tabular-nums text-ink">{fmtMoney(summary.totalExpected)}</span>
+            {/* Show what's still to collect (pending) when something's missing;
+                once everything's in (complete) / unverifiable (na), show the
+                full total. The dot below carries the red/green status. */}
+            <span className="tabular-nums text-ink">
+              {fmtMoney(summary.status === 'missing' ? summary.pendingTotal : summary.totalExpected)}
+            </span>
             {dotClass && (
               <span className={`inline-block w-2 h-2 rounded-full ${dotClass}`} aria-hidden />
             )}
