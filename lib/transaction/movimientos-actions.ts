@@ -157,7 +157,7 @@ export async function updateMovimiento(
   // so used to retag the row and double the ADMI. Reject and point to the cell.
   const { data: existingRow } = await supabase
     .from('transactions')
-    .select('contract_id, description, transaction_types!inner(code)')
+    .select('contract_id, period, description, transaction_types!inner(code, direction, affects_liquidacion)')
     .eq('id', id)
     .maybeSingle()
   const existingCode = (existingRow as any)?.transaction_types?.code as string | undefined
@@ -194,6 +194,17 @@ export async function updateMovimiento(
   const { error } = await supabase.from('transactions').update(updates).eq('id', id)
   if (error) return dbFailure(error)
 
+  // A recupero/income row moved (amount or direction) → sync the commission so
+  // the 9% follows. Managed rows are rejected above; this only fires for income.
+  const typ = (existingRow as any)?.transaction_types
+  const period = (existingRow as any)?.period as string | undefined
+  const touchesCommission =
+    (typ?.affects_liquidacion && typ?.direction === 'IN') || patch.direction === 'IN'
+  if (contractId && period && touchesCommission) {
+    const { syncCommissionForPeriod } = await import('@/lib/transaction/actions')
+    await syncCommissionForPeriod(contractId, period)
+  }
+
   revalidatePath('/liquidacion')
   if (contractId) revalidatePath(`/contratos/${contractId}`)
   return { ok: true, error: null }
@@ -203,7 +214,7 @@ export async function deleteMovimiento(id: string): Promise<SimpleResult> {
   const supabase = await createSupabaseServer()
   const { data: existing } = await supabase
     .from('transactions')
-    .select('contract_id, description, transaction_types!inner(code)')
+    .select('contract_id, period, description, transaction_types!inner(code, direction, affects_liquidacion)')
     .eq('id', id)
     .maybeSingle()
   const contractId = (existing as any)?.contract_id as string | null
@@ -218,6 +229,13 @@ export async function deleteMovimiento(id: string): Promise<SimpleResult> {
   const { error } = await supabase.from('transactions').delete().eq('id', id)
   if (error) {
     return dbFailure(error, { fkMessage: 'No se puede eliminar: la transacción está referenciada por una liquidación.' })
+  }
+  // Deleting a recupero/income row moved the cobrado → sync the commission.
+  const typ = (existing as any)?.transaction_types
+  const period = (existing as any)?.period as string | undefined
+  if (contractId && period && typ?.affects_liquidacion && typ?.direction === 'IN') {
+    const { syncCommissionForPeriod } = await import('@/lib/transaction/actions')
+    await syncCommissionForPeriod(contractId, period)
   }
   revalidatePath('/liquidacion')
   if (contractId) revalidatePath(`/contratos/${contractId}`)

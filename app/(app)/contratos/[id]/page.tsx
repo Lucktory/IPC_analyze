@@ -226,7 +226,7 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
             <ResumenRow k="Depósito" v={contract.depositAmount != null ? fmt(contract.depositAmount) : '—'} />
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate shrink-0">Comisión</dt>
-              <dd className="w-24"><CommissionPctEditor contractId={contract.id} pct={contract.commissionPct} /></dd>
+              <dd className="w-24"><CommissionPctEditor contractId={contract.id} pct={contract.commissionPct} period={period} /></dd>
             </div>
             {contract.rentFacturadoNeto != null && (
               <div className="pt-2 mt-1 border-t border-line space-y-2">

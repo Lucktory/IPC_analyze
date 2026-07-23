@@ -8,9 +8,9 @@
 // ============================================================================
 
 import { InlineNumberCell } from '@/components/liquidacion/InlineNumberCell'
-import { updateContractCommissionPct } from '@/lib/contract/inline-field-actions'
+import { updateCommissionPctAndRecalc } from '@/lib/transaction/actions'
 
-export function CommissionPctEditor({ contractId, pct }: { contractId: string; pct: number }) {
+export function CommissionPctEditor({ contractId, pct, period }: { contractId: string; pct: number; period: string }) {
   return (
     <InlineNumberCell
       value={pct}
@@ -18,9 +18,9 @@ export function CommissionPctEditor({ contractId, pct }: { contractId: string; p
       min={0}
       max={100}
       unit="%"
-      title="Click para editar la comisión"
+      title="Click para editar la comisión — recalcula la comisión del período"
       displayClassName="text-ink font-medium"
-      onSave={(v) => updateContractCommissionPct(contractId, v)}
+      onSave={(v) => updateCommissionPctAndRecalc(contractId, period, v)}
     />
   )
 }

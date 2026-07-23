@@ -52,9 +52,9 @@ async function syncOwnerIvaToContracts(
       .in('contract_id', contractIds)
     const withCommission = new Set(((existing ?? []) as any[]).map(r => r.contract_id))
     if (!withCommission.size) return
-    const { generateCommissionForPeriod } = await import('@/lib/transaction/actions')
+    const { syncCommissionForPeriod } = await import('@/lib/transaction/actions')
     for (const cid of contractIds) {
-      if (withCommission.has(cid)) await generateCommissionForPeriod(cid, period)
+      if (withCommission.has(cid)) await syncCommissionForPeriod(cid, period)
     }
   } catch (e) {
     console.warn('[syncOwnerIvaToContracts] failed:', e)

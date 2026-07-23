@@ -86,21 +86,10 @@ export async function updateContractCommissionIncludesIva(
   if (error) return dbFailure(error)
 
   if (period && /^\d{4}-\d{2}-01$/.test(period)) {
-    const { data: typeRow } = await supabase
-      .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
-    if (typeRow) {
-      const { data: existing } = await supabase
-        .from('transactions').select('id')
-        .eq('contract_id', contractId)
-        .eq('period', period)
-        .eq('transaction_type_id', (typeRow as any).id)
-        .limit(1)
-      if ((existing ?? []).length > 0) {
-        // Recompute + rewrite the COMMISSION_OUT with the new IVA factor.
-        const { generateCommissionForPeriod } = await import('@/lib/transaction/actions')
-        await generateCommissionForPeriod(contractId, period)
-      }
-    }
+    // Recompute the recorded ADMI with the new IVA factor — the shared reflex
+    // (creates if missing, recomputes if present, preserves the bank).
+    const { syncCommissionForPeriod } = await import('@/lib/transaction/actions')
+    await syncCommissionForPeriod(contractId, period)
   }
 
   revalidate(contractId)

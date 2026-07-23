@@ -20,7 +20,7 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { isAllowedIngresosLineType } from './ingresos-line-types'
-import { resyncCommissionForPeriod } from '@/lib/transaction/actions'
+import { syncCommissionForPeriod } from '@/lib/transaction/actions'
 
 // Files marked 'use server' in Next.js can only export async functions.
 // The result interface is TypeScript-only (erased at compile time), so
@@ -72,11 +72,10 @@ export async function createIngresosLine(input: {
   })
   if (error) return dbFailure(error)
 
-  // A rent cobro was just added → auto-generate the commission on its own
-  // (Option A). Only rent triggers it; only-if-missing (see the helper).
-  if (input.typeCode === 'RENT_IN' || input.typeCode === 'RENT_NF_IN') {
-    await resyncCommissionForPeriod(input.contractId, input.period)
-  }
+  // Keep the recorded commission in step with the cobrado — one reflex for every
+  // income line (rent, recupero, expensas, ...): create it if missing, recompute
+  // it if present. Best-effort; a commission hiccup never blocks the cobro.
+  await syncCommissionForPeriod(input.contractId, input.period)
   revalidatePath('/liquidacion')
   revalidatePath(`/contratos/${input.contractId}`)
   return { ok: true, error: null }
@@ -127,6 +126,12 @@ export async function updateIngresosLine(input: {
     .from('transactions').update(update).eq('id', input.transactionId)
   if (error) return dbFailure(error)
 
+  // Amount/type may have moved the cobrado → sync the commission. The input omits
+  // period, so read it off the row.
+  const { data: txnP } = await supabase
+    .from('transactions').select('period').eq('id', input.transactionId).maybeSingle()
+  if ((txnP as any)?.period) await syncCommissionForPeriod(input.contractId, (txnP as any).period)
+
   revalidatePath('/liquidacion')
   revalidatePath(`/contratos/${input.contractId}`)
   return { ok: true, error: null }
@@ -138,8 +143,12 @@ export async function deleteIngresosLine(
   contractId:    string,
 ): Promise<IngresosLineResult> {
   const supabase = await createSupabaseServer()
+  // Capture the period BEFORE deleting so we can sync the commission after.
+  const { data: txnP } = await supabase
+    .from('transactions').select('period').eq('id', transactionId).maybeSingle()
   const { error } = await supabase.from('transactions').delete().eq('id', transactionId)
   if (error) return dbFailure(error)
+  if ((txnP as any)?.period) await syncCommissionForPeriod(contractId, (txnP as any).period)
 
   revalidatePath('/liquidacion')
   revalidatePath(`/contratos/${contractId}`)
@@ -151,8 +160,8 @@ export async function deleteIngresosLine(
 // comes purely from a transaction of the recargo's recupero_type_code existing
 // for (contract, period) — see recurring-charges-bulk — so this is the single
 // lever: tildar CREATES that recupero (idempotent, at the configured amount);
-// destildar DELETES it. Commission drift from the new cobrado is left to
-// "Calcular todas" (confirm-first), same as any other recupero edit.
+// destildar DELETES it. The commission is then recomputed automatically
+// (recompute-if-exists), so the 9% follows the new cobrado — same as any edit.
 export async function setRecurringChargeCollected(input: {
   contractId:       string
   period:           string
@@ -204,6 +213,8 @@ export async function setRecurringChargeCollected(input: {
     if (error) return dbFailure(error)
   }
 
+  // Ticking / unticking moved the cobrado → sync the commission so the 9% follows.
+  await syncCommissionForPeriod(contractId, period)
   revalidatePath('/liquidacion')
   revalidatePath(`/contratos/${contractId}`)
   return { ok: true, error: null }

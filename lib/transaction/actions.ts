@@ -388,6 +388,13 @@ export async function setCommission(
   }
 
   if (survivor) {
+    // Idempotent: skip the write when nothing actually changed. Every cobrado
+    // edit now fires a recompute through here, and many are no-ops (e.g. stamping
+    // a rent bank date recomputes the same amount) — this keeps them from writing
+    // a redundant row + audit entry.
+    if (Number(survivor.amount) === amount && survivor.description === description) {
+      return { ok: true, error: null, transactionId: survivor.id }
+    }
     const { error } = await supabase.from('transactions')
       .update({ amount, description })   // bank_date preserved
       .eq('id', survivor.id)
@@ -410,31 +417,28 @@ export async function setCommission(
   return { ok: true, error: null, transactionId: (created as any).id }
 }
 
-// ── Auto-generate the commission when a cobro is recorded (Alejandro/Option A) ─
-// The commission should appear on ADMI and land in the contract's bank on its
-// own, without pressing "Calcular". This is the SINGLE auto-generate entry point
-// and it DELEGATES to generateCommissionForPeriod (the one commission-computation
-// function) — it re-implements nothing. "Only if missing": it never overwrites
-// an existing commission (a hand-typed bank amount, or a manually moved bank,
-// stays put). generateCommissionForPeriod with no `destination` inherits the
-// contract's commission_destination (default bank). Best-effort: a commission
-// problem must never block the underlying cobro write.
-// Returns true only when it actually created a commission (used by the bulk
-// "Calcular todas" action to count). Callers on the cobro path ignore the value.
-export async function resyncCommissionForPeriod(contractId: string, period: string): Promise<boolean> {
+// ── syncCommissionForPeriod — the ONE reflex that keeps a contract's recorded ──
+// commission in step with its cobrado. Every cobrado-changing edit fires exactly
+// this: extras add/edit/delete, the Cobrado checkbox, Fecha banco, the IVA toggle,
+// a recupero edited from Movimientos, the owner's condicion fiscal. It DELEGATES
+// to generateCommissionForPeriod (compute + the single-writer setCommission:
+// creates the row if missing, recomputes it if present, always preserves the
+// bank). When the period's income has dropped to zero it clears any stale
+// commission (setCommission with amount 0 deletes; a no-op when none exists).
+//
+// This is the SINGLE entry point — the old create-if-missing (resync) /
+// update-if-exists (recompute) split collapsed into this one function; there is
+// no other recompute wrapper. Best-effort: a commission hiccup must never block
+// the underlying edit.
+export async function syncCommissionForPeriod(contractId: string, period: string): Promise<void> {
   try {
-    const supabase = await createSupabaseServer()
-    const { data: commType } = await supabase
-      .from('transaction_types').select('id').eq('code', 'COMMISSION_OUT').maybeSingle()
-    if (!commType) return false
-    const { data: existing } = await supabase
-      .from('transactions').select('id')
-      .eq('contract_id', contractId).eq('period', period)
-      .eq('transaction_type_id', (commType as any).id).limit(1)
-    if (existing && existing.length > 0) return false   // already recorded → respect it
-    const res = await generateCommissionForPeriod(contractId, period)   // create it → default bank
-    return res.ok
-  } catch { return false }   // best-effort — never break the cobro
+    const res = await generateCommissionForPeriod(contractId, period)
+    if (!res.ok && res.code === 'NO_INCOME') {
+      // Income gone → clear any stale recorded commission (setCommission amount<=0
+      // deletes the row; a no-op when none exists).
+      await setCommission(contractId, period, { amount: 0 })
+    }
+  } catch { /* best-effort — never block the edit */ }
 }
 
 // ── "Calcular todas" — one-click sync of a whole period's commissions ─────────
@@ -651,9 +655,9 @@ export async function setRentBankDate(
     })
     if (error) return dbFailure(error)
   }
-  // Cobro recorded → make the commission appear + land in the bank on its own
-  // (Option A). Best-effort, only-if-missing (see resyncCommissionForPeriod).
-  await resyncCommissionForPeriod(contractId, period)
+  // Cobro recorded → keep the commission in step (create it on the first cobro,
+  // recompute it otherwise). Best-effort — see syncCommissionForPeriod.
+  await syncCommissionForPeriod(contractId, period)
   revalidatePath('/liquidacion')
   revalidatePath(`/contratos/${contractId}`)
   return { ok: true, error: null }
@@ -800,7 +804,7 @@ export async function updateTransaction(
   const supabase = await createSupabaseServer()
 
   const { data: typeRow, error: typeErr } = await supabase
-    .from('transaction_types').select('id').eq('code', typeCode).maybeSingle()
+    .from('transaction_types').select('id, direction, affects_liquidacion').eq('code', typeCode).maybeSingle()
   if (typeErr)   return dbFailure(typeErr)
   if (!typeRow)  return { ok: false, error: `Tipo "${typeCode}" no encontrado.` }
 
@@ -835,6 +839,14 @@ export async function updateTransaction(
     .eq('id', id)
 
   if (error) return dbFailure(error)
+
+  // A recupero/income row edited here moved the cobrado → sync the commission
+  // (the shared reflex). Managed rows are rejected above, so this only ever fires
+  // for recuperos / expensas / otros-IN.
+  const t = typeRow as any
+  if (contractIdRaw && t.affects_liquidacion && t.direction === 'IN') {
+    await syncCommissionForPeriod(contractIdRaw, period)
+  }
 
   revalidatePath('/movimientos')
   revalidatePath(`/movimientos/${id}`)
