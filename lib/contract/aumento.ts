@@ -286,6 +286,27 @@ export interface AumentoResult {
 const round2 = (n: number) => Math.round(n * 100) / 100
 
 /**
+ * Scale a (possibly two-part) rent by a factor — the SINGLE place the
+ * facturado/N-F split + IVA re-derivation lives. Reused by computeAumento (IPC),
+ * the manual %/monto apply paths, and the UI preview, so the math can't drift.
+ * For an ordinary contract (no N-F split) it's just currentRent × factor.
+ */
+export function scaleRentByFactor(
+  currentRent:       number,
+  rentFacturadoNeto: number | null,
+  rentNoFacturado:   number,
+  rentIvaRate:       number,
+  factor:            number,
+): { newRent: number; newNeto: number | null; newNf: number | null } {
+  if (rentFacturadoNeto != null) {
+    const newNeto = round2(rentFacturadoNeto * factor)
+    const newNf   = round2(rentNoFacturado * factor)
+    return { newRent: round2(newNeto * (1 + rentIvaRate / 100) + newNf), newNeto, newNf }
+  }
+  return { newRent: round2(currentRent * factor), newNeto: null, newNf: null }
+}
+
+/**
  * Compute the aumento. Returns null only for an unknown cadence. When index data
  * is missing, returns a result with `missingMonths` populated and factor=1 (no
  * change) so callers can surface "IPC no cargado" instead of a wrong number.
@@ -311,14 +332,9 @@ export function computeAumento(input: AumentoInput): AumentoResult | null {
   }
 
   const factor = (indexEnd as number) / indexStart
-  let newRent: number, newNeto: number | null = null, newNf: number | null = null
-  if (input.rentFacturadoNeto != null) {
-    newNeto = round2(input.rentFacturadoNeto * factor)
-    newNf   = round2(input.rentNoFacturado * factor)
-    newRent = round2(newNeto * (1 + input.rentIvaRate / 100) + newNf)
-  } else {
-    newRent = round2(input.currentRent * factor)
-  }
+  const { newRent, newNeto, newNf } = scaleRentByFactor(
+    input.currentRent, input.rentFacturadoNeto, input.rentNoFacturado, input.rentIvaRate, factor,
+  )
 
   return { factor, pct: (factor - 1) * 100, newRent, newNeto, newNf, window, indexStart, indexEnd, missingMonths: [] }
 }

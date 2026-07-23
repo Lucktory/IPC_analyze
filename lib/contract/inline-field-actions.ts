@@ -16,8 +16,9 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { normalizeLfa } from '@/lib/contract/lfa'
 import { buildCommissionMarker } from '@/lib/bancos/destination'
-import { CADENCE_MONTHS, nextAdjustmentDate, lastScheduledAdjustment, pendingAdjustment, aumentoWindow, computeAumento } from '@/lib/contract/aumento'
+import { CADENCE_MONTHS, nextAdjustmentDate, pendingAdjustment, aumentoWindow, computeAumento, scaleRentByFactor } from '@/lib/contract/aumento'
 import { getIpcIndexMap } from '@/lib/ipc/queries'
+import { getCurrentPeriod } from '@/lib/period'
 
 export interface InlineResult {
   ok:    boolean
@@ -156,8 +157,6 @@ async function persistAumento(
   return { ok: true, error: null }
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100
-
 // ── Cadencia (how often the rent adjusts) — the aumento window depends on it,
 // so a wrong value (e.g. the Bustos import defaulted to trimestral) computes the
 // wrong increase. Editable so the encargada can correct it.
@@ -232,13 +231,19 @@ export async function applyIpcAumento(contractId: string, effectivePeriod: strin
   })
 }
 
-// ── Aplicar aumento manual (%) — override when you want a hand-entered rate.
-// Per Alejandro: two-part contracts scale each part by the same factor.
-export async function applyContractAumento(contractId: string, pct: number): Promise<InlineResult> {
-  if (!isFinite(pct) || pct <= -100) {
-    return { ok: false, error: 'El porcentaje de aumento es inválido.' }
-  }
-  const supabase = await createSupabaseServer()
+// ── Aplicar aumento manual — override the IPC with either a hand-entered % or a
+// target amount ("queda en $X"). Both funnel through applyManualAumento so the
+// factor→rent math (scaleRentByFactor) and the persistence (persistAumento) live
+// ONCE — no duplicated commission/aumento logic. Effective FROM the current
+// month, NEVER retroactive: per Alejandro he pausa el aumento pautado y aplica su
+// propio valor cuando lo cierra con el inquilino, así arranca el mes que lo carga.
+type ManualAumentoSpec = { kind: 'pct'; pct: number } | { kind: 'amount'; amount: number }
+
+async function applyManualAumento(
+  supabase: Awaited<ReturnType<typeof createSupabaseServer>>,
+  contractId: string,
+  spec: ManualAumentoSpec,
+): Promise<InlineResult> {
   const { data: c, error: cErr } = await supabase
     .from('contracts')
     .select('current_rent, rent_facturado_neto, rent_no_facturado, rent_iva_rate, cadence, start_date')
@@ -249,28 +254,46 @@ export async function applyContractAumento(contractId: string, pct: number): Pro
 
   const cadence = (c as any).cadence as string
   if (!CADENCE_MONTHS[cadence]) return { ok: false, error: 'La cadencia del contrato es inválida.' }
-
-  const factor  = 1 + pct / 100
   const oldRent = Number((c as any).current_rent ?? 0)
-  const neto    = (c as any).rent_facturado_neto
-  let newRent: number, newNeto: number | null = null, newNf: number | null = null
-  if (neto != null) {
-    const ivaRate = Number((c as any).rent_iva_rate ?? 0)
-    newNeto = round2(Number(neto) * factor)
-    newNf   = round2(Number((c as any).rent_no_facturado ?? 0) * factor)
-    newRent = round2(newNeto * (1 + ivaRate / 100) + newNf)
+
+  // The only thing the two manual paths differ on: how the factor is derived.
+  let factor: number
+  let cpiValues: Record<string, unknown>
+  if (spec.kind === 'pct') {
+    if (!isFinite(spec.pct) || spec.pct <= -100) return { ok: false, error: 'El porcentaje de aumento es inválido.' }
+    factor = 1 + spec.pct / 100
+    cpiValues = { manual_pct: spec.pct }
   } else {
-    newRent = round2(oldRent * factor)
+    if (!isFinite(spec.amount) || spec.amount <= 0) return { ok: false, error: 'El monto del alquiler debe ser mayor a 0.' }
+    if (oldRent <= 0) return { ok: false, error: 'El contrato no tiene un alquiler base para calcular el aumento.' }
+    factor = spec.amount / oldRent
+    cpiValues = { manual_amount: spec.amount }
   }
 
-  const startDate = (c as any).start_date as string
-  const last = lastScheduledAdjustment(startDate, cadence, new Date())
-  const effectiveDate = (last ?? new Date()).toISOString().slice(0, 10)
+  const { newRent, newNeto, newNf } = scaleRentByFactor(
+    oldRent,
+    (c as any).rent_facturado_neto != null ? Number((c as any).rent_facturado_neto) : null,
+    Number((c as any).rent_no_facturado ?? 0),
+    Number((c as any).rent_iva_rate ?? 0),
+    factor,
+  )
 
   return persistAumento(supabase, contractId, {
     oldRent, newRent, newNeto, newNf, factor,
-    cpiValues: { manual_pct: pct }, formula: 'manual', cadence, startDate, effectiveDate,
+    cpiValues, formula: 'manual', cadence,
+    startDate:     (c as any).start_date as string,
+    effectiveDate: getCurrentPeriod(),   // 'YYYY-MM-01' — de ahí en adelante, no retroactivo
   })
+}
+
+export async function applyContractAumento(contractId: string, pct: number): Promise<InlineResult> {
+  const supabase = await createSupabaseServer()
+  return applyManualAumento(supabase, contractId, { kind: 'pct', pct })
+}
+
+export async function applyContractAumentoAmount(contractId: string, amount: number): Promise<InlineResult> {
+  const supabase = await createSupabaseServer()
+  return applyManualAumento(supabase, contractId, { kind: 'amount', amount })
 }
 
 // ── Vigencia (start_date / end_date) ────────────────────────────────────────

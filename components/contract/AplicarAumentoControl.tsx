@@ -18,8 +18,8 @@ import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { TrendingUp, ChevronDown } from 'lucide-react'
 import { fmtMoney as fmt } from '@/lib/format'
-import { applyContractAumento, applyIpcAumento } from '@/lib/contract/inline-field-actions'
-import type { SuggestedAumento } from '@/lib/contract/aumento'
+import { applyContractAumento, applyContractAumentoAmount, applyIpcAumento } from '@/lib/contract/inline-field-actions'
+import { scaleRentByFactor, type SuggestedAumento } from '@/lib/contract/aumento'
 
 interface Props {
   contractId:        string
@@ -39,16 +39,22 @@ export function AplicarAumentoControl({
   const [open, setOpen]       = useState(false)
   const [showManual, setManual] = useState(false)
   const [showCalc, setCalc]   = useState(false)
+  const [mode, setMode]       = useState<'pct' | 'amount'>('pct')
   const [pctStr, setPctStr]   = useState('')
+  const [amountStr, setAmountStr] = useState('')
   const [error, setError]     = useState<string | null>(null)
   const [pending, startTransition] = useBusyTransition()
   const router = useRouter()
 
   const pct      = Number(pctStr)
   const validPct = pctStr.trim() !== '' && isFinite(pct) && pct > -100
-  const factor   = 1 + pct / 100
-  const twoPart  = rentFacturadoNeto != null
-  const newTotal = twoPart ? (rentFacturadoNeto as number) * factor * (1 + rentIvaRate / 100) + rentNoFacturado * factor : currentRent * factor
+  const amount   = Number(amountStr)
+  const validAmount = amountStr.trim() !== '' && isFinite(amount) && amount > 0
+  // Preview reuses the SAME scaling primitive as the server (no drift): % scales
+  // by factor; monto is the typed total directly.
+  const pctNewTotal    = scaleRentByFactor(currentRent, rentFacturadoNeto, rentNoFacturado, rentIvaRate, 1 + pct / 100).newRent
+  const manualValid    = mode === 'pct' ? validPct : validAmount
+  const manualNewTotal = mode === 'pct' ? pctNewTotal : amount
 
   const canConfirmIpc = !!suggested && !suggested.ipcMissing && suggested.expectedNewRent != null
 
@@ -64,11 +70,13 @@ export function AplicarAumentoControl({
 
   function applyManual() {
     setError(null)
-    if (!validPct) { setError('Ingresá un porcentaje válido.'); return }
+    if (!manualValid) { setError(mode === 'pct' ? 'Ingresá un porcentaje válido.' : 'Ingresá un monto válido.'); return }
     startTransition(async () => {
-      const res = await applyContractAumento(contractId, pct)
+      const res = mode === 'pct'
+        ? await applyContractAumento(contractId, pct)
+        : await applyContractAumentoAmount(contractId, amount)
       if (!res.ok) { setError(res.error ?? 'Error al aplicar el aumento.'); return }
-      setOpen(false); setPctStr(''); router.refresh()
+      setOpen(false); setPctStr(''); setAmountStr(''); router.refresh()
     })
   }
 
@@ -124,25 +132,43 @@ export function AplicarAumentoControl({
         </div>
       )}
 
-      {/* ── Manual % override ── */}
+      {/* ── Manual override: % o monto nuevo directo ── */}
       {!showManual ? (
         <button type="button" onClick={() => setManual(true)} className="text-[11px] text-slate hover:text-ink">
-          {suggested ? 'o cargar un % manual' : 'Cargar un % de aumento'}
+          {suggested ? 'o cargar manual (% o monto)' : 'Cargar aumento manual'}
         </button>
       ) : (
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <label className="text-[12px] text-slate">Aumento manual</label>
-            <input type="number" step="any" autoFocus value={pctStr} onChange={e => setPctStr(e.target.value)} placeholder="0"
-              className="h-8 w-24 px-2 text-[12px] border border-line rounded bg-paper outline-none focus:border-info text-right tabular-nums" />
-            <span className="text-[12px] text-slate">%</span>
+            <div className="inline-flex rounded border border-line overflow-hidden text-[11px]">
+              <button type="button" onClick={() => setMode('pct')}
+                className={mode === 'pct' ? 'px-2 py-1 bg-ink text-paper' : 'px-2 py-1 text-slate hover:text-ink'}>%</button>
+              <button type="button" onClick={() => setMode('amount')}
+                className={mode === 'amount' ? 'px-2 py-1 bg-ink text-paper' : 'px-2 py-1 text-slate hover:text-ink'}>$ monto</button>
+            </div>
           </div>
-          {validPct && (
+          <div className="flex items-center gap-2">
+            {mode === 'pct' ? (
+              <>
+                <input type="number" step="any" autoFocus value={pctStr} onChange={e => setPctStr(e.target.value)} placeholder="0"
+                  className="h-8 w-28 px-2 text-[12px] border border-line rounded bg-paper outline-none focus:border-info text-right tabular-nums" />
+                <span className="text-[12px] text-slate">%</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[12px] text-slate">$</span>
+                <input type="number" step="any" autoFocus value={amountStr} onChange={e => setAmountStr(e.target.value)} placeholder="Monto nuevo"
+                  className="h-8 w-36 px-2 text-[12px] border border-line rounded bg-paper outline-none focus:border-info text-right tabular-nums" />
+              </>
+            )}
+          </div>
+          {manualValid && (
             <div className="text-[11.5px] text-slate-dark tabular-nums">
-              <span className="flex justify-between gap-3 font-medium text-ink"><span>Total</span><span>{fmt(currentRent)} → {fmt(newTotal)}</span></span>
+              <span className="flex justify-between gap-3 font-medium text-ink"><span>Total</span><span>{fmt(currentRent)} → {fmt(manualNewTotal)}</span></span>
             </div>
           )}
-          <button type="button" onClick={applyManual} disabled={pending || !validPct}
+          <button type="button" onClick={applyManual} disabled={pending || !manualValid}
             className="px-2.5 py-1 text-[11px] bg-ink text-paper rounded font-medium hover:opacity-90 disabled:opacity-60">
             {pending ? 'Aplicando…' : 'Aplicar manual'}
           </button>
