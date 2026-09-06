@@ -56,3 +56,30 @@ export async function requireSuperAdmin(): Promise<CurrentUser | null> {
   if (!user || user.role !== 'super_admin') return null
   return user
 }
+
+/**
+ * Authorization floor for server actions: returns the current user only when a
+ * session exists AND the profile has not been deactivated, else null.
+ *
+ * Added 2026-09-05. Server actions are individually addressable endpoints —
+ * Next dispatches them by the `Next-Action` header, not by route — so
+ * middleware.ts is not a sufficient gate on its own. Every mutating action
+ * should start with:
+ *
+ *     const me = await requireUser()
+ *     if (!me) return { ok: false, error: 'No autorizado.' }
+ *
+ * NOTE ON `active`: getCurrentUser() falls back to `active: true` when the
+ * usuarios row (or the whole table) is missing, so that the app keeps working
+ * before db/julio-2026/04-usuarios.sql has been applied. That fallback is
+ * deliberate and is preserved here — this rejects only a profile Postgres
+ * actually reports as `active = false`, never a merely absent one. Rejecting on
+ * a falsy/absent value would lock every user out of every action on an
+ * un-migrated database.
+ */
+export async function requireUser(): Promise<CurrentUser | null> {
+  const user = await getCurrentUser()
+  if (!user) return null
+  if (user.active === false) return null
+  return user
+}

@@ -11,6 +11,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { requireUser } from '@/lib/auth/current-user'
 import { fetchIndecIpc } from './fetch'
 import { getArgentinaToday } from '@/lib/period'
 import { shiftMonth } from '@/lib/contract/aumento'
@@ -29,6 +30,12 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000
 
 /** Pull the INDEC IPC index level (from 2023-01) and upsert into cpi_values. */
 export async function refreshIpc(): Promise<RefreshIpcResult> {
+  // requireUser, NOT requireSuperAdmin: IpcRefreshControl lives in the TopBar
+  // (components/shell/TopBar.tsx) and both this and getIpcStatus fire from its
+  // useEffect for EVERY logged-in user. A super-admin gate here would silently
+  // kill the daily IPC auto-refresh for the encargadas.
+  const me = await requireUser()
+  if (!me) return { ok: false, error: 'No autorizado.' }
   try {
     const points = await fetchIndecIpc('2023-01')
     if (!points.length) return { ok: false, error: 'El INDEC no devolvió datos.' }
@@ -62,6 +69,14 @@ export interface IpcStatus {
 }
 
 export async function getIpcStatus(): Promise<IpcStatus> {
+  // IpcStatus carries no `ok` field, so an unauthorized caller gets a neutral
+  // status instead of an error. needsRefresh MUST be false here: the TopBar
+  // control auto-calls refreshIpc() when it sees true, and returning true to an
+  // unauthenticated caller would invite a pointless refresh loop.
+  const me = await requireUser()
+  if (!me) {
+    return { latestMonth: null, lastFetchedAt: null, needsRefresh: false, todayKey: '' }
+  }
   const supabase = await createSupabaseServer()
   const [latestRes, fetchedRes] = await Promise.all([
     supabase.from('cpi_values').select('month').order('month', { ascending: false }).limit(1),
