@@ -24,7 +24,15 @@ export function ResumenView({ rows, period, honorarios }: Props) {
   const totalIngresos     = rows.reduce((s, r) => s + r.ingresos,      0)
   const totalAdmi         = rows.reduce((s, r) => s + r.admi,          0)
   const totalOtros        = rows.reduce((s, r) => s + r.otros,         0)
-  const totalTransferido  = Math.max(0, totalIngresos - totalAdmi - totalOtros)
+  // Sum the per-row transferencia the grid already computed rather than
+  // restating the formula here. This used to be
+  // `Math.max(0, totalIngresos - totalAdmi - totalOtros)`, which was wrong
+  // twice over: it dropped the ajustes term, so this tile disagreed with the
+  // Grilla footer directly below it by the period's total ajustes; and it
+  // clamped at zero, hiding a genuinely negative settlement that the footer
+  // showed correctly. r.transferencia comes from funnelTransferencia() in
+  // lib/liquidacion/funnel.ts — the same value the footer totals.
+  const totalTransferido  = rows.reduce((s, r) => s + r.transferencia, 0)
   const cobrados          = rows.filter(r => !!r.fechaBanco).length
   const transferidos      = rows.filter(r => !!r.diaTransf).length
 

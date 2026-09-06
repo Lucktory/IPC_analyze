@@ -15,6 +15,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { classifyDestination } from '@/lib/reconciliation/queries'
 import { validateRow, type ValidationIssue } from './validations'
+import { funnelTransferencia } from './funnel'
 import { COMMISSION_IVA_RATE, type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
@@ -949,7 +950,9 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     // column, and in the actual transfer. The actual LANDLORD_PAYOUT (a.payout)
     // is NOT substituted here — the validation reconciles it against this
     // figure, so a wrong/partial transfer is flagged instead of silently shown.
-    const transferencia = a.ingresos - a.admi - a.otros + adjustment
+    const transferencia = funnelTransferencia(
+      { ingresos: a.ingresos, admi: a.admi, otros: a.otros }, adjustment,
+    )
 
     const pct = a.ingresos > 0 ? (a.admi / a.ingresos) * 100 : 0
 
