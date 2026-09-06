@@ -4,8 +4,24 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 type CookieToSet = { name: string; value: string; options: CookieOptions }
 
 export async function middleware(request: NextRequest) {
-  // Dev mode without Supabase configured: skip auth so the UI is browsable.
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    // SECURITY (2026-09-05): this branch used to `return NextResponse.next()`
+    // unconditionally, so a production deploy that was missing either env var
+    // served the entire authenticated app to anonymous visitors — the auth gate
+    // silently disabled by a configuration mistake, with no signal that it had
+    // happened. In production we now fail CLOSED.
+    //
+    // A 503 rather than a redirect to /login: /login is itself matched by this
+    // middleware, so redirecting there would loop, and the login page cannot
+    // work without these vars anyway. Serving a plain error makes the
+    // misconfiguration obvious instead of silently degrading to "no auth".
+    if (process.env.NODE_ENV === 'production') {
+      return new NextResponse(
+        'Configuracion incompleta: faltan las variables de entorno de Supabase.',
+        { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } },
+      )
+    }
+    // Local dev without Supabase configured: skip auth so the UI is browsable.
     return NextResponse.next()
   }
 
@@ -71,7 +87,22 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Run on every request except static assets and Next.js internals.
-    '/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)',
+    // Run on every request except Next.js internals and the two real static
+    // assets this app serves.
+    //
+    // SECURITY (2026-09-05): the previous pattern ended in `|.*\..*` — "exclude
+    // any path containing a dot ANYWHERE". Every dynamic route here takes an
+    // arbitrary string ([id] / [contractId]), so `/contratos/a.b` still matched
+    // app/(app)/contratos/[id]/page.tsx while skipping this middleware, which is
+    // the only authentication gate in the app. Because Next dispatches server
+    // actions by the `Next-Action` header rather than per-route, that gave an
+    // unauthenticated caller a path to every action bundled with the route.
+    //
+    // Exclusions are exact paths, NOT an extension allowlist: anchoring a list
+    // like `\.(js|css|svg)$` would leave the same hole open to `/contratos/a.js`.
+    // `_next/` covers both `_next/static` and `_next/image`.
+    // `/watermark.svg` is referenced from app/globals.css (.bg-watermark) and
+    // `/icon.svg` is the app icon; both must stay reachable while logged out.
+    '/((?!_next/|favicon\\.ico$|icon\\.svg$|watermark\\.svg$).*)',
   ],
 }
