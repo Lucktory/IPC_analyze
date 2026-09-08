@@ -20,7 +20,7 @@ import { COMMISSION_IVA_RATE, type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
 import { buildEventsSummariesBulk, buildReceiptAjustes, type EventsSummary, type AjusteLine } from '@/lib/contract/events-bulk'
-import { EVENT_KIND, EVENT_STATUS } from '@/lib/contract/events-types'
+import { EVENT_KIND, EVENT_STATUS, honorarioGross } from '@/lib/contract/events-types'
 import { nextAdjustmentDate, evaluatePendingAumento, expectedRentForPeriod, type ExpectedRent } from '@/lib/contract/aumento'
 import { getIpcIndexMap } from '@/lib/ipc/queries'
 import { getArgentinaToday } from '@/lib/period'
@@ -938,12 +938,18 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     const eventsSummary = eventsByContract.get(c.id) ?? null
     const adjustment    = Number(liq?.adjustment_amount ?? 0) + (eventsSummary?.adjustmentEffect ?? 0)
 
-    // Honorarios column = sum of the este-mes (rojo) HONORARIOS events' neto
-    // amount. Agency income only — deliberately NOT folded into `adjustment`
-    // or `transferencia`; it stands alone in its own column + bottom total.
+    // Honorarios column = sum of the este-mes (rojo) HONORARIOS events, with
+    // IVA added on the ones the encargada marked "Con IVA 21%". Agency income
+    // only — deliberately NOT folded into `adjustment` or `transferencia`; it
+    // stands alone in its own column + bottom total.
+    //
+    // 2026-09-06: this used to sum `amountTenant` raw, which is the NET, so
+    // every con-IVA honorario was reported 21% short of the figure the modal
+    // showed her when she created it. honorarioGross() is the one place that
+    // rule lives now.
     const honorariosTotal = (eventsSummary?.esteMes ?? [])
       .filter(e => e.kind === EVENT_KIND.HONORARIOS)
-      .reduce((s, e) => s + (Number(e.amountTenant) || 0), 0)
+      .reduce((s, e) => s + honorarioGross(e.amountTenant, e.includesIva), 0)
 
     // Transferencia = collected − comisión − gastos + ajustes = the recibo neto.
     // Per Alejandro: this number must be identical in the recibo, in this

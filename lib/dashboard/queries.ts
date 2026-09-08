@@ -23,7 +23,7 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { getCurrentPeriod, getRecentPeriods, periodAxisLabel } from '@/lib/period'
-import { EVENTS_TABLE, EVENT_KIND, EVENT_STATUS } from '@/lib/contract/events-types'
+import { EVENTS_TABLE, EVENT_KIND, EVENT_STATUS, honorarioGross } from '@/lib/contract/events-types'
 import { classifyDestination } from '@/lib/bancos/destination'
 import { pickPrimaryLandlord } from '@/lib/contract/primary'
 import { buildLiveRentMap } from '@/lib/contract/live-rent'
@@ -410,10 +410,12 @@ export async function getOperationalTrends(months = 6, anchor?: string): Promise
         .eq(TT_CODE, 'COMMISSION_OUT')
         .in('period', periods),
       // Honorarios (agency leasing fee) live in contract_events, keyed by
-      // applies_to_period (not transactions.period). amount_tenant = neto.
+      // applies_to_period (not transactions.period). amount_tenant = neto, so
+      // includes_iva has to come along to reach the real figure (added
+      // 2026-09-06 — the trend previously plotted the net).
       supabase
         .from(EVENTS_TABLE)
-        .select('amount_tenant, applies_to_period')
+        .select('amount_tenant, includes_iva, applies_to_period')
         .eq('kind', EVENT_KIND.HONORARIOS)
         .neq('status', EVENT_STATUS.CANCELLED)
         .in('applies_to_period', periods),
@@ -431,8 +433,11 @@ export async function getOperationalTrends(months = 6, anchor?: string): Promise
     for (const row of (commRes.data ?? []) as { amount: number | string; period: string }[]) {
       comisiones.set(row.period, (comisiones.get(row.period) ?? 0) + Number(row.amount))
     }
-    for (const row of (honRes.data ?? []) as { amount_tenant: number | string; applies_to_period: string }[]) {
-      honorarios.set(row.applies_to_period, (honorarios.get(row.applies_to_period) ?? 0) + Number(row.amount_tenant))
+    for (const row of (honRes.data ?? []) as { amount_tenant: number | string; includes_iva: boolean | null; applies_to_period: string }[]) {
+      honorarios.set(
+        row.applies_to_period,
+        (honorarios.get(row.applies_to_period) ?? 0) + honorarioGross(Number(row.amount_tenant), row.includes_iva === true),
+      )
     }
 
     return periods.map(p => ({

@@ -14,6 +14,8 @@
 // wired in Step 2 (installments) so the vocabulary is stable from the start.
 // ============================================================================
 
+import { COMMISSION_IVA_RATE } from '@/lib/liquidacion/thresholds'
+
 /** contract_events.kind values the app reads/writes. */
 export const EVENT_KIND = {
   ARREGLO:    'arreglo',     // repair / deduction, imputed to owner or tenant
@@ -54,8 +56,19 @@ export interface ContractEvent {
   appliesToPeriod: string | null
   status:          EventStatus
   occurredAt:      string | null
-  /** Honorarios only: true = the amount carries 21% IVA (RI). Derived portion
-   *  = amount * 0.21 / 1.21. Ignored for arreglos/ajustes. */
+  /** Honorarios only: true = 21% IVA is ADDED ON TOP of the stored amount.
+   *
+   *  `amountTenant` holds the NET figure. The Observaciones modal collects it
+   *  that way explicitly — the input is labelled "Monto (neto)" with the title
+   *  "Monto total de los honorarios (neto, sin IVA)" — and previews net * 1.21
+   *  beside it. Use `honorarioGross()` below; never restate the arithmetic.
+   *
+   *  NOTE (corrected 2026-09-06): this comment previously read "the amount
+   *  carries 21% IVA ... derived portion = amount * 0.21 / 1.21", i.e. the
+   *  commission convention, where the stored figure is gross and the tax is
+   *  extracted back out. That is the opposite of what the writer and the UI
+   *  actually do, and following it would understate every con-IVA honorario by
+   *  a factor of 1.21. Ignored for arreglos/ajustes. */
   includesIva:     boolean
 }
 
@@ -120,6 +133,30 @@ export function transferEffectOf(amountLandlord: number, amountTenant: number): 
  *  descuenta, from the owner's side). Used for the cell/modal display only. */
 export function displayAmount(event: ContractEvent): number {
   return ownerTransferEffect(event)
+}
+
+/**
+ * What an honorario is actually worth: the stored NET plus IVA when the
+ * operator marked it "Con IVA 21%".
+ *
+ * THE canonical honorarios amount. Every surface that totals honorarios must
+ * call this — the planilla column and its footer, the Resumen tab's "Ingresos
+ * de la inmobiliaria", and the Panel trend.
+ *
+ * Added 2026-09-06. All three of those consumers previously summed
+ * `amount_tenant` raw and ignored `includes_iva` entirely (two of them did not
+ * even SELECT the column), so the operator was shown a con-IVA figure when she
+ * created the honorario and every later total reported the net — understating
+ * agency income by 21% on the IVA-bearing subset. It also meant the Resumen
+ * added an IVA-INCLUSIVE commission to an IVA-EXCLUSIVE honorarios figure.
+ *
+ * The rate comes from COMMISSION_IVA_RATE rather than a literal so the two IVA
+ * surfaces can never drift; the Observaciones modal used to hardcode 1.21 here,
+ * which was a sixth copy of the rate.
+ */
+export function honorarioGross(amountTenant: number, includesIva: boolean): number {
+  const net = Number(amountTenant) || 0
+  return includesIva ? net * (1 + COMMISSION_IVA_RATE) : net
 }
 
 /** Who an event is charged to, in words — for receipt/email lines. Derived from

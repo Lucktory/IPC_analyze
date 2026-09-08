@@ -26,7 +26,7 @@ import { fmtSignedMoney } from '@/lib/format'
 import { periodLabel, shiftPeriod } from '@/lib/period'
 import {
   EVENT_KIND, EVENT_PARTY, EVENT_STATUS,
-  transferEffectOf, type ContractEvent, type EventParty,
+  transferEffectOf, honorarioGross, type ContractEvent, type EventParty,
 } from '@/lib/contract/events-types'
 import type { EventsSummary } from '@/lib/contract/events-bulk'
 import {
@@ -291,7 +291,10 @@ function HonorariosSection({
   const total    = Number(draft.amount)
   const cuotas   = Math.max(1, Math.trunc(Number(draft.cuotas)) || 1)
   const perCuota = total > 0 ? total / cuotas : 0
-  const withIva  = (n: number) => draft.includesIva ? n * 1.21 : n
+  // Was a hardcoded `n * 1.21` — a sixth copy of the IVA rate. Routed through
+  // the canonical helper so this preview and the three totals that consume the
+  // saved honorario can never disagree about the rate or its direction.
+  const withIva  = (n: number) => honorarioGross(n, draft.includesIva)
 
   return (
     <section className="border border-info/30 bg-info/5 rounded p-2.5">
@@ -309,7 +312,7 @@ function HonorariosSection({
                 <span className="text-[13.5px] text-ink truncate min-w-0">{e.description || 'Honorarios'}</span>
                 <span className="flex items-center gap-2 shrink-0">
                   {e.includesIva && (
-                    <span className="text-[10px] px-1 py-0.5 rounded bg-info/15 text-info" title={`Total con IVA: ${fmtSignedMoney(neto * 1.21)}`}>+IVA</span>
+                    <span className="text-[10px] px-1 py-0.5 rounded bg-info/15 text-info" title={`Total con IVA: ${fmtSignedMoney(honorarioGross(neto, true))}`}>+IVA</span>
                   )}
                   <span className="text-[13px] tabular-nums font-medium text-info">{fmtSignedMoney(neto)}</span>
                   <button type="button" onClick={() => onRemove(e.id)} title="Eliminar" className="text-slate hover:text-danger hover:bg-danger/10 rounded text-[20px] leading-none px-2 py-0.5 -my-0.5">×</button>

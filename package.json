@@ -9,7 +9,7 @@
     "seed": "tsx scripts/seed.ts",
     "import-sheet": "tsx scripts/import-from-sheet.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx scripts/test-consolidation.ts && tsx scripts/test-managed-rows.ts && tsx scripts/test-funnel.ts",
+    "test": "tsx scripts/test-consolidation.ts && tsx scripts/test-managed-rows.ts && tsx scripts/test-funnel.ts && tsx scripts/test-honorarios.ts",
     "check": "npm run typecheck && npm run test"
   },
   "dependencies": {

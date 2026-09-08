@@ -18,7 +18,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import {
   EVENTS_TABLE, EVENT_COLUMNS, EVENT_STATUS, EVENT_KIND, ADJUSTMENT_KINDS,
-  mapEventRow, reminderBucket, ownerTransferEffect, eventPartyLabel,
+  mapEventRow, reminderBucket, ownerTransferEffect, eventPartyLabel, honorarioGross,
   type ContractEvent,
 } from './events-types'
 
@@ -164,7 +164,10 @@ export async function getHonorariosForPeriod(period: string): Promise<Honorarios
   const supabase = await createSupabaseServer()
   const { data } = await supabase
     .from(EVENTS_TABLE)
-    .select('contract_id, description, amount_landlord, amount_tenant, contracts(contract_number)')
+    // includes_iva added 2026-09-06: it was missing from this select, so the
+    // period total could not honour the flag even in principle and reported
+    // every con-IVA honorario at its net value.
+    .select('contract_id, description, amount_landlord, amount_tenant, includes_iva, contracts(contract_number)')
     .eq('kind', EVENT_KIND.HONORARIOS)
     .eq('applies_to_period', period)
     .neq('status', EVENT_STATUS.CANCELLED)
@@ -173,7 +176,13 @@ export async function getHonorariosForPeriod(period: string): Promise<Honorarios
     contractId:     r.contract_id,
     contractNumber: (r.contracts as any)?.contract_number ?? null,
     description:    (r.description ?? '').trim() || 'Honorarios',
-    amount:         Number(r.amount_tenant ?? 0) + Number(r.amount_landlord ?? 0),
+    // The net base is unchanged (tenant + landlord, as before — the writer
+    // always sets amount_landlord = 0, but legacy rows are preserved); IVA is
+    // the only new term.
+    amount:         honorarioGross(
+                      Number(r.amount_tenant ?? 0) + Number(r.amount_landlord ?? 0),
+                      r.includes_iva === true,
+                    ),
   }))
   const total = lines.reduce((s, l) => s + l.amount, 0)
   return { total, lines }
