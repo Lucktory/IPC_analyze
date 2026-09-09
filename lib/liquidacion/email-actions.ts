@@ -26,6 +26,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { transitionLiquidacionStatus } from './actions'
 import { buildReceiptAjustes, type AjusteLine } from '@/lib/contract/events-bulk'
+import { accumulateFunnel, funnelTransferencia, type FunnelTxnRow } from './funnel'
 import { fmtMoney } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
 
@@ -68,21 +69,26 @@ export async function prepareEmailDraft(
     .eq('period', period)
   if (txnsErr) return dbFailure(txnsErr)
 
-  let gross = 0, commission = 0, otros = 0
+  // Buckets come from the canonical classifier (lib/liquidacion/funnel.ts) so
+  // the email can never disagree with the planilla about what counts as
+  // ingresos / admi / otros. Same rule the grid and the status writer use.
+  // (cast via unknown: PostgREST types the !inner embed as an array, though it
+  // resolves to a single object at runtime — the same reason the loop below
+  // reads `txns as any[]`.)
+  const { ingresos: gross, admi: commission, otros } =
+    accumulateFunnel(txns as unknown as FunnelTxnRow[] | null)
+
   // Income lines with their description — Alejandro: the recibo must say what
   // each cobro corresponds to (p. ej. "Alquiler Mayo", "A cuenta Junio").
+  // This still needs its own pass because it carries typ.label + description,
+  // which the buckets don't retain. The filter below mirrors accumulateFunnel's
+  // IN branch exactly.
   const cobradoLines: { label: string; desc: string | null; amount: number }[] = []
   for (const t of (txns ?? []) as any[]) {
     const typ = t.transaction_types
-    if (!typ.affects_liquidacion) continue
-    if (typ.direction === 'IN') {
-      gross += Number(t.amount)
-      cobradoLines.push({ label: typ.label, desc: (t.description ?? '').trim() || null, amount: Number(t.amount) })
-    }
-    else if (typ.code === 'COMMISSION_OUT') commission += Number(t.amount)
-    else otros += Number(t.amount)
+    if (!typ?.affects_liquidacion || typ.direction !== 'IN') continue
+    cobradoLines.push({ label: typ.label, desc: (t.description ?? '').trim() || null, amount: Number(t.amount) || 0 })
   }
-  const netoTransacciones = gross - commission - otros
 
   // Ajustes (confirmed Observaciones + legacy manual adjustment) — same source
   // as the liquidación detail page, so the email and the receipt always match.
@@ -96,7 +102,9 @@ export async function prepareEmailDraft(
   const { lines: ajusteLines, total: ajustes } = await buildReceiptAjustes(
     contractId, period, Number((liqRow as any)?.adjustment_amount ?? 0),
   )
-  const netToLandlord = netoTransacciones + ajustes
+  // THE settlement figure — same function the planilla column and the grid
+  // footer use. Previously restated here as `gross - commission - otros + ajustes`.
+  const netToLandlord = funnelTransferencia({ ingresos: gross, admi: commission, otros }, ajustes)
 
   // Landlord (for recipient + name) + primary tenant (for body context).
   const [landlordRes, contractRes] = await Promise.all([

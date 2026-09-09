@@ -12,6 +12,8 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure }            from '@/lib/db-errors'
 import type { LiquidacionStatus } from '@/lib/liquidacion/queries'
+import { accumulateFunnel, funnelDeductions, funnelTransferencia, type FunnelTxnRow } from './funnel'
+import { buildReceiptAjustes } from '@/lib/contract/events-bulk'
 
 export interface LiquidacionActionResult {
   ok:    boolean
@@ -67,20 +69,32 @@ export async function transitionLiquidacionStatus(
 
   if (txnsErr) return dbFailure(txnsErr)
 
-  let gross = 0, commission = 0, otros = 0
-  for (const t of (txns ?? []) as any[]) {
-    const typ = t.transaction_types
-    if (!typ.affects_liquidacion) continue
-    if (typ.direction === 'IN') {
-      gross += Number(t.amount)
-    } else if (typ.code === 'COMMISSION_OUT') {
-      commission += Number(t.amount)
-    } else {
-      otros += Number(t.amount)
-    }
-  }
-  const totalDeductions = commission + otros
-  const netToLandlord   = gross - totalDeductions
+  const { ingresos: gross, admi: commission, otros } =
+    accumulateFunnel(txns as unknown as FunnelTxnRow[] | null)
+  const totalDeductions = funnelDeductions({ ingresos: gross, admi: commission, otros })
+
+  // 2b. Ajustes — the signed owner-transfer adjustment for the period: the
+  // legacy manual `liquidaciones.adjustment_amount` plus the CONFIRMED
+  // (cobrado) arreglo/ajuste events. Same source the planilla column and the
+  // owner email already use, so all three agree.
+  //
+  // 2026-09-09: `net_to_landlord` used to be computed as `gross - deductions`
+  // with no ajustes term at all, so the durable money column never matched the
+  // figure that was actually emailed and transferred on any contract carrying
+  // a confirmed ajuste. Note this runs on EVERY status change (including the
+  // one-click Estado pill), not only on send.
+  const { data: liqRow } = await supabase
+    .from('liquidaciones')
+    .select('adjustment_amount')
+    .eq('contract_id', contractId)
+    .eq('landlord_id', landlordId)
+    .eq('period', period)
+    .maybeSingle()
+  const { total: ajustes } = await buildReceiptAjustes(
+    contractId, period, Number((liqRow as any)?.adjustment_amount ?? 0),
+  )
+
+  const netToLandlord = funnelTransferencia({ ingresos: gross, admi: commission, otros }, ajustes)
 
   // 3. Upsert the liquidaciones row
   const updates: Record<string, unknown> = {
