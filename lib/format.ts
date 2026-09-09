@@ -69,3 +69,48 @@ export function fmtDateLong(date: Date | string): string {
     day: '2-digit', month: 'long', year: 'numeric',
   })
 }
+
+// ── Added 2026-09-09 ────────────────────────────────────────────────────────
+// Three formats that existed only as copies scattered across pages and
+// components. The header above claims this module is where formatting lives;
+// these are the pieces that were missing, which is why call sites hand-rolled
+// them instead.
+
+/**
+ * "1.234" — a COUNT, not money. No currency symbol.
+ *
+ * Used for every KPI tile that shows a number of contracts / tenants /
+ * properties. Distinct from fmtMoney on purpose: prefixing those with "$"
+ * would be wrong. Previously defined in components/charts/theme.ts, which
+ * re-exports this one now so the chart components keep their import.
+ */
+export function fmtInt(n: number | null | undefined): string {
+  if (n == null || !isFinite(Number(n))) return '0'
+  return Math.round(Number(n)).toLocaleString('es-AR')
+}
+
+/**
+ * "05/06" — day and month only, for dense grid columns. Em dash when absent.
+ *
+ * NOTE: parses with `new Date(s)`, preserving the exact behaviour of the two
+ * identical copies this replaces (DestinosView / MovimientosView). That means a
+ * date-only string is read as UTC midnight and can render one day early in a
+ * runtime behind UTC. Left as-is deliberately — changing it would shift dates
+ * currently on screen, which is a separate decision from removing the
+ * duplication.
+ */
+export function fmtDayMonth(date: string | Date | null | undefined): string {
+  if (!date) return '—'
+  const d = typeof date === 'string' ? new Date(date) : date
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
+}
+
+/**
+ * "1.234,56" — an INDEX level (INDEC IPC), up to 2 decimals, no symbol.
+ * Em dash when absent. Replaces identical helpers in AplicarAumentoControl
+ * and IpcRefreshControl.
+ */
+export function fmtIndex(n: number | null | undefined): string {
+  if (n == null || !isFinite(Number(n))) return '—'
+  return Number(n).toLocaleString('es-AR', { maximumFractionDigits: 2 })
+}

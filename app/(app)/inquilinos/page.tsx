@@ -7,7 +7,7 @@ import { TablePagination } from '@/components/ui/TablePagination'
 import { StatCard } from '@/components/ui/StatCard'
 import { listTenants, type EstadoPago } from '@/lib/entities/queries'
 import { getDashboardPeriod } from '@/lib/dashboard/queries'
-import { fmtMoney as fmt } from '@/lib/format'
+import { fmtMoney as fmt, fmtInt } from '@/lib/format'
 
 const PER_PAGE = 12
 const AVATAR_COLORS = ['#3B82F6', '#16A34A', '#8B5CF6', '#F59E0B', '#06B6D4', '#EC4899']
@@ -73,10 +73,10 @@ export default async function InquilinosPage({ searchParams }: PageProps) {
   }
 
   const stats = [
-    { key: 'total',   label: 'Inquilinos',   value: total.toLocaleString('es-AR'),      sub: 'Total registrados',       Icon: Users,       color: '#3B82F6', href: buildHref({ tipo: 'todos' }),        active: tipo === 'todos' },
-    { key: 'aldia',   label: 'Al día',       value: alDia.toLocaleString('es-AR'),      sub: `${pctAlDia.toFixed(0)}% del total`, Icon: CircleCheck, color: '#16A34A', href: buildHref({ tipo: 'al_dia' }),       active: tipo === 'al_dia' },
-    { key: 'mora',    label: 'En mora',      value: enMora.toLocaleString('es-AR'),     sub: fmt(moraMonto),            Icon: CircleAlert, color: '#EF4444', href: buildHref({ tipo: 'en_mora' }),      active: tipo === 'en_mora' },
-    { key: 'sincon',  label: 'Sin contrato', value: sinContrato.toLocaleString('es-AR'), sub: 'Sin contrato vigente',    Icon: UserX,       color: '#8A93A5', href: buildHref({ tipo: 'sin_contrato' }), active: tipo === 'sin_contrato' },
+    { key: 'total',   label: 'Inquilinos',   value: fmtInt(total),      sub: 'Total registrados',       Icon: Users,       color: '#3B82F6', href: buildHref({ tipo: 'todos' }),        active: tipo === 'todos' },
+    { key: 'aldia',   label: 'Al día',       value: fmtInt(alDia),      sub: `${pctAlDia.toFixed(0)}% del total`, Icon: CircleCheck, color: '#16A34A', href: buildHref({ tipo: 'al_dia' }),       active: tipo === 'al_dia' },
+    { key: 'mora',    label: 'En mora',      value: fmtInt(enMora),     sub: fmt(moraMonto),            Icon: CircleAlert, color: '#EF4444', href: buildHref({ tipo: 'en_mora' }),      active: tipo === 'en_mora' },
+    { key: 'sincon',  label: 'Sin contrato', value: fmtInt(sinContrato), sub: 'Sin contrato vigente',    Icon: UserX,       color: '#8A93A5', href: buildHref({ tipo: 'sin_contrato' }), active: tipo === 'sin_contrato' },
   ]
 
   return (

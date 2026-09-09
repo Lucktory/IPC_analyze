@@ -21,6 +21,7 @@
 // ============================================================================
 
 import { createSupabaseServer } from '@/lib/supabase/server'
+import { fmtMoney } from '@/lib/format'
 import { getCurrentPeriod } from '@/lib/period'
 import { getLiquidacionGridForPeriod } from '@/lib/liquidacion/queries'
 import { pickPrimaryLandlord } from '@/lib/contract/primary'
@@ -137,7 +138,7 @@ export async function getPendientesDigest(): Promise<PendienteDigest> {
         ...base,
         days:      null,
         amount:    row.transferencia,
-        detail:    `Cobrado el ${formatDayMonth(row.fechaBanco!)} — falta transferir ${formatPesos(row.transferencia)} al propietario.`,
+        detail:    `Cobrado el ${formatDayMonth(row.fechaBanco!)} — falta transferir ${fmtMoney(row.transferencia)} al propietario.`,
       })
       continue
     }
@@ -177,7 +178,7 @@ export async function getPendientesDigest(): Promise<PendienteDigest> {
         ...base,
         days:      d,
         amount:    row.currentRent,
-        detail:    `${label} — alquiler ${formatPesos(row.currentRent)}.`,
+        detail:    `${label} — alquiler ${fmtMoney(row.currentRent)}.`,
       })
       continue
     }
@@ -216,9 +217,14 @@ export async function getPendingCount(): Promise<number> {
   return counts.pendiente_transferencia + counts.liquidacion_abierta
 }
 
-function formatPesos(n: number): string {
-  return '$' + Math.round(n).toLocaleString('es-AR')
-}
+// formatPesos removed 2026-09-09 — it was a byte-for-byte reimplementation of
+// fmtMoney ('$' + Math.round(n).toLocaleString('es-AR')). Call sites use
+// fmtMoney directly now.
+//
+// NOTE: formatDayMonth below is deliberately NOT routed through
+// lib/format.ts's fmtDayMonth. This one slices the ISO string, which is
+// timezone-safe; that one parses with `new Date()` and can render a day early
+// in a runtime behind UTC. Consolidating them would regress this call site.
 
 function formatDayMonth(iso: string): string {
   // YYYY-MM-DD → DD/MM

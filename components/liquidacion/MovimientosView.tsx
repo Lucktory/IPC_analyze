@@ -8,18 +8,12 @@
 
 import Link from 'next/link'
 import type { TransactionRow } from '@/lib/entities/queries'
-import { fmtMoney } from '@/lib/format'
+import { fmtMoney, fmtDayMonth } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
 
 interface Props {
   txns:   TransactionRow[]
   period: string
-}
-
-const DATE = (s: string | null) => {
-  if (!s) return '—'
-  const d = new Date(s)
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
 }
 
 export function MovimientosView({ txns, period }: Props) {
@@ -74,7 +68,7 @@ export function MovimientosView({ txns, period }: Props) {
                   return (
                     <tr key={t.id} className={`${zebra} hover:bg-cream-2 transition-colors border-b border-line/30`}>
                       <td className="px-3 py-1.5 text-slate-dark tabular-nums border-r border-line/30 whitespace-nowrap">
-                        {DATE(t.bankDate)}
+                        {fmtDayMonth(t.bankDate)}
                       </td>
                       <td className="px-3 py-1.5 border-r border-line/30">
                         <span className={`inline-flex items-center gap-1.5 text-[11.5px]`}>

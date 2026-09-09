@@ -17,7 +17,7 @@ import {
   getPeriodsWithData,
 } from '@/lib/dashboard/queries'
 import { buildPeriodTabs } from '@/lib/period'
-import { fmtMoney } from '@/lib/format'
+import { fmtMoney, fmtInt } from '@/lib/format'
 import { PeriodSelect }         from '@/components/charts/panel/PeriodSelect'
 import { DashboardCard }        from '@/components/charts/panel/DashboardCard'
 import { DonutPanel }           from '@/components/charts/panel/DonutPanel'
@@ -182,7 +182,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       {/* KPI row — 2-up on small, 4-up from lg (1024px) */}
       <section className="shrink-0 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <KpiCard label="Contratos activos" value={kpis.activeContracts.toLocaleString('es-AR')}
+        <KpiCard label="Contratos activos" value={fmtInt(kpis.activeContracts)}
                  delta={null} sparkColor={BLUE} />
         <KpiCard label="Ingresos del mes" value={fmtMoney(kpis.monthlyIncome)}
                  delta={incomeDelta} spark={incomeVals} sparkColor={BLUE} />

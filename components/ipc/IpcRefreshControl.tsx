@@ -14,11 +14,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { RefreshCw, X, TriangleAlert, Check } from 'lucide-react'
 import { refreshIpc, getIpcStatus, type IpcStatus, type IpcMonthRow } from '@/lib/ipc/actions'
+import { fmtIndex } from '@/lib/format'
 
 const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 const mLabel = (m: string) => { const [y, mm] = m.split('-'); return `${MONTHS_ES[+mm - 1]} ${y}` }
 const dLabel = (iso: string) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}` }
-const fmtIdx = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 2 })
 const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1).replace('.', ',')}%`
 
 type Modal =
@@ -139,7 +139,7 @@ function IpcModal({ modal, onClose }: { modal: NonNullable<Modal>; onClose: () =
                   <tr key={r.month} className="border-t border-line/60">
                     <td className="px-3 py-1.5 text-ink">{mLabel(r.month)}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-slate-dark">{fmtPct(r.variationPct)}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums text-slate-dark">{fmtIdx(r.indexValue)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-slate-dark">{fmtIndex(r.indexValue)}</td>
                   </tr>
                 ))}
               </tbody>

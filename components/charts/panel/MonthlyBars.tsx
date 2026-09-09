@@ -9,6 +9,7 @@
 
 import dynamic from 'next/dynamic'
 import { chartBaseStyle, fmtCompactARS, useChartColors, PREMIUM } from '../theme'
+import { fmtInt } from '@/lib/format'
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
@@ -37,7 +38,7 @@ export function MonthlyBars({
   showAverage   = false,
   showValueTags = false,
 }: Props) {
-  const fmt = format === 'currency' ? fmtCompactARS : (v: number) => v.toLocaleString('es-AR')
+  const fmt = format === 'currency' ? fmtCompactARS : (v: number) => fmtInt(v)
   const c   = useChartColors()
   const avg = points.length > 0 ? points.reduce((s, p) => s + p.value, 0) / points.length : 0
 

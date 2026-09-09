@@ -6,7 +6,7 @@ import { ClickableRow } from '@/components/ui/ClickableRow'
 import { TablePagination } from '@/components/ui/TablePagination'
 import { StatCard } from '@/components/ui/StatCard'
 import { listProperties } from '@/lib/entities/queries'
-import { fmtMoney as fmt } from '@/lib/format'
+import { fmtMoney as fmt, fmtInt } from '@/lib/format'
 
 const PER_PAGE = 12
 const TYPE: Record<string, { label: string; color: string }> = {
@@ -86,9 +86,9 @@ export default async function PropiedadesPage({ searchParams }: PageProps) {
   const pctOcup = total > 0 ? (ocupadas / total) * 100 : 0
   const pctVac  = total > 0 ? (vacantes / total) * 100 : 0
   const stats = [
-    { key: 'total',  label: 'Propiedades', value: total.toLocaleString('es-AR'),    sub: 'Total de unidades',                     Icon: Building2, color: '#3B82F6', href: buildHref({ estado: 'todos' }),    active: estado === 'todos' },
-    { key: 'ocup',   label: 'Ocupadas',    value: ocupadas.toLocaleString('es-AR'), sub: `${pctOcup.toFixed(1).replace('.', ',')}% del total`, Icon: Home,      color: '#16A34A', href: buildHref({ estado: 'ocupadas' }), active: estado === 'ocupadas' },
-    { key: 'vac',    label: 'Vacantes',    value: vacantes.toLocaleString('es-AR'), sub: `${pctVac.toFixed(1).replace('.', ',')}% del total`,  Icon: DoorOpen,  color: '#F59E0B', href: buildHref({ estado: 'vacantes' }), active: estado === 'vacantes' },
+    { key: 'total',  label: 'Propiedades', value: fmtInt(total),    sub: 'Total de unidades',                     Icon: Building2, color: '#3B82F6', href: buildHref({ estado: 'todos' }),    active: estado === 'todos' },
+    { key: 'ocup',   label: 'Ocupadas',    value: fmtInt(ocupadas), sub: `${pctOcup.toFixed(1).replace('.', ',')}% del total`, Icon: Home,      color: '#16A34A', href: buildHref({ estado: 'ocupadas' }), active: estado === 'ocupadas' },
+    { key: 'vac',    label: 'Vacantes',    value: fmtInt(vacantes), sub: `${pctVac.toFixed(1).replace('.', ',')}% del total`,  Icon: DoorOpen,  color: '#F59E0B', href: buildHref({ estado: 'vacantes' }), active: estado === 'vacantes' },
     { key: 'vivloc', label: 'Viviendas / Locales', value: `${viviendas} / ${locales}`, sub: `${total ? Math.round(viviendas / total * 100) : 0}% viv. / ${total ? Math.round(locales / total * 100) : 0}% loc.`, Icon: Building, color: '#8B5CF6', href: buildHref({ tipo: 'vivienda' }), active: tipoF === 'vivienda' },
   ]
 

@@ -9,11 +9,11 @@
 
 import dynamic from 'next/dynamic'
 import { chartBaseStyle, useChartColors, fmtCompactARS } from '../theme'
-import { fmtMoney } from '@/lib/format'
+import { fmtMoney, fmtInt } from '@/lib/format'
 
 export type ValueFormat = 'int' | 'money' | 'compact'
 const VALUE_FORMATTERS: Record<ValueFormat, (v: number) => string> = {
-  int:     v => v.toLocaleString('es-AR'),
+  int:     v => fmtInt(v),
   money:   v => fmtMoney(v),
   compact: v => fmtCompactARS(v),
 }
@@ -73,7 +73,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
       formatter: (p: any) =>
         `<div style="font-weight:500;margin-bottom:2px">${p.name}</div>` +
         `<div style="display:flex;gap:8px;align-items:baseline;opacity:0.85">` +
-        `<span style="font-variant-numeric:tabular-nums">${p.value.toLocaleString('es-AR')}</span>` +
+        `<span style="font-variant-numeric:tabular-nums">${fmtInt(p.value)}</span>` +
         `<span style="font-variant-numeric:tabular-nums">${p.percent}%</span></div>`,
     },
     series: [
@@ -112,7 +112,7 @@ export function DonutPanel({ items, legendPosition = 'side', totalUnit = 'total'
         left: 'center',
         top: '47%',
         style: {
-          text: centerText ?? total.toLocaleString('es-AR'),
+          text: centerText ?? fmtInt(total),
           fontSize: fill ? 22 : (height < 180 ? 20 : 30),
           fontWeight: 600,
           fill: c.centerValue,

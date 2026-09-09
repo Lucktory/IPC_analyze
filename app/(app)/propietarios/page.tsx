@@ -7,7 +7,7 @@ import { TablePagination } from '@/components/ui/TablePagination'
 import { StatCard } from '@/components/ui/StatCard'
 import { listLandlords } from '@/lib/entities/queries'
 import { getDashboardPeriod } from '@/lib/dashboard/queries'
-import { fmtMoney as fmt } from '@/lib/format'
+import { fmtMoney as fmt, fmtInt } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
 
 const PER_PAGE = 12
@@ -77,10 +77,10 @@ export default async function PropietariosPage({ searchParams }: PageProps) {
   }
 
   const stats = [
-    { key: 'total',   label: 'Propietarios',    value: total.toLocaleString('es-AR'),       sub: 'en la administración',                                Icon: Users,         color: '#3B82F6', href: buildHref({ tipo: 'todos' }),        active: tipo === 'todos' },
-    { key: 'contr',   label: 'Con contratos',   value: conContrato.toLocaleString('es-AR'), sub: `${pctContrato.toFixed(1).replace('.', ',')}% del total`, Icon: CircleCheck,  color: '#16A34A', href: buildHref({ tipo: 'con_contrato' }), active: tipo === 'con_contrato' },
+    { key: 'total',   label: 'Propietarios',    value: fmtInt(total),       sub: 'en la administración',                                Icon: Users,         color: '#3B82F6', href: buildHref({ tipo: 'todos' }),        active: tipo === 'todos' },
+    { key: 'contr',   label: 'Con contratos',   value: fmtInt(conContrato), sub: `${pctContrato.toFixed(1).replace('.', ',')}% del total`, Icon: CircleCheck,  color: '#16A34A', href: buildHref({ tipo: 'con_contrato' }), active: tipo === 'con_contrato' },
     { key: 'cobrado', label: 'Cobrado del mes', value: fmt(cobradoMes),                     sub: periodLabel(dashPeriod),                               Icon: Coins,         color: '#F59E0B', href: buildHref({ tipo: 'todos' }),        active: false },
-    { key: 'sincuit', label: 'Sin CUIT',        value: sinCuit.toLocaleString('es-AR'),     sub: 'requieren validación',                                Icon: TriangleAlert, color: '#8B5CF6', href: buildHref({ tipo: 'sin_cuit' }),     active: tipo === 'sin_cuit' },
+    { key: 'sincuit', label: 'Sin CUIT',        value: fmtInt(sinCuit),     sub: 'requieren validación',                                Icon: TriangleAlert, color: '#8B5CF6', href: buildHref({ tipo: 'sin_cuit' }),     active: tipo === 'sin_cuit' },
   ]
 
   const filtrosActive = tipo === 'sin_email' || tipo === 'sin_contrato'

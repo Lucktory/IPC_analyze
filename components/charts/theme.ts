@@ -1,7 +1,7 @@
 // Shared ECharts theme — ported from Plager ERP useChartTheme.ts.
 // Currency formatters adapted from BRL (R$) to ARS ($).
 
-import { fmtMoney } from '@/lib/format'
+import { fmtMoney, fmtInt } from '@/lib/format'
 import { useTheme } from '@/lib/theme'
 
 /**
@@ -94,9 +94,10 @@ export function fmtCompactARS(v: number): string {
 
 export const fmtARS = (v: number) => fmtMoney(v)
 
-export function fmtInt(v: number): string {
-  return Math.round(v).toLocaleString('es-AR')
-}
+// Canonical definition now lives in lib/format.ts (it is not chart-specific —
+// every KPI tile needs it). Re-exported here so the chart components that
+// already import it from this module keep working unchanged.
+export { fmtInt }
 
 export function fmtCount(unit: string, plural?: string) {
   return (v: number) => `${fmtInt(v)} ${v === 1 ? unit : plural ?? unit + 's'}`

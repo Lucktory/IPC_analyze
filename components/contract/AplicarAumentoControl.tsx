@@ -17,7 +17,7 @@ import { useState } from 'react'
 import { useBusyTransition } from '@/components/shell/NavProgress'
 import { useRouter } from 'next/navigation'
 import { TrendingUp, ChevronDown } from 'lucide-react'
-import { fmtMoney as fmt } from '@/lib/format'
+import { fmtMoney as fmt, fmtIndex } from '@/lib/format'
 import { applyContractAumento, applyContractAumentoAmount, applyIpcAumento } from '@/lib/contract/inline-field-actions'
 import { scaleRentByFactor, type SuggestedAumento } from '@/lib/contract/aumento'
 
@@ -119,7 +119,7 @@ export function AplicarAumentoControl({
               {showCalc && (
                 <div className="mt-2 text-[10.5px] text-slate space-y-0.5 tabular-nums border-t border-line/60 pt-1.5">
                   <div>IPC INDEC · {suggested.windowMonths.map(mLabel).join(' · ')}</div>
-                  <div>índice {mLabel(suggested.windowMonths[0] ? suggestedStartMonth(suggested) : '')}: {fmtIdx(suggested.indexStart)} → {mLabel(suggested.windowMonths[suggested.windowMonths.length - 1] ?? '')}: {fmtIdx(suggested.indexEnd)}</div>
+                  <div>índice {mLabel(suggested.windowMonths[0] ? suggestedStartMonth(suggested) : '')}: {fmtIndex(suggested.indexStart)} → {mLabel(suggested.windowMonths[suggested.windowMonths.length - 1] ?? '')}: {fmtIndex(suggested.indexEnd)}</div>
                   <div>factor {suggested.indexStart && suggested.indexEnd ? (suggested.indexEnd / suggested.indexStart).toFixed(6) : '—'}</div>
                 </div>
               )}
@@ -183,7 +183,6 @@ export function AplicarAumentoControl({
   )
 }
 
-function fmtIdx(n: number | null): string { return n == null ? '—' : n.toLocaleString('es-AR', { maximumFractionDigits: 2 }) }
 function suggestedStartMonth(s: SuggestedAumento): string {
   // denominator month = month before the first window month
   const first = s.windowMonths[0]

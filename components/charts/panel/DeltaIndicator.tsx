@@ -4,7 +4,7 @@
 // dimmed when flat. Value is rendered tabular so the digits don't wiggle.
 // ============================================================================
 
-import { fmtMoney } from '@/lib/format'
+import { fmtMoney, fmtInt } from '@/lib/format'
 
 interface DeltaIndicatorProps {
   label:  string
@@ -17,7 +17,7 @@ export function DeltaIndicator({ label, delta, currency }: DeltaIndicatorProps) 
   const sign  = delta > 0 ? '↑' : delta < 0 ? '↓' : '·'
   const color = delta > 0 ? 'text-success' : delta < 0 ? 'text-danger' : 'text-slate'
   const abs   = Math.abs(delta)
-  const value = currency ? fmtMoney(abs) : abs.toLocaleString('es-AR')
+  const value = currency ? fmtMoney(abs) : fmtInt(abs)
 
   return (
     <div className="text-right">

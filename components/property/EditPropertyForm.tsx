@@ -37,6 +37,7 @@ import {
 import { createLandlordStandalone } from '@/lib/landlord/actions'
 import { createTenantStandalone }   from '@/lib/tenant/actions'
 import type { PropertyDetail, PropertyContract } from '@/lib/property/queries'
+import { fmtMoney } from '@/lib/format'
 import type { LandlordOption } from '@/lib/landlord/queries'
 import type { TenantOption }   from '@/lib/tenant/queries'
 import { DelayedActionButton } from '@/components/ui/DelayedActionButton'
@@ -432,7 +433,7 @@ export function EditPropertyForm({
       {!isCreate && hasActiveContract && activeContract && (
         <section>
           <SectionHeader
-            label={`Contrato activo · alquiler $${activeContract.currentRent.toLocaleString('es-AR')}`}
+            label={`Contrato activo · alquiler ${fmtMoney(activeContract.currentRent)}`}
           />
 
           {/* Tenants editor */}

@@ -6,11 +6,11 @@
 // ============================================================================
 
 import { fmtCompactARS } from '../theme'
-import { fmtMoney } from '@/lib/format'
+import { fmtMoney, fmtInt } from '@/lib/format'
 
 type ValueFormat = 'int' | 'money' | 'compact'
 const VALUE_FORMATTERS: Record<ValueFormat, (v: number) => string> = {
-  int:     v => v.toLocaleString('es-AR'),
+  int:     v => fmtInt(v),
   money:   v => fmtMoney(v),
   compact: v => fmtCompactARS(v),
 }

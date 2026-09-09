@@ -1,3 +1,4 @@
+import { fmtInt } from '@/lib/format'
 // ============================================================================
 // CompositionBar — a single horizontal bar split into colored segments,
 // with the count embedded inside each segment when there's room, plus a
@@ -31,7 +32,7 @@ export function CompositionBar({ items, totalUnit = '' }: Props) {
     <div className="flex flex-col gap-5">
       <div>
         <p className="font-display text-[28px] font-medium text-ink tabular-nums leading-none">
-          {total.toLocaleString('es-AR')}
+          {fmtInt(total)}
           {totalUnit && <span className="text-[14px] font-normal text-slate ml-2">{totalUnit}</span>}
         </p>
       </div>

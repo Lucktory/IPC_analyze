@@ -6,7 +6,7 @@ import { AutoSearchInput } from '@/components/ui/AutoSearchInput'
 import { ClickableRow } from '@/components/ui/ClickableRow'
 import { StatCard } from '@/components/ui/StatCard'
 import { listContracts, type ContractListFilters, type ContractRow } from '@/lib/entities/queries'
-import { fmtMoney as fmt, fmtDate } from '@/lib/format'
+import { fmtMoney as fmt, fmtDate, fmtInt } from '@/lib/format'
 
 const CADENCES = ['mensual', 'bimestral', 'trimestral', 'cuatrimestral', 'semestral', 'anual']
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s)
@@ -91,7 +91,7 @@ export default async function ContratosPage({ searchParams }: PageProps) {
       {/* KPI row */}
       <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 shrink-0">
         {stats.map(s => (
-          <StatCard key={s.key} Icon={s.Icon} color={s.color} label={s.label} value={s.value.toLocaleString('es-AR')} sub={s.sub} href={s.href} active={s.active} />
+          <StatCard key={s.key} Icon={s.Icon} color={s.color} label={s.label} value={fmtInt(s.value)} sub={s.sub} href={s.href} active={s.active} />
         ))}
       </section>
 

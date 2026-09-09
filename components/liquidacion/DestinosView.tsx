@@ -7,18 +7,12 @@
 
 import Link from 'next/link'
 import type { ReconciliationBucket } from '@/lib/reconciliation/queries'
-import { fmtMoney } from '@/lib/format'
+import { fmtMoney, fmtDayMonth } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
 
 interface Props {
   buckets: ReconciliationBucket[]
   period:  string
-}
-
-const DATE = (s: string | null) => {
-  if (!s) return '—'
-  const d = new Date(s)
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
 }
 
 export function DestinosView({ buckets, period }: Props) {
@@ -123,7 +117,7 @@ function BucketCard({ b }: { b: ReconciliationBucket }) {
           <tbody>
             {b.rows.map((r, i) => (
               <tr key={i} className={`${i % 2 === 0 ? 'bg-cream/30' : ''} border-b border-line/30`}>
-                <td className="px-3 py-1.5 text-slate-dark tabular-nums whitespace-nowrap">{DATE(r.bankDate)}</td>
+                <td className="px-3 py-1.5 text-slate-dark tabular-nums whitespace-nowrap">{fmtDayMonth(r.bankDate)}</td>
                 <td className="px-3 py-1.5 text-ink truncate max-w-[160px]">
                   {r.tenant ?? <span className="text-slate/50">—</span>}
                 </td>

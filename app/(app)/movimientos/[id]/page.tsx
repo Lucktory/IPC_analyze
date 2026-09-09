@@ -4,6 +4,7 @@ import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { EditMovimientoForm } from '@/components/movimiento/EditMovimientoForm'
 import { fmtMoney, fmtDate } from '@/lib/format'
+import { periodLabel } from '@/lib/period'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -60,7 +61,11 @@ export default async function MovimientoDetailPage({ params }: PageProps) {
 
   const direction = tx.transaction_types.direction as 'IN' | 'OUT'
   const sign = direction === 'IN' ? '+' : '−'
-  const periodLabelStr = tx.period ? new Date(tx.period).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }) : '—'
+  // periodLabel() splits the 'YYYY-MM-DD' string instead of constructing a
+  // Date, so it can't drift a month in a non-UTC runtime the way the previous
+  // `new Date(tx.period).toLocaleDateString(...)` could. Also makes this page
+  // render the period the same way every other page does ("Junio 2026").
+  const periodLabelStr = tx.period ? periodLabel(tx.period) : '—'
 
   return (
     <>

@@ -9,6 +9,7 @@
 
 import dynamic from 'next/dynamic'
 import { chartBaseStyle, fmtCompactARS, useChartColors } from '../theme'
+import { fmtInt } from '@/lib/format'
 
 const ReactECharts = dynamic(() => import('echarts-for-react'), { ssr: false })
 
@@ -52,7 +53,7 @@ export function MultiLineArea({ xLabels, series, height = 220 }: Props) {
         const month = params[0]?.axisValueLabel ?? ''
         const lines = params.map(p => {
           const s   = series[p.seriesIndex]
-          const fmt = (s.format ?? 'integer') === 'currency' ? fmtCompactARS : (v: number) => v.toLocaleString('es-AR')
+          const fmt = (s.format ?? 'integer') === 'currency' ? fmtCompactARS : (v: number) => fmtInt(v)
           return `<div style="display:flex;gap:10px;align-items:baseline">` +
                  `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${s.color}"></span>` +
                  `<span style="flex:1;opacity:0.7">${s.name}</span>` +
