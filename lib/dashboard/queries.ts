@@ -24,7 +24,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { getCurrentPeriod, getRecentPeriods, periodAxisLabel } from '@/lib/period'
 import { EVENTS_TABLE, EVENT_KIND, EVENT_STATUS, honorarioGross } from '@/lib/contract/events-types'
-import { classifyDestination } from '@/lib/bancos/destination'
+import { classifyDestination, type DestinationCode } from '@/lib/bancos/destination'
 import { pickPrimaryLandlord } from '@/lib/contract/primary'
 import { buildLiveRentMap } from '@/lib/contract/live-rent'
 
@@ -84,7 +84,7 @@ export interface DashboardKpis {
 }
 
 export interface CommissionByDestination {
-  destination: 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6' | 'OTHER'
+  destination: DestinationCode
   label:       string
   total:       number
   txCount:     number

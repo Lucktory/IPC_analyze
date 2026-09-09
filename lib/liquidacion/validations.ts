@@ -18,7 +18,7 @@
 // ============================================================================
 
 import { fmtMoney } from '@/lib/format'
-import { COMMISSION_IVA_RATE } from './thresholds'
+import { expectedCommission, commissionIvaFactor } from './thresholds'
 
 export const VALIDATION_TOLERANCES = {
   /** Allowed diff (in pesos) between recorded transferencia and computed. */
@@ -720,8 +720,7 @@ export function validateRow(
   // (a silent over-payment to the dueño). The deviation check below only runs
   // when admi > 0, so it skips exactly this case — this rule catches it.
   if (contractPct != null && contractPct > 0 && r.ingresos > 0 && r.admi === 0) {
-    const ivaFactor    = commissionIncludesIva ? 1 + COMMISSION_IVA_RATE : 1
-    const expectedAdmi = (r.ingresos * contractPct / 100) * ivaFactor
+    const expectedAdmi = expectedCommission(r.ingresos, contractPct, commissionIncludesIva)
     issues.push({
       code:     'COMMISSION_NOT_RECORDED',
       severity: 'warning',
@@ -738,8 +737,8 @@ export function validateRow(
     contractPct != null && contractPct > 0 &&
     r.ingresos > 0 && r.admi > 0
   ) {
-    const ivaFactor    = commissionIncludesIva ? 1 + COMMISSION_IVA_RATE : 1
-    const expectedAdmi = (r.ingresos * contractPct / 100) * ivaFactor
+    const ivaFactor    = commissionIvaFactor(commissionIncludesIva)
+    const expectedAdmi = expectedCommission(r.ingresos, contractPct, commissionIncludesIva)
     // Effective pct is computed against the IVA-inclusive expectation so
     // an RI contract booked correctly shows 0 deviation, not the ~21%
     // surplus you'd get if we ignored IVA.

@@ -87,3 +87,37 @@ export const CADENCE_FULL: Record<string, string> = {
 // COMMISSION_PCT_DEVIATION check, and the IVA-column split all read it here,
 // so they can never drift apart.
 export const COMMISSION_IVA_RATE = 0.21
+
+/** Multiplier applied to a net commission: 1.21 for an RI invoicer, 1 otherwise. */
+export function commissionIvaFactor(includesIva: boolean): number {
+  return includesIva ? 1 + COMMISSION_IVA_RATE : 1
+}
+
+/**
+ * THE commission formula: what the ADMI cell SHOULD hold for a period.
+ *
+ *     comision = ingresos x pct% x (1 + IVA when the invoicer is RI)
+ *
+ * `pct` is the CONFIGURED rate (contracts.commission_pct), never the effective
+ * rate derived back out of a recorded amount — see the warning below.
+ *
+ * Added 2026-09-09. This arithmetic was restated in five places: the writer
+ * (lib/transaction/actions.ts), both commission validators
+ * (lib/liquidacion/validations.ts), the confirm-dialog preview
+ * (components/liquidacion/EditableCells.tsx) and the grid's plausibility ceiling
+ * (components/liquidacion/LiquidacionGrid.tsx, three times over).
+ *
+ * WARNING for callers — do not feed this the EFFECTIVE percentage.
+ * `LiquidacionGridRow.pct` is derived as `admi / ingresos * 100`, so passing it
+ * here collapses algebraically back to `admi` itself and produces a guard that
+ * can never fire. The configured rate lives on the same row as
+ * `commissionPctConfigured`.
+ *
+ * Rounding is the caller's business: the writer stores 2 decimals, the
+ * validators and previews compare raw against a tolerance.
+ */
+export function expectedCommission(ingresos: number, pct: number, includesIva: boolean): number {
+  const base = Number(ingresos) || 0
+  const rate = Number(pct) || 0
+  return (base * rate / 100) * commissionIvaFactor(includesIva)
+}

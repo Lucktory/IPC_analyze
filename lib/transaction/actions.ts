@@ -23,7 +23,8 @@ import { redirect }       from 'next/navigation'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { updateContractCommissionPct } from '@/lib/contract/inline-field-actions'
-import { COMMISSION_IVA_RATE } from '@/lib/liquidacion/thresholds'
+import { expectedCommission } from '@/lib/liquidacion/thresholds'
+import { accumulateFunnel, type FunnelTxnRow } from '@/lib/liquidacion/funnel'
 import { isManagedRow, managedRowMessage, stripOtrosMarker, OTROS_CELL_MARKER, OTROS_CELL_ILIKE } from '@/lib/transaction/managed-rows'
 import { deriveCommissionDest, buildCommissionMarker, COMMISSION_MARKER_RE, DESTINATION_SHORT_LABEL, type CommissionDest } from '@/lib/bancos/destination'
 import { pickPrimaryLandlord } from '@/lib/contract/primary'
@@ -240,7 +241,6 @@ export async function computeCommissionForPeriod(
   // RI invoicers record the commission + 21% IVA on top ("ADM 9% + IVA"); same
   // factor the deviation check and the IVA column use. Monotributo: no IVA.
   const includesIva = (contract as any).commission_includes_iva === true
-  const ivaFactor   = includesIva ? 1 + COMMISSION_IVA_RATE : 1
 
   const { data: ins, error: insErr } = await supabase
     .from('transactions')
@@ -249,16 +249,17 @@ export async function computeCommissionForPeriod(
     .eq('period', period)
   if (insErr) return { ok: false, error: insErr.message }
 
-  let ingresos = 0
-  for (const t of (ins ?? []) as any[]) {
-    const typ = t.transaction_types
-    if (typ.affects_liquidacion && typ.direction === 'IN') ingresos += Number(t.amount)
-  }
+  // Same classifier the planilla, the email and the status writer use, so
+  // "ingresos" can't mean one thing here and another there. (Was an inline loop
+  // over affects_liquidacion + direction === 'IN'.)
+  const { ingresos } = accumulateFunnel(ins as unknown as FunnelTxnRow[] | null)
   if (ingresos <= 0) {
     return { ok: false, error: 'No hay ingresos cobrados todavía para este período — la comisión sería $0.', code: 'NO_INCOME' }
   }
 
-  const amount = Math.round((ingresos * pct / 100) * ivaFactor * 100) / 100  // 2-decimal precision
+  // THE commission formula (lib/liquidacion/thresholds.ts). Rounding to 2
+  // decimals stays here: this is the writer, the validators compare raw.
+  const amount = Math.round(expectedCommission(ingresos, pct, includesIva) * 100) / 100
   const destination = deriveCommissionDest((contract as any).commission_destination ?? null) ?? null
   return { ok: true, value: { amount, pct, includesIva, ingresos, destination } }
 }
@@ -271,7 +272,7 @@ export async function computeCommissionForPeriod(
 export async function generateCommissionForPeriod(
   contractId: string,
   period:     string,
-  destination?: 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6',
+  destination?: CommissionDest,
 ): Promise<TransactionResult> {
   const c = await computeCommissionForPeriod(contractId, period)
   if (!c.ok) return { ok: false, error: c.error, code: c.code }

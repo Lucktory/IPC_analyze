@@ -22,7 +22,8 @@ import { useRouter } from 'next/navigation'
 import { generateCommissionForPeriod, tagCommissionBank } from '@/lib/transaction/actions'
 import { fmtMoney } from '@/lib/format'
 
-type Dest = 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6'
+import type { CommissionDest } from '@/lib/bancos/destination'
+type Dest = CommissionDest
 type Mode = 'calcular' | 'tag'
 
 interface Props {

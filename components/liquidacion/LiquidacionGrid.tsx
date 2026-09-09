@@ -67,6 +67,7 @@ import {
   ALQUILER_AUMENTO_CELL_CLASS,
   CADENCE_SHORT,
   CADENCE_FULL,
+  expectedCommission,
 } from '@/lib/liquidacion/thresholds'
 
 interface Props {
@@ -823,7 +824,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       value={r.admGalicia}
                       cobrado={cobrado}
                       label="Comisión administración"
-                      maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
+                      maxPlausibleComm={expectedCommission(r.ingresos, r.commissionPctConfigured ?? 0, r.commissionIncludesIva)}
                     />
                   </Td>
 
@@ -837,7 +838,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       value={r.admFrances509}
                       cobrado={cobrado}
                       label="Comisión administración"
-                      maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
+                      maxPlausibleComm={expectedCommission(r.ingresos, r.commissionPctConfigured ?? 0, r.commissionIncludesIva)}
                     />
                   </Td>
 
@@ -851,7 +852,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       value={r.admFrances516}
                       cobrado={cobrado}
                       label="Comisión administración"
-                      maxPlausibleComm={r.ingresos > 0 ? r.ingresos * (r.pct || 0) / 100 : 0}
+                      maxPlausibleComm={expectedCommission(r.ingresos, r.commissionPctConfigured ?? 0, r.commissionIncludesIva)}
                     />
                   </Td>
 

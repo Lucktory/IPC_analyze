@@ -15,7 +15,7 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { normalizeLfa } from '@/lib/contract/lfa'
-import { buildCommissionMarker } from '@/lib/bancos/destination'
+import { buildCommissionMarker, type CommissionDest } from '@/lib/bancos/destination'
 import { CADENCE_MONTHS, nextAdjustmentDate, pendingAdjustment, aumentoWindow, computeAumento, scaleRentByFactor } from '@/lib/contract/aumento'
 import { getIpcIndexMap } from '@/lib/ipc/queries'
 import { getCurrentPeriod } from '@/lib/period'
@@ -387,7 +387,18 @@ export async function reactivateContract(contractId: string): Promise<InlineResu
 // the amount in place. Otherwise inserts a fresh row.
 // ============================================================================
 
-export type DestinationCode = 'ADM_GALICIA' | 'ADM_FRANCES_50_9' | 'ADM_FRANCES_51_6' | null
+/**
+ * Destination for a cell write: a real ADM account, or null = leave unmarked.
+ *
+ * Renamed from `DestinationCode` on 2026-09-09. That name is ALSO exported by
+ * lib/bancos/destination.ts with a different meaning (`CommissionDest |
+ * 'OTHER'` — the reader side, where an unmarked row is a bucket). Two exported
+ * types with the same name and different shapes is invisible to the compiler:
+ * you get whichever one you happened to import. The writer side means "no
+ * marker", not "the OTHER bucket", so it needs its own name — and the member
+ * list now comes from the canonical union instead of being restated.
+ */
+export type CellDestination = CommissionDest | null
 
 export async function upsertCellTransaction(
   contractId:  string,
@@ -396,7 +407,7 @@ export async function upsertCellTransaction(
   amount:      number,
   bankDate:    string | null,
   description: string | null,
-  destination: DestinationCode = null,
+  destination: CellDestination = null,
 ): Promise<InlineResult> {
   // Diagnostic log — surfaces every inline money-cell write in Vercel
   // runtime logs prefixed [CELL_TX] so a "didn't save" report can be

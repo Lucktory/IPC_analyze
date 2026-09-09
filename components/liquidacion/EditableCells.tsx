@@ -22,11 +22,11 @@ import {
   updateContractVigencia,
   upsertCellTransaction,
   cycleLiquidacionStatus,
-  type DestinationCode,
+  type CellDestination,
 } from '@/lib/contract/inline-field-actions'
 import { updateCommissionPctAndRecalc, setCommissionBankCell, setOtrosCell } from '@/lib/transaction/actions'
 import type { LiquidacionStatus } from '@/lib/liquidacion/queries'
-import { COMMISSION_IVA_RATE } from '@/lib/liquidacion/thresholds'
+import { expectedCommission } from '@/lib/liquidacion/thresholds'
 import { fmtMoney } from '@/lib/format'
 
 // ── Money-cell validators ──────────────────────────────────────────────────
@@ -134,9 +134,9 @@ export function EditableCommissionPctCell({
         message: `Todavía no hay cobros en el período. Se guarda el ${n}% y se aplica cuando entre el primer cobro.`,
       }
     }
-    // Match generateCommissionForPeriod exactly: RI invoicers add 21% IVA.
-    const ivaFactor = includesIva ? 1 + COMMISSION_IVA_RATE : 1
-    const expected  = (ingresos * n / 100) * ivaFactor
+    // Matches generateCommissionForPeriod exactly because both call the same
+    // function now, rather than both restating the formula and hoping.
+    const expected = expectedCommission(ingresos, n, includesIva)
     if (fmtMoney(expected) === fmtMoney(admi)) return null
     return {
       warn:    true,
@@ -193,7 +193,7 @@ export function EditableTransactionCell({
   contractId:        string
   period:            string
   typeCode:          string
-  destination?:      DestinationCode
+  destination?:      CellDestination
   value:             number
   cobrado:           boolean
   label?:            string
