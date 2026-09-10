@@ -83,7 +83,7 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
             <span className="text-slate-dark">
               Adeudado anterior{' '}
               <span className="text-[10.5px] text-slate">
-                (últimos {carryoverCount} {carryoverCount === 1 ? 'mes' : 'meses'})
+                ({carryoverCount} {carryoverCount === 1 ? 'mes anterior' : 'meses anteriores'})
               </span>
             </span>
             <span className={`tabular-nums ${breakdown.deudaCarryover > 0 ? 'text-danger' : 'text-ink'}`}>
@@ -104,8 +104,14 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
               </li>
             ))}
           </ul>
+          {/* Nota corregida 2026-09-11. Decia "Asume alquiler vigente actual
+              ...los valores historicos pueden variar levemente si hubo
+              aumentos", que desde el cambio del 2026-09-10 ya no es cierto:
+              cada mes anterior se valua al alquiler que regia EN ESE MES,
+              tomado de la tabla de aumentos. Dejar la nota vieja le decia al
+              usuario que el numero era aproximado cuando ya no lo es. */}
           <p className="text-[10px] text-slate italic mt-1.5 leading-snug">
-            Asume alquiler vigente actual ({fmtMoney(breakdown.expectedRent)}); los valores históricos pueden variar levemente si hubo aumentos.
+            Cada mes se cuenta al alquiler que regía en ese momento, según el historial de aumentos del contrato.
           </p>
         </div>
       )}
