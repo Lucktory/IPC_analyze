@@ -152,6 +152,24 @@ export function InlineIngresosCell({
     setOpen(false)
   }
 
+  // Esc = Cancelar, exactamente la misma accion que el boton (llama a close()).
+  // Este era el UNICO editor in-cell sin manejo de Escape: InlineNumberCell,
+  // InlineDateCell, InlineDateRangeCell, InlineSelectCell, InlineEntityCell,
+  // InlineIvaToggleCell y InlineDeudaBreakdownCell ya usaban este mismo patron.
+  // El cartel de arriba prometia "Esc = cancelar" desde siempre, pero nunca
+  // hubo un handler: apretar Esc no hacia absolutamente nada.
+  //
+  // Cerrar descarta de verdad: el efecto de mas arriba re-hidrata `drafts`
+  // desde las props cada vez que cambia `open`, asi que al reabrir se
+  // reconstruye desde lo guardado.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
   // Run a sequence of server actions: each promise-returning callback fires
   // after the previous one resolves. Stops on first error.
   async function runSequence(steps: Array<() => Promise<{ ok: boolean; error: string | null }>>): Promise<{ ok: boolean; error?: string | null }> {
@@ -291,7 +309,14 @@ export function InlineIngresosCell({
 
       {open && rect && createPortal(
         <>
-          <div className="fixed inset-0 z-[999]" onClick={save} />
+          {/* Backdrop que NO hace nada al click. Antes llamaba a save(), asi que
+              habia DOS formas de guardar (el boton y hacer click afuera) y una
+              sola de cancelar. El camino peligroso era: apretas el tacho sin
+              querer, apretas Esc creyendo que lo cancelaste (no hacia nada), y
+              al hacer click afuera para cerrar se guardaba el borrado.
+              Sobre plata no se guarda ni se descarta nada por accidente: hay
+              que elegir Guardar o Cancelar. */}
+          <div className="fixed inset-0 z-[999]" />
           <div
             ref={setPopoverEl} style={{ position: 'absolute', top: rect.top, left: rect.left, width: rect.width, zIndex: 1000 }}
             className="bg-paper border border-line rounded shadow-lg"
@@ -300,7 +325,7 @@ export function InlineIngresosCell({
           >
             <div className="px-3 py-2 border-b border-line flex items-center justify-between bg-cream-2">
               <span className="font-display text-[13px] font-medium text-ink">{popoverTitle ?? 'Ingresos del período'}</span>
-              <span className="text-[10px] text-slate italic">click afuera = guardar · Esc = cancelar</span>
+              <span className="text-[10px] text-slate italic">Esc = cancelar · Guardar para aplicar</span>
             </div>
 
             <div className="max-h-[340px] overflow-y-auto">
