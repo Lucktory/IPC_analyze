@@ -9,11 +9,13 @@
 // solapa showing what makes up the debt — this period's unpaid rent +
 // arrastrado + (optional) intereses por mora.
 //
-// V1 assumptions (explicit so future-me can revisit):
-//   • Carryover scans the last 3 prior periods (CARRYOVER_PERIODS).
-//   • Historical rent assumed = contracts.current_rent for every prior
-//     period. Walking the adjustments table is more accurate but heavier;
-//     the popover footnote flags the assumption to the encargada.
+// Assumptions (explicit so future-me can revisit):
+//   • Carryover scans the last 12 prior periods (CARRYOVER_PERIODS), bounded
+//     by the contract's start_date and by its first recorded month.
+//   • Historical rent comes from the `adjustments` table: a past month is
+//     valued at the rent in force THEN, not at today's. (Until 2026-09-10 this
+//     used current_rent for every prior period, which over-stated the debt of
+//     any contract that had since had an increase.)
 //   • Intereses = totalDebt × rate% × (daysOverdue / 30). Monthly
 //     proportional. Compound / daily formulas land in a follow-up if
 //     Alejandro tells us his actual convention.
@@ -26,7 +28,16 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { periodLabel, getArgentinaToday } from '@/lib/period'
 import { getLiveRent } from '@/lib/contract/live-rent'
 
-export const CARRYOVER_PERIODS = 3
+// 12 months back. Alejandro, 2026-09-10: "Si debe 12 meses... de alguna manera
+// lo tengo que saber. Pensa que esta es la herramienta donde yo voy a depositar
+// mi confianza." Was 3, which silently hid anything older than a quarter.
+export const CARRYOVER_PERIODS = 12
+
+/** PostgREST returns at most ~1000 rows per request. 12 periods x ~100
+ *  contracts x several transactions each blows past that, and the failure is
+ *  SILENT truncation — which here would UNDER-report debt, the exact opposite
+ *  of what this feature is for. So the window fetch pages explicitly. */
+const PAGE_SIZE = 1000
 const DAYS_PER_MONTH = 30
 
 export interface DeudaCarryoverEntry {
@@ -121,17 +132,37 @@ export async function buildDeudaBreakdownsBulk(
   // (contract, period) pairs were actually LOADED. RENT_IN + RENT_NF_IN feed
   // the cobrado sum; the presence of ANY transaction marks the period as
   // tracked, so we don't invent debt for months that were never imported.
-  const { data: txns } = await supabase
-    .from('transactions')
-    .select('contract_id, amount, period, transaction_types!inner(code)')
-    .in('contract_id', contractIds)
-    .in('period', allPeriods)
+  const txns: any[] = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('contract_id, amount, period, transaction_types!inner(code)')
+      .in('contract_id', contractIds)
+      .in('period', allPeriods)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) {
+      // Loud on purpose. Swallowing this used to mean "no debt" — a wrong
+      // answer that looks exactly like a right one.
+      console.error('[buildDeudaBreakdownsBulk] transactions fetch failed:', error.message)
+      break
+    }
+    txns.push(...(data ?? []))
+    if (!data || data.length < PAGE_SIZE) break
+  }
 
   const cobradoByKey = new Map<string, number>()   // RENT_IN + RENT_NF_IN only
-  const trackedKeys  = new Set<string>()           // any transaction → period was loaded
-  for (const t of (txns ?? []) as any[]) {
+  // Earliest period this contract has ANY transaction for. Everything before
+  // it predates the import and must not be counted as debt; everything from it
+  // onward is a month the office actually worked, so a month with no rent row
+  // there is genuinely unpaid — which is precisely what Alejandro asked to see.
+  // (The previous rule skipped any period with no transactions at all, so a
+  // month where the tenant simply paid nothing was invisible.)
+  const firstTrackedPeriod = new Map<string, string>()
+  for (const t of txns) {
     const key   = `${t.contract_id}|${t.period}`
-    trackedKeys.add(key)
+    const prev  = firstTrackedPeriod.get(t.contract_id)
+    if (!prev || t.period < prev) firstTrackedPeriod.set(t.contract_id, t.period)
     const ttRaw = t.transaction_types
     const code  = Array.isArray(ttRaw) ? ttRaw[0]?.code : ttRaw?.code
     if (code === 'RENT_IN' || code === 'RENT_NF_IN') {
@@ -139,29 +170,60 @@ export async function buildDeudaBreakdownsBulk(
     }
   }
 
+  // Rent history — Alejandro, 2026-09-10: "El valor del mes viejo queda viejo".
+  // Prior months must be valued at the rent in force THEN, not today's. The
+  // `adjustments` table records every increase (old_rent → new_rent), so the
+  // rent during a past period is the `old_rent` of the FIRST increase applied
+  // at or after that period started. No increase after it → today's rent.
+  //
+  // Caveat, deliberate: persistAumento stamps `applied_at` with the click date,
+  // not the effective date, so an increase clicked mid-month lands on that
+  // month. Where that is ambiguous this resolves to the OLDER (lower) rent,
+  // which under-states rather than over-states what a tenant owes.
+  const adjustmentsByContract = new Map<string, Array<{ appliedAt: string; oldRent: number }>>()
+  const { data: adjs, error: adjErr } = await supabase
+    .from('adjustments')
+    .select('contract_id, applied_at, old_rent')
+    .in('contract_id', contractIds)
+    .order('applied_at', { ascending: true })
+  if (adjErr) console.error('[buildDeudaBreakdownsBulk] adjustments fetch failed:', adjErr.message)
+  for (const a of (adjs ?? []) as any[]) {
+    const list = adjustmentsByContract.get(a.contract_id) ?? []
+    list.push({ appliedAt: String(a.applied_at), oldRent: Number(a.old_rent ?? 0) })
+    adjustmentsByContract.set(a.contract_id, list)
+  }
+  const rentInForce = (contractId: string, p: string, fallback: number): number => {
+    const list = adjustmentsByContract.get(contractId)
+    if (!list?.length) return fallback
+    const next = list.find(a => a.appliedAt >= p)   // ascending → first one at/after p
+    return next ? next.oldRent : fallback
+  }
+
   for (const c of contracts) {
     // Current period is measured against the rent that applies THIS period
     // (same value the Alquiler cell shows), so an unpaid aumento shows the right
-    // debt and a cobro at the new value clears it. Prior periods keep the
-    // documented V1 approximation (current_rent) — the correct historical rent
-    // per past month needs the adjustments history, flagged in the popover.
+    // debt and a cobro at the new value clears it. Prior periods are measured
+    // against the rent in force in each of those months (see rentInForce).
     const expectedCurrent   = c.expectedRentCurrentPeriod ?? c.currentRent
     const cobradoThisPeriod = cobradoByKey.get(`${c.id}|${period}`) ?? 0
     const deudaCurrent = Math.max(0, expectedCurrent - cobradoThisPeriod)
 
     const carryover: DeudaCarryoverEntry[] = []
+    const floor = firstTrackedPeriod.get(c.id)
     for (const p of priors) {
       if (c.startDate && p < c.startDate) continue
-      // Skip prior months that were never loaded (no transactions at all).
-      // Assuming full rent owed for un-imported months invented large phantom
-      // debt (e.g. a contract loaded only from May showed Mar/Apr fully unpaid).
-      if (!trackedKeys.has(`${c.id}|${p}`)) continue
-      const cobrado = cobradoByKey.get(`${c.id}|${p}`) ?? 0
-      const deuda   = Math.max(0, c.currentRent - cobrado)
+      // Before the contract's first recorded month = never imported, not
+      // unpaid. Counting those invented huge phantom debt (a contract loaded
+      // only from May showed Mar/Apr fully unpaid). From that month onward a
+      // period with no rent row IS a genuinely unpaid month and counts.
+      if (!floor || p < floor) continue
+      const cobrado      = cobradoByKey.get(`${c.id}|${p}`) ?? 0
+      const expectedThen = rentInForce(c.id, p, c.currentRent)
+      const deuda        = Math.max(0, expectedThen - cobrado)
       carryover.push({
         period:       p,
         periodLabel:  periodLabel(p),
-        expectedRent: c.currentRent,
+        expectedRent: expectedThen,
         cobrado,
         deuda,
       })

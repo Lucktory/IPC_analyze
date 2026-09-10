@@ -37,9 +37,30 @@ export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
-  const display = deuda > 0
+  // Deuda arrastrada de meses anteriores. Pedido de Alejandro (2026-09-10):
+  // "deberia haber un simbolico chiquito arriba de la misma celda... por
+  // ejemplo con un signo (+)... para que te avise que hay mas deuda hacia
+  // atras". El desglose ya existia; lo que faltaba era el aviso — la celda se
+  // veia igual tuviera o no deuda vieja detras, asi que no habia motivo para
+  // hacerle click.
+  const carryover    = breakdown?.deudaCarryover ?? 0
+  const hasCarryover = carryover > 0
+
+  const amount = deuda > 0
     ? <span className="text-danger font-medium tabular-nums">{fmtMoney(deuda)}</span>
     : <span className="text-slate tabular-nums">—</span>
+
+  // El (+) va arriba a la derecha del monto del mes. Se muestra incluso cuando
+  // el mes corriente esta al dia (deuda = 0): justamente ese es el caso donde
+  // la deuda vieja pasaba desapercibida.
+  const display = hasCarryover
+    ? (
+      <span className="inline-flex items-start gap-px">
+        {amount}
+        <span className="text-[10px] leading-[1.1] font-bold text-danger select-none">+</span>
+      </span>
+    )
+    : amount
 
   // Show clickable affordance only when there's something to expand:
   // either a non-zero current debt, a non-zero carryover, or estimable intereses.
@@ -61,7 +82,9 @@ export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
         type="button"
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
-        title="Tocá para ver el desglose de la deuda"
+        title={hasCarryover
+          ? `Además debe ${fmtMoney(carryover)} de meses anteriores — tocá para ver el detalle`
+          : 'Tocá para ver el desglose de la deuda'}
         className="w-full text-right hover:bg-info/10 transition-colors px-0"
       >
         {display}
