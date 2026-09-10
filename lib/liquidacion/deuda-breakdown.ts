@@ -132,15 +132,15 @@ export async function buildDeudaBreakdownsBulk(
   const allPeriods = [period, ...priors]
   const contractIds = contracts.map(c => c.id)
 
-  // Fetch every transaction in the window (all types) so we can tell which
-  // (contract, period) pairs were actually LOADED. RENT_IN + RENT_NF_IN feed
-  // the cobrado sum; the presence of ANY transaction marks the period as
-  // tracked, so we don't invent debt for months that were never imported.
+  // Fetch every transaction in the window (all types). RENT_IN + RENT_NF_IN
+  // feed the cobrado sum; the presence of ANY transaction (of any type) marks
+  // the earliest month this contract was tracked from, so we never invent debt
+  // for months that predate its import.
   const txns: any[] = []
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabase
       .from('transactions')
-      .select('contract_id, amount, period, transaction_types!inner(code)')
+      .select('contract_id, amount, period, bank_date, transaction_types!inner(code)')
       .in('contract_id', contractIds)
       .in('period', allPeriods)
       .order('id', { ascending: true })
@@ -155,7 +155,20 @@ export async function buildDeudaBreakdownsBulk(
     if (!data || data.length < PAGE_SIZE) break
   }
 
-  const cobradoByKey = new Map<string, number>()   // RENT_IN + RENT_NF_IN only
+  // Cobrado = RENT_IN + RENT_NF_IN que YA TIENEN fecha de banco.
+  //
+  // Alejandro, 2026-09-11, describiendo el circuito real: "Apenas empiezan a
+  // entrar pagos, las chicas van ingresando la informacion, ponen la fecha de
+  // ingreso, y todo cambia a negro". O sea: la plata esta cobrada cuando tiene
+  // fecha, no cuando alguien escribio un monto. Una linea con monto y sin
+  // fecha todavia no entro.
+  //
+  // Es el mismo criterio que ya usa el resto del sistema: conciliacion define
+  // conciliado como bank_date != null, y el historial de pagos del contrato
+  // marca cobrado con `if (t.bank_date)` (lib/contract/queries.ts). Antes la
+  // deuda era el unico lugar que contaba el monto pelado, asi que una linea a
+  // medio cargar hacia desaparecer la deuda del mes.
+  const cobradoByKey = new Map<string, number>()
   // Earliest period this contract has ANY transaction for. Everything before
   // it predates the import and must not be counted as debt; everything from it
   // onward is a month the office actually worked, so a month with no rent row
@@ -169,37 +182,9 @@ export async function buildDeudaBreakdownsBulk(
     if (!prev || t.period < prev) firstTrackedPeriod.set(t.contract_id, t.period)
     const ttRaw = t.transaction_types
     const code  = Array.isArray(ttRaw) ? ttRaw[0]?.code : ttRaw?.code
-    if (code === 'RENT_IN' || code === 'RENT_NF_IN') {
-      cobradoByKey.set(key, (cobradoByKey.get(key) ?? 0) + Number(t.amount))
+    if ((code === 'RENT_IN' || code === 'RENT_NF_IN') && t.bank_date) {
+      cobradoByKey.set(key, (cobradoByKey.get(key) ?? 0) + (Number(t.amount) || 0))
     }
-  }
-
-  // Meses efectivamente CARGADOS, mirando el libro entero (no este contrato).
-  //
-  // Alejandro, 2026-09-11: "Va a figurar deuda en todos los contratos? Voy a
-  // tener que liquidar Junio, Julio y Agosto?" — y tenia razon en preocuparse.
-  //
-  // "El mes se trabajo y el inquilino no pago" y "el mes todavia no se cargo"
-  // se ven IGUAL en los datos: en los dos casos no hay fila de alquiler. Si se
-  // asume impago, un mes sin cargar inventa deuda en los ~100 contratos a la
-  // vez, y la unica forma de sacarsela de encima seria liquidar meses enteros
-  // al pedo.
-  //
-  // Lo que distingue los dos casos es si el mes se cargo EN GENERAL: si en
-  // todo el libro no hay un solo alquiler cobrado en julio, julio no se
-  // trabajo y no cuenta para nadie. Si julio si esta cargado y a un contrato
-  // le falta el alquiler, ese contrato realmente no pago — que es lo que hay
-  // que mostrar.
-  const loadedPeriods = new Set<string>()
-  if (priors.length) {
-    const { data: rentRows, error: rentErr } = await supabase
-      .from('transactions')
-      .select('period, transaction_types!inner(code)')
-      .in('period', priors)
-      .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
-      .limit(PAGE_SIZE)
-    if (rentErr) console.error('[buildDeudaBreakdownsBulk] loaded-periods probe failed:', rentErr.message)
-    for (const r of (rentRows ?? []) as any[]) loadedPeriods.add(r.period)
   }
 
   // Rent history — Alejandro, 2026-09-10: "El valor del mes viejo queda viejo".
@@ -249,10 +234,6 @@ export async function buildDeudaBreakdownsBulk(
       // only from May showed Mar/Apr fully unpaid). From that month onward a
       // period with no rent row IS a genuinely unpaid month and counts.
       if (!floor || p < floor) continue
-      // Mes no cargado en el libro → no es deuda de nadie, es un mes que
-      // todavia no se trabajo. Sin esto, subir la ventana a 12 meses le
-      // inventaba deuda a todos los contratos a la vez.
-      if (!loadedPeriods.has(p)) continue
       const cobrado      = cobradoByKey.get(`${c.id}|${p}`) ?? 0
       const expectedThen = rentInForce(c.id, p, c.currentRent)
       const deuda        = Math.max(0, expectedThen - cobrado)
