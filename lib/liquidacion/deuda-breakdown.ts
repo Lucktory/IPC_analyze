@@ -11,7 +11,11 @@
 //
 // Assumptions (explicit so future-me can revisit):
 //   • Carryover scans the last 12 prior periods (CARRYOVER_PERIODS), bounded
-//     by the contract's start_date and by its first recorded month.
+//     three ways: the contract's start_date, its own first recorded month
+//     (anything earlier predates the import), and whether the month was
+//     loaded AT ALL across the book. That last one matters: a month nobody
+//     has loaded yet looks exactly like a month nobody paid, and treating it
+//     as debt invents it for every contract simultaneously.
 //   • Historical rent comes from the `adjustments` table: a past month is
 //     valued at the rent in force THEN, not at today's. (Until 2026-09-10 this
 //     used current_rent for every prior period, which over-stated the debt of
@@ -170,6 +174,34 @@ export async function buildDeudaBreakdownsBulk(
     }
   }
 
+  // Meses efectivamente CARGADOS, mirando el libro entero (no este contrato).
+  //
+  // Alejandro, 2026-09-11: "Va a figurar deuda en todos los contratos? Voy a
+  // tener que liquidar Junio, Julio y Agosto?" — y tenia razon en preocuparse.
+  //
+  // "El mes se trabajo y el inquilino no pago" y "el mes todavia no se cargo"
+  // se ven IGUAL en los datos: en los dos casos no hay fila de alquiler. Si se
+  // asume impago, un mes sin cargar inventa deuda en los ~100 contratos a la
+  // vez, y la unica forma de sacarsela de encima seria liquidar meses enteros
+  // al pedo.
+  //
+  // Lo que distingue los dos casos es si el mes se cargo EN GENERAL: si en
+  // todo el libro no hay un solo alquiler cobrado en julio, julio no se
+  // trabajo y no cuenta para nadie. Si julio si esta cargado y a un contrato
+  // le falta el alquiler, ese contrato realmente no pago — que es lo que hay
+  // que mostrar.
+  const loadedPeriods = new Set<string>()
+  if (priors.length) {
+    const { data: rentRows, error: rentErr } = await supabase
+      .from('transactions')
+      .select('period, transaction_types!inner(code)')
+      .in('period', priors)
+      .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
+      .limit(PAGE_SIZE)
+    if (rentErr) console.error('[buildDeudaBreakdownsBulk] loaded-periods probe failed:', rentErr.message)
+    for (const r of (rentRows ?? []) as any[]) loadedPeriods.add(r.period)
+  }
+
   // Rent history — Alejandro, 2026-09-10: "El valor del mes viejo queda viejo".
   // Prior months must be valued at the rent in force THEN, not today's. The
   // `adjustments` table records every increase (old_rent → new_rent), so the
@@ -217,6 +249,10 @@ export async function buildDeudaBreakdownsBulk(
       // only from May showed Mar/Apr fully unpaid). From that month onward a
       // period with no rent row IS a genuinely unpaid month and counts.
       if (!floor || p < floor) continue
+      // Mes no cargado en el libro → no es deuda de nadie, es un mes que
+      // todavia no se trabajo. Sin esto, subir la ventana a 12 meses le
+      // inventaba deuda a todos los contratos a la vez.
+      if (!loadedPeriods.has(p)) continue
       const cobrado      = cobradoByKey.get(`${c.id}|${p}`) ?? 0
       const expectedThen = rentInForce(c.id, p, c.currentRent)
       const deuda        = Math.max(0, expectedThen - cobrado)
