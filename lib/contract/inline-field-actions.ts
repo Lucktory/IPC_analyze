@@ -296,6 +296,64 @@ export async function applyContractAumentoAmount(contractId: string, amount: num
   return applyManualAumento(supabase, contractId, { kind: 'amount', amount })
 }
 
+// ── Corregir alquiler — NO es un aumento ────────────────────────────────────
+//
+// Pedido de Alejandro (2026-09-10): "hay alquileres que difieren un poquito...
+// ahora no encontre la manera de editar un valor".
+//
+// Tenia razon: contracts.current_rent solo se escribia en dos lugares — al
+// crear el contrato, y dentro de persistAumento. O sea que para corregir un
+// redondeo de $300 habia que aplicar un "aumento", y eso ademas del monto
+// escribe una fila en `adjustments` (un aumento que nunca existio) y mueve
+// last_adjustment_date / next_adjustment_date, corriendo el calendario de
+// ajustes del contrato.
+//
+// Esto corrige el monto y NADA MAS: no toca fechas, no inventa un ajuste.
+// Tampoco pide cadencia valida — corregir un numero mal cargado no deberia
+// depender de que el calendario de aumentos este bien configurado.
+//
+// La auditoria sale gratis: el trigger audit_row() sobre `contracts` ya
+// registra el antes/despues de cada UPDATE.
+//
+// El reparto facturado / N-F se reescala con scaleRentByFactor — la misma
+// funcion que usa el aumento manual, no una copia.
+export async function correctContractRent(contractId: string, newRent: number): Promise<InlineResult> {
+  if (!isFinite(newRent) || newRent <= 0) {
+    return { ok: false, error: 'El alquiler debe ser un numero mayor a 0.' }
+  }
+
+  const supabase = await createSupabaseServer()
+  const { data: c, error: cErr } = await supabase
+    .from('contracts')
+    .select('current_rent, rent_facturado_neto, rent_no_facturado, rent_iva_rate')
+    .eq('id', contractId)
+    .maybeSingle()
+  if (cErr) return dbFailure(cErr)
+  if (!c) return { ok: false, error: 'Contrato no encontrado.' }
+
+  const oldRent = Number((c as any).current_rent ?? 0)
+  const neto    = (c as any).rent_facturado_neto != null ? Number((c as any).rent_facturado_neto) : null
+  const nf      = Number((c as any).rent_no_facturado ?? 0)
+
+  const update: Record<string, unknown> = { current_rent: newRent }
+
+  // Contrato con alquiler partido: las dos partes se reescalan en la misma
+  // proporcion, para que facturado + N/F siga sumando el total.
+  // Sin un alquiler base > 0 no hay proporcion posible: en ese caso se corrige
+  // solo el total y el reparto queda como estaba, para no inventar valores.
+  if (neto != null && oldRent > 0) {
+    const scaled = scaleRentByFactor(oldRent, neto, nf, Number((c as any).rent_iva_rate ?? 0), newRent / oldRent)
+    update.rent_facturado_neto = scaled.newNeto
+    update.rent_no_facturado   = scaled.newNf
+  }
+
+  const { error } = await supabase.from('contracts').update(update).eq('id', contractId)
+  if (error) return dbFailure(error)
+
+  revalidate(contractId)
+  return { ok: true, error: null }
+}
+
 // ── Vigencia (start_date / end_date) ────────────────────────────────────────
 export async function updateContractVigencia(
   contractId: string,

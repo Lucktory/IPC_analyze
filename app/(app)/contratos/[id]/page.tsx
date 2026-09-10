@@ -17,6 +17,7 @@ import { getSuggestedAumento } from '@/lib/contract/aumento-suggest'
 import { ContractStatusControl } from '@/components/contract/ContractStatusControl'
 import { InlineParticipantsCell } from '@/components/liquidacion/InlineParticipantsCell'
 import { CommissionPctEditor } from '@/components/contract/CommissionPctEditor'
+import { RentEditor } from '@/components/contract/RentEditor'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
 import { DeudaBreakdownPanel } from '@/components/shared/DeudaBreakdownPanel'
@@ -227,6 +228,14 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate shrink-0">Comisión</dt>
               <dd className="w-24"><CommissionPctEditor contractId={contract.id} pct={contract.commissionPct} period={period} /></dd>
+            </div>
+            {/* Alquiler CARGADO — el valor guardado, editable para corregirlo.
+                Distinto del KPI "Alquiler vigente" de arriba, que muestra el
+                valor proyectado al período. Corregir acá no aplica un aumento
+                ni mueve el calendario de ajustes. */}
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-slate shrink-0">Alquiler cargado</dt>
+              <dd className="w-32"><RentEditor contractId={contract.id} rent={contract.currentRent} /></dd>
             </div>
             {contract.rentFacturadoNeto != null && (
               <div className="pt-2 mt-1 border-t border-line space-y-2">
