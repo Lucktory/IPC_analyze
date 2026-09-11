@@ -22,6 +22,8 @@ import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
 import { DeudaBreakdownPanel } from '@/components/shared/DeudaBreakdownPanel'
 import { getDeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
+import { DeudaAnteriorEditor } from '@/components/contract/DeudaAnteriorEditor'
+import { listDeudaAnterior } from '@/lib/contract/deuda-anterior-actions'
 import { ValidationIssueRow } from '@/components/shared/ValidationIssueRow'
 import { getContractDiagnostico } from '@/lib/liquidacion/diagnostico'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
@@ -58,13 +60,14 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
 
   const periods = await getContractPeriods(id)
   const period  = paramPeriod ?? periods[0] ?? getCurrentPeriod()
-  const [embudo, note, deudaBreakdown, contractIssues, landlordOptions, tenantOptions] = await Promise.all([
+  const [embudo, note, deudaBreakdown, contractIssues, landlordOptions, tenantOptions, deudaAnteriorRows] = await Promise.all([
     getEmbudoForContract(id, period),
     getNoteForPeriod(id, period),
     getDeudaBreakdown(id, period),
     getContractDiagnostico(id, period),
     listLandlordOptions(),
     listTenantOptions(),
+    listDeudaAnterior(id),
   ])
 
   const primaryTenant  = contract.tenants.find(t => t.isPrimary) ?? contract.tenants[0]
@@ -331,6 +334,12 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
       {deudaBreakdown && (
         <Card title={`Deuda · ${PERIOD_LABEL(period)}`} sub="Desglose con arrastrado anterior y estimación de intereses por mora.">
           <div className="max-w-2xl"><DeudaBreakdownPanel breakdown={deudaBreakdown} /></div>
+          {/* Carga manual del arrastre previo al corte. Va dentro de la misma
+              tarjeta que el desglose: es la misma pregunta ("cuanto debe este
+              inquilino"), sólo que la parte que el sistema no puede deducir. */}
+          <div className="max-w-2xl mt-5 pt-4 border-t border-line/60">
+            <DeudaAnteriorEditor contractId={id} rows={deudaAnteriorRows} />
+          </div>
         </Card>
       )}
 

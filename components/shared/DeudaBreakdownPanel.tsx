@@ -94,9 +94,15 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
             {breakdown.carryover.map(e => (
               <li key={e.period} className="grid grid-cols-[1fr_auto] gap-x-3 text-[11.5px] text-slate">
                 <span>
-                  ▸ {e.periodLabel}: {e.deuda > 0
-                    ? `cobrado ${fmtMoney(e.cobrado)} de ${fmtMoney(e.expectedRent)}`
-                    : 'cobrado completo'}
+                  {/* Una deuda cargada a mano no se mide contra un alquiler
+                      esperado: la oficina afirma el monto desde sus propios
+                      registros. Mostrarla como "cobrado $0 de $X" diria que
+                      el sistema la calculo, que es justo lo que no paso. */}
+                  ▸ {e.periodLabel}: {e.manual
+                    ? <>cargado a mano{e.note ? ` — ${e.note}` : ''}</>
+                    : e.deuda > 0
+                      ? `cobrado ${fmtMoney(e.cobrado)} de ${fmtMoney(e.expectedRent)}`
+                      : 'cobrado completo'}
                 </span>
                 <span className="tabular-nums">
                   {e.deuda > 0 ? `+ ${fmtMoney(e.deuda)}` : '—'}
@@ -112,6 +118,7 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
               usuario que el numero era aproximado cuando ya no lo es. */}
           <p className="text-[10px] text-slate italic mt-1.5 leading-snug">
             Cada mes se cuenta al alquiler que regía en ese momento, según el historial de aumentos del contrato.
+            {breakdown.carryover.some(e => e.manual) && ' Los meses marcados “cargado a mano” los registró la oficina.'}
           </p>
         </div>
       )}

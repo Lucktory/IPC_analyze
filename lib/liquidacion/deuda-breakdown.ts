@@ -11,11 +11,13 @@
 //
 // Assumptions (explicit so future-me can revisit):
 //   • Carryover scans the last 12 prior periods (CARRYOVER_PERIODS), bounded
-//     three ways: the contract's start_date, its own first recorded month
-//     (anything earlier predates the import), and whether the month was
-//     loaded AT ALL across the book. That last one matters: a month nobody
-//     has loaded yet looks exactly like a month nobody paid, and treating it
-//     as debt invents it for every contract simultaneously.
+//     three ways: DEUDA_EPOCH (nothing before it is derived as debt), the
+//     contract's start_date, and its own first recorded month (anything
+//     earlier predates the import).
+//   • Debt from BEFORE the epoch is not inferred from absence — it is loaded
+//     by hand into the `deuda_anterior` table, one row per contract+month.
+//     Those months were never fully worked in the system, so a missing rent
+//     row there means "nobody loaded it", not "nobody paid".
 //   • Historical rent comes from the `adjustments` table: a past month is
 //     valued at the rent in force THEN, not at today's. (Until 2026-09-10 this
 //     used current_rent for every prior period, which over-stated the debt of
@@ -37,6 +39,27 @@ import { getLiveRent } from '@/lib/contract/live-rent'
 // mi confianza." Was 3, which silently hid anything older than a quarter.
 export const CARRYOVER_PERIODS = 12
 
+/**
+ * Corte de la deuda automatica. Nada anterior a este periodo se cuenta como
+ * deuda, aunque no haya alquiler cobrado.
+ *
+ * Alejandro, 2026-09-11: "Agosto lo dejaria tambien como pagado, yo sigo
+ * directamente con Septiembre."
+ *
+ * El motivo es que los meses previos nunca se cargaron del todo — Julio tiene
+ * 23 alquileres de 97 contratos y Agosto ninguno — asi que la falta de una
+ * fila de alquiler ahi NO prueba que el inquilino no pago. Derivar deuda de
+ * esa ausencia le inventaba deuda a los ~97 contratos a la vez.
+ *
+ * Esto NO borra nada: las transacciones de Marzo a Agosto siguen enteras y se
+ * ven igual en la planilla de esos meses, en el historial del contrato y en
+ * movimientos. Lo unico que cambia es que este calculo no las mira. Mover la
+ * fecha para atras vuelve a mostrar esa deuda, porque el dato nunca se toco.
+ *
+ * Los inquilinos que SI deben de antes se cargan a mano en `deuda_anterior`.
+ */
+export const DEUDA_EPOCH = '2026-09-01'
+
 /** PostgREST returns at most ~1000 rows per request. 12 periods x ~100
  *  contracts x several transactions each blows past that, and the failure is
  *  SILENT truncation — which here would UNDER-report debt, the exact opposite
@@ -52,6 +75,13 @@ export interface DeudaCarryoverEntry {
   cobrado:       number
   /** max(0, expectedRent - cobrado). */
   deuda:         number
+  /** true = cargada a mano en `deuda_anterior` (mes anterior al corte), no
+   *  derivada de la falta de un alquiler cobrado. El panel la muestra
+   *  distinto: "cobrado $0 de $X" seria enganoso para un monto que la oficina
+   *  afirma de sus propios registros. */
+  manual?:       boolean
+  /** Nota opcional que cargo la oficina junto al monto. */
+  note?:         string | null
 }
 
 export interface DeudaBreakdown {
@@ -216,6 +246,25 @@ export async function buildDeudaBreakdownsBulk(
     return next ? next.oldRent : fallback
   }
 
+  // Deuda anterior cargada a mano (una fila por contrato y mes). Es la unica
+  // via para la deuda previa al corte: antes del epoch la ausencia de un
+  // alquiler no prueba nada, asi que el monto lo afirma la oficina.
+  // Descendente para que los meses viejos salgan en el mismo orden que los
+  // automaticos (mas nuevo primero).
+  const manualByContract = new Map<string, Array<{ period: string; amount: number; note: string | null }>>()
+  const { data: manualRows, error: manualErr } = await supabase
+    .from('deuda_anterior')
+    .select('contract_id, period, amount, note')
+    .in('contract_id', contractIds)
+    .order('period', { ascending: false })
+    .limit(PAGE_SIZE)
+  if (manualErr) console.error('[buildDeudaBreakdownsBulk] deuda_anterior fetch failed:', manualErr.message)
+  for (const m of (manualRows ?? []) as any[]) {
+    const list = manualByContract.get(m.contract_id) ?? []
+    list.push({ period: String(m.period), amount: Number(m.amount ?? 0) || 0, note: m.note ?? null })
+    manualByContract.set(m.contract_id, list)
+  }
+
   for (const c of contracts) {
     // Current period is measured against the rent that applies THIS period
     // (same value the Alquiler cell shows), so an unpaid aumento shows the right
@@ -234,6 +283,8 @@ export async function buildDeudaBreakdownsBulk(
       // only from May showed Mar/Apr fully unpaid). From that month onward a
       // period with no rent row IS a genuinely unpaid month and counts.
       if (!floor || p < floor) continue
+      // Corte: antes del epoch la deuda no se deriva, se carga a mano.
+      if (p < DEUDA_EPOCH) continue
       const cobrado      = cobradoByKey.get(`${c.id}|${p}`) ?? 0
       const expectedThen = rentInForce(c.id, p, c.currentRent)
       const deuda        = Math.max(0, expectedThen - cobrado)
@@ -245,6 +296,26 @@ export async function buildDeudaBreakdownsBulk(
         deuda,
       })
     }
+    // Deuda anterior a mano. Va DESPUES de los meses automaticos porque es
+    // siempre mas vieja que el corte, y el panel lista de mas nuevo a mas
+    // viejo. Se saltea un mes que ya tenga fila automatica para no contarlo
+    // dos veces, y el periodo corriente porque ese ya es deudaCurrent.
+    const autoPeriods = new Set(carryover.map(e => e.period))
+    for (const m of manualByContract.get(c.id) ?? []) {
+      if (m.amount <= 0)            continue
+      if (m.period >= period)       continue
+      if (autoPeriods.has(m.period)) continue
+      carryover.push({
+        period:       m.period,
+        periodLabel:  periodLabel(m.period),
+        expectedRent: m.amount,
+        cobrado:      0,
+        deuda:        m.amount,
+        manual:       true,
+        note:         m.note,
+      })
+    }
+
     const deudaCarryover = carryover.reduce((s, e) => s + e.deuda, 0)
 
     const daysOverdue       = daysOverdueForPeriod(period, c.paymentDay)
