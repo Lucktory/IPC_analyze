@@ -43,13 +43,35 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
 
   const conciliados = movs.filter(m => m.conciliado)
   const pendientes  = movs.filter(m => !m.conciliado)
-  const sumConc = conciliados.reduce((s, m) => s + m.amount, 0)
-  const sumPend = pendientes.reduce((s, m) => s + m.amount, 0)
   const pctConc = movs.length > 0 ? (conciliados.length / movs.length) * 100 : 0
 
+  // Montos SOLO de lo que falta confirmar, y separados por direccion.
+  //
+  // Antes esta pagina mostraba un "Total" que sumaba entradas y salidas juntas.
+  // No era un error de cuenta: transactions.amount siempre se guarda positivo
+  // (check (amount > 0)) y la direccion vive en transaction_types.direction, asi
+  // que sumar sin mirar la direccion contaba el mismo peso dos veces — una al
+  // entrar y otra al salir. El numero SUBIA a medida que se pagaba, o sea que
+  // crecia justo cuando la plata se iba.
+  //
+  // No se reemplazo por un total bien calculado, se saco. Esta pagina es un
+  // tablero de ESTADO ("que movimientos estan confirmados en el banco"), no un
+  // resumen de plata: un monto agregado aca no contesta ninguna pregunta. Y un
+  // "Ingresos" propio ademas chocaria con el de la planilla, porque aquel filtra
+  // por affects_liquidacion (DEPOSIT_IN queda afuera) y esta consulta no filtra
+  // nada: darian distinto siempre que haya un deposito de garantia.
+  //
+  // Lo unico que si sirve es lo que falta confirmar, separado: perseguir una
+  // entrada sin confirmar ("entro el alquiler?") y una salida sin confirmar
+  // ("salio la transferencia?") son dos tareas distintas.
+  const sumByDir = (rows: ConciliacionMov[], dir: 'IN' | 'OUT') =>
+    rows.filter(m => m.direction === dir).reduce((s, m) => s + m.amount, 0)
+  const pendIn  = sumByDir(pendientes, 'IN')
+  const pendOut = sumByDir(pendientes, 'OUT')
+
   const kpis = [
-    { Icon: CheckCircle2, color: '#16A34A', label: 'Conciliados',  value: String(conciliados.length), sub: `${fmt(sumConc)} · confirmados en banco` },
-    { Icon: Clock,        color: '#F59E0B', label: 'Sin conciliar', value: String(pendientes.length),  sub: `${fmt(sumPend)} · sin fecha de banco` },
+    { Icon: CheckCircle2, color: '#16A34A', label: 'Conciliados',  value: String(conciliados.length), sub: 'confirmados en banco' },
+    { Icon: Clock,        color: '#F59E0B', label: 'Sin conciliar', value: String(pendientes.length),  sub: pendientes.length > 0 ? `${fmt(pendIn)} a cobrar · ${fmt(pendOut)} a pagar` : 'todo confirmado' },
     { Icon: Scale,        color: '#3B82F6', label: 'Cobertura',     value: `${pctConc.toFixed(0)}%`,   sub: `${conciliados.length} de ${movs.length} movimientos` },
   ]
 
@@ -129,7 +151,11 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 <span className="text-slate/50"> · </span>
                 <span className="text-warn font-medium">{pendientes.length} pendientes</span>
               </span>
-              <span className="text-slate tabular-nums">Total {fmt(sumConc + sumPend)}</span>
+              {/* Sin "Total": sumaba entradas y salidas juntas (ver arriba).
+                  El pie ahora cuenta movimientos, que es lo que esta pagina
+                  responde. Los montos pendientes van en el KPI "Sin conciliar",
+                  una sola vez y con su direccion. */}
+              <span className="text-slate tabular-nums">{movs.length} movimientos</span>
             </div>
           )}
         </div>
