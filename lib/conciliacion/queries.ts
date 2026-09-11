@@ -8,6 +8,7 @@
 
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { bankShortFromDescription } from '@/lib/bancos/destination'
+import { shiftPeriod } from '@/lib/period'
 
 export interface ConciliacionMov {
   id:             string
@@ -22,20 +23,56 @@ export interface ConciliacionMov {
   amount:         number          // unsigned
   conciliado:     boolean         // bank_date is set
   description:    string
+  /** Mes CONTABLE del movimiento (transactions.period). Casi siempre coincide
+   *  con el mes que se esta mirando; cuando no, es un pago que entro en un mes
+   *  pero corresponde a otro — el caso de la inquilina que termino de pagar
+   *  Agosto el 5 de Septiembre. La fila lo aclara para que nadie lo lea como
+   *  un error. */
+  periodo:        string
 }
 
 const bankFromDescription = bankShortFromDescription
 
+/**
+ * Movimientos de un mes, ordenados por CUANDO PASARON POR EL BANCO.
+ *
+ * Alejandro, 2026-09-11: "En la conciliacion de Septiembre, el total va a
+ * tener en cuenta lo de Agosto?" — una inquilina termino de pagar Agosto con
+ * plata que entro el 5 de Septiembre.
+ *
+ * Antes esta consulta filtraba por `period`, o sea por el mes CONTABLE al que
+ * pertenece el pago. Con eso ese cobro caia en Agosto y la conciliacion de
+ * Septiembre nunca podia cuadrar contra el extracto del banco, que va por
+ * fecha. Para un tablero de conciliacion eso esta al reves: lo que importa es
+ * cuando se movio la plata.
+ *
+ * La regla ahora:
+ *   - Si el movimiento tiene bank_date, pertenece al mes de esa fecha. Es el
+ *     mes en que el banco lo vio, que es contra lo que se concilia.
+ *   - Si NO tiene bank_date, se queda en su mes contable (`period`): todavia no
+ *     paso por el banco, asi que no hay otra fecha donde ponerlo, y justamente
+ *     esos son los que hay que perseguir.
+ *
+ * Consecuencia buscada: un cobro de Agosto confirmado el 5/9 aparece en
+ * Septiembre y ya no en Agosto. Es correcto — en Agosto no se movio nada.
+ *
+ * La liquidacion NO cambia: sigue armandose por `period`. Son dos preguntas
+ * distintas y cada una tiene su eje.
+ */
 export async function getConciliacionMovimientos(period: string): Promise<ConciliacionMov[]> {
   const supabase = await createSupabaseServer()
+  const nextPeriod = shiftPeriod(period, 1)
   const { data } = await supabase
     .from('transactions')
     .select(`
-      id, amount, bank_date, description, contract_id,
+      id, amount, bank_date, period, description, contract_id,
       transaction_types!inner(code, label, direction),
       contracts(contract_number, contract_tenants(is_primary, tenants(name)))
     `)
-    .eq('period', period)
+    .or(
+      `and(bank_date.gte.${period},bank_date.lt.${nextPeriod}),` +
+      `and(bank_date.is.null,period.eq.${period})`,
+    )
     .order('bank_date', { ascending: true, nullsFirst: false })
 
   return (data ?? []).map((r: any) => {
@@ -54,6 +91,7 @@ export async function getConciliacionMovimientos(period: string): Promise<Concil
       amount:         Number(r.amount),
       conciliado:     !!r.bank_date,
       description:    r.description ?? '',
+      periodo:        String(r.period),
     }
   })
 }

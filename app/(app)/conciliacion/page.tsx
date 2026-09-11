@@ -15,7 +15,7 @@ import {
 import { PeriodSelect } from '@/components/charts/panel/PeriodSelect'
 import { getConciliacionMovimientos, type ConciliacionMov } from '@/lib/conciliacion/queries'
 import { getDashboardPeriod, getPeriodsWithData } from '@/lib/dashboard/queries'
-import { buildPeriodTabs } from '@/lib/period'
+import { buildPeriodTabs, periodLabel } from '@/lib/period'
 import { fmtMoney as fmt } from '@/lib/format'
 
 export const dynamic    = 'force-dynamic'
@@ -68,6 +68,18 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
     rows.filter(m => m.direction === dir).reduce((s, m) => s + m.amount, 0)
   const pendIn  = sumByDir(pendientes, 'IN')
   const pendOut = sumByDir(pendientes, 'OUT')
+
+  // Totales del mes, una columna por direccion — el metodo de la planilla de
+  // papel: no se suma una columna con la otra, se suma cada una y se muestran
+  // las dos.
+  //
+  // Se llaman ENTRADAS y SALIDAS, no "ingresos", a proposito. Esta pagina
+  // cuenta todo lo que pasa por el banco, depositos de garantia incluidos; la
+  // planilla filtra por affects_liquidacion y los deja afuera. Son dos
+  // preguntas distintas, asi que llevan dos nombres distintos: si las dos se
+  // llamaran "Ingresos" pareceria que el sistema se contradice.
+  const totalIn  = sumByDir(movs, 'IN')
+  const totalOut = sumByDir(movs, 'OUT')
 
   const kpis = [
     { Icon: CheckCircle2, color: '#16A34A', label: 'Conciliados',  value: String(conciliados.length), sub: 'confirmados en banco' },
@@ -137,7 +149,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {movs.map(m => <MovRow key={m.id} m={m} />)}
+                  {movs.map(m => <MovRow key={m.id} m={m} viewedPeriod={period} />)}
                 </tbody>
               </table>
             ) : (
@@ -145,17 +157,25 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
             )}
           </div>
           {movs.length > 0 && (
-            <div className="px-5 py-3 border-t border-line bg-header flex items-center justify-between text-[12px] shrink-0">
-              <span className="text-slate-dark">
-                <span className="text-success font-medium">{conciliados.length} conciliados</span>
-                <span className="text-slate/50"> · </span>
-                <span className="text-warn font-medium">{pendientes.length} pendientes</span>
-              </span>
-              {/* Sin "Total": sumaba entradas y salidas juntas (ver arriba).
-                  El pie ahora cuenta movimientos, que es lo que esta pagina
-                  responde. Los montos pendientes van en el KPI "Sin conciliar",
-                  una sola vez y con su direccion. */}
-              <span className="text-slate tabular-nums">{movs.length} movimientos</span>
+            <div className="px-5 py-3 border-t border-line bg-header shrink-0 text-[12px]">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <span className="text-slate-dark">
+                  <span className="text-success font-medium">{conciliados.length} conciliados</span>
+                  <span className="text-slate/50"> · </span>
+                  <span className="text-warn font-medium">{pendientes.length} pendientes</span>
+                </span>
+                <span className="tabular-nums text-slate-dark">
+                  Entradas <span className="text-success font-semibold">{fmt(totalIn)}</span>
+                  <span className="text-slate/50"> · </span>
+                  Salidas <span className="text-danger font-semibold">{fmt(totalOut)}</span>
+                  <span className="text-slate/50"> · </span>
+                  <span className="text-slate">{movs.length} movimientos</span>
+                </span>
+              </div>
+              <p className="text-[10.5px] text-slate italic mt-1 leading-snug">
+                Todo lo que pasó por el banco este mes, depósitos de garantía incluidos.
+                Los ingresos de la liquidación están en la planilla.
+              </p>
             </div>
           )}
         </div>
@@ -207,8 +227,12 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   )
 }
 
-function MovRow({ m }: { m: ConciliacionMov }) {
+function MovRow({ m, viewedPeriod }: { m: ConciliacionMov; viewedPeriod: string }) {
   const isIn = m.direction === 'IN'
+  // La plata entro este mes pero el pago corresponde a otro (p.ej. termino de
+  // pagar Agosto el 5 de Septiembre). Sin avisarlo, la fila parece un error de
+  // carga; avisado, es exactamente lo que tiene que pasar.
+  const otroPeriodo = m.periodo !== viewedPeriod
   const signed = (isIn ? '+' : '−') + fmt(m.amount).replace('$', '$ ').replace('-', '')
   return (
     <tr className="border-b border-line/60 last:border-0 hover:bg-cream-2 transition-colors">
@@ -224,6 +248,14 @@ function MovRow({ m }: { m: ConciliacionMov }) {
               {m.contractNumber ? <span className="tabular-nums">{m.contractNumber}</span> : null}
               {m.contractNumber && m.tenantName ? ' · ' : null}
               {m.tenantName ?? (m.contractNumber ? null : '—')}
+              {otroPeriodo && (
+                <span
+                  title={`La plata se movió en este mes, pero el pago corresponde a ${periodLabel(m.periodo)}.`}
+                  className="ml-1.5 px-1.5 py-px rounded bg-info/15 text-info font-medium whitespace-nowrap"
+                >
+                  corresponde a {periodLabel(m.periodo)}
+                </span>
+              )}
             </div>
           </div>
         </div>
