@@ -26,7 +26,8 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { transitionLiquidacionStatus } from './actions'
 import { buildReceiptAjustes, type AjusteLine } from '@/lib/contract/events-bulk'
-import { accumulateFunnel, funnelTransferencia, type FunnelTxnRow } from './funnel'
+import { accumulateFunnel, funnelTransferencia, ADMI_TYPE_CODE, type FunnelTxnRow } from './funnel'
+import { stripOtrosMarker } from '@/lib/transaction/managed-rows'
 import { fmtMoney } from '@/lib/format'
 import { periodLabel } from '@/lib/period'
 
@@ -90,6 +91,35 @@ export async function prepareEmailDraft(
     cobradoLines.push({ label: typ.label, desc: (t.description ?? '').trim() || null, amount: Number(t.amount) || 0 })
   }
 
+  // Salidas itemizadas — Alejandro, 2026-09-12: "Estaria bueno hacerlo, asi el
+  // dueño sabe bien que se le esta descontando al leer su recibo". Antes el mail
+  // mostraba un unico "Otros descuentos: $X" sin decir de que se trataba, asi
+  // que el propietario veia el monto y nada mas.
+  //
+  // El filtro es exactamente la rama OUT de accumulateFunnel (todo lo que
+  // afecta la liquidacion menos la comision, que ya tiene su propia linea), asi
+  // que el detalle SIEMPRE suma el total: no puede quedar una salida contada en
+  // el total que no aparezca en el detalle.
+  //
+  // stripOtrosMarker es obligatorio, no cosmetico: las filas que carga la celda
+  // "Otros" llevan el marcador [OTROS-CELL] adentro de la descripcion para que
+  // la celda sepa cual es la suya. Sin sacarlo, el propietario leeria
+  // "[OTROS-CELL] Expensas extraordinarias" en su recibo.
+  //
+  // Sin descripcion cae en la etiqueta del tipo ("Otro egreso", "Seguro",
+  // "ABL / Tasas municipales"), nunca en blanco.
+  const otrosLines: { label: string; desc: string | null; amount: number }[] = []
+  for (const t of (txns ?? []) as any[]) {
+    const typ = t.transaction_types
+    if (!typ?.affects_liquidacion || typ.direction !== 'OUT') continue
+    if (typ.code === ADMI_TYPE_CODE) continue
+    otrosLines.push({
+      label:  typ.label,
+      desc:   stripOtrosMarker((t.description ?? '').trim() || null),
+      amount: Number(t.amount) || 0,
+    })
+  }
+
   // Ajustes (confirmed Observaciones + legacy manual adjustment) — same source
   // as the liquidación detail page, so the email and the receipt always match.
   const { data: liqRow } = await supabase
@@ -145,7 +175,19 @@ export async function prepareEmailDraft(
   }
   lines.push(`  • Total cobrado:        ${fmtMoney(gross)}`)
   lines.push(`  • Comisión de admin.:   ${fmtMoney(commission)}`)
-  if (otros > 0) lines.push(`  • Otros descuentos:     ${fmtMoney(otros)}`)
+  if (otrosLines.length > 0) {
+    lines.push('  Otros descuentos:')
+    for (const ol of otrosLines) {
+      // La descripcion que cargo la oficina manda; si no hay, la etiqueta del
+      // tipo. Nunca una linea sin nombre al lado de un monto.
+      lines.push(`    • ${ol.desc ?? ol.label}:  ${fmtMoney(ol.amount)}`)
+    }
+    lines.push(`  • Total otros descuentos: ${fmtMoney(otros)}`)
+  } else if (otros > 0) {
+    // Defensivo: no deberia pasar (otros > 0 implica al menos una fila), pero
+    // si pasara es preferible mostrar el total solo antes que perderlo.
+    lines.push(`  • Otros descuentos:     ${fmtMoney(otros)}`)
+  }
   for (const l of ajusteLines) {
     lines.push(`  • ${l.label}:  ${l.amount < 0 ? '−' : '+'}${fmtMoney(Math.abs(l.amount))}`)
   }
