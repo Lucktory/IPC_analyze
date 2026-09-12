@@ -87,7 +87,7 @@ export default function DiagnosticoPage() {
           <IssueRow dice="ADMI sin marcador de banco (Galicia / BBVA)">La comisión está cargada pero no asignada a un banco. En la celda <strong className="text-ink">ADMI</strong> tocá <strong className="text-ink">«banco?»</strong> y elegí Galicia / BBVA (así no se duplica).</IssueRow>
           <IssueRow dice="Fecha de transferencia anterior al cobro">El orden de fechas no cierra. Verificá F. banco y D. transf.</IssueRow>
           <IssueRow dice="IVA marcado pero el administrador no es RI">Revisá el IVA de la comisión: desactivá el flag o asigná un administrador RI.</IssueRow>
-          <IssueRow dice="Recargo recurrente sin registrar">Un recargo (ABL, gas…) no tiene el cobro cargado este mes (es el punto rojo en Recargos).</IssueRow>
+          <IssueRow dice="Recargo recurrente sin registrar">Un recargo (THU, gas…) no tiene el cobro cargado este mes (es el punto rojo en Recordatorios).</IssueRow>
         </IssueTable>
         <p className="text-[12px] text-slate mt-2.5">
           Cada aviso trae el texto exacto con los números; deciles qué mirar. Empezá por los rojos, después los amarillos.

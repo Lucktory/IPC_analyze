@@ -56,15 +56,16 @@ export default function CargarElMesPage() {
         </Callout>
       </GuideCard>
 
-      {/* 2 — recargos */}
-      <GuideCard title="2. Recargos (los que se repiten cada mes)" tint="#0891B2">
+      {/* 2 — recordatorios */}
+      <GuideCard title="2. Recordatorios (los que se repiten cada mes)" tint="#0891B2">
         <p className="text-[13px] text-slate-dark leading-relaxed">
-          La columna <strong className="text-ink">Recargos</strong> muestra los cargos que se cobran todos los meses
-          (ABL, gas, tasa, etc.) y un <strong className="text-ink">punto verde / rojo</strong> según si ya se registró el cobro
-          del período.
+          La columna <strong className="text-ink">Recordatorios</strong> te avisa qué cargos hay que cobrar todos los meses
+          (THU, gas, tasa, etc.) y un <strong className="text-ink">punto verde / rojo</strong> según si ya se registró el cobro
+          del período. Es un aviso: el monto que ves es lo que <strong className="text-ink">hay que cobrar</strong>, no lo
+          que se cobró. El cobro se carga en <strong className="text-ink">Extras</strong>.
         </p>
         <Callout tone="tip" title="Se configuran en la ficha">
-          Acá en la planilla la columna Recargos es de <strong className="text-ink">solo lectura</strong>. Para agregar, cambiar o sacar
+          Acá en la planilla la columna Recordatorios es de <strong className="text-ink">solo lectura</strong>. Para agregar, cambiar o sacar
           un recargo recurrente, andá a la ficha del contrato (ver la guía <em>Editar un contrato</em>).
         </Callout>
       </GuideCard>

@@ -64,7 +64,7 @@ export function RecurringChargesModal({
         <div className="px-5 py-3 border-b border-line sticky top-0 bg-paper z-10 flex items-center justify-between">
           <div>
             <h2 className="font-display text-[15px] font-medium text-ink">
-              Recargos · {periodLabel(period)}
+              Recordatorios · {periodLabel(period)}
             </h2>
             {contractLabel && (
               <p className="text-[11.5px] text-slate mt-0.5">{contractLabel}</p>

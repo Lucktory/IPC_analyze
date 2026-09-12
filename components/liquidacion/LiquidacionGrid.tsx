@@ -122,7 +122,7 @@ const W = {
   // Tasa de Limpieza / etc.) configured per contract. Total + green/red
   // status dot. Click opens the read-only RecurringChargesPanel popover.
   // Per Alejandro 2026-06-20: Alquiler stays pure, recargos go HERE.
-  recargos: 100,
+  recargos: 130,
   extras: 85,
   // Honorarios — agency leasing fee (one-time, charged on new/renewed
   // contract). Its own column between Extras and Transferencia per Alejandro
@@ -295,7 +295,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
               {/* 9 */}<Th width={W.deuda}    align="right">Deuda</Th>
               {/* 10 */}<Th width={W.periodo}   align="center">Pago</Th>
               {/* 11 */}<Th width={W.alquiler}  align="right">Alquiler</Th>
-              {/* 11b */}<Th width={W.recargos} align="right">Recargos</Th>
+              {/* 11b */}<Th width={W.recargos} align="right">Recordatorios</Th>
               {/* 12 */}<Th width={W.extras}    align="right">Extras</Th>
               {/* 12b — Honorarios (agency fee) between Extras and Transferencia */}
               <Th width={W.honorarios} align="right">Honorarios</Th>

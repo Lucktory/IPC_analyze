@@ -61,7 +61,8 @@ export default function EditarContratoPage() {
               <CellRow col="Contrato">La vigencia: fecha de <strong className="text-ink">inicio</strong> y de <strong className="text-ink">fin</strong>.</CellRow>
               <CellRow col="Estado">El estado de la liquidación (Borrador → Enviada → Pagada).</CellRow>
               <CellRow col="Transferencia · Otros · Galicia · BBVA">Los montos: clic y editás el número.</CellRow>
-              <CellRow col="Alquiler · Recargos · Extras">Lo cobrado del mes (ver la guía <em>Cargar el mes</em>).</CellRow>
+              <CellRow col="Alquiler · Extras">Lo cobrado del mes (ver la guía <em>Cargar el mes</em>).</CellRow>
+              <CellRow col="Recordatorios">Qué hay que cobrar cada mes. Es un aviso, no plata cobrada.</CellRow>
               <CellRow col="Observación">Arreglos, ajustes y honorarios (ver esas guías).</CellRow>
             </tbody>
           </table>
@@ -119,10 +120,10 @@ export default function EditarContratoPage() {
           </div>
 
           <div className="pt-3 border-t border-line">
-            <h3 className="text-[13.5px] font-semibold text-ink mb-1.5">Recargos recurrentes (ABL, gas, etc.)</h3>
+            <h3 className="text-[13.5px] font-semibold text-ink mb-1.5">Recordatorios recurrentes (THU, gas, etc.)</h3>
             <p className="text-[13px] text-slate-dark leading-relaxed">
               Cargos que se cobran <strong className="text-ink">todos los meses</strong> aparte del alquiler. En el editor de{' '}
-              <strong className="text-ink">Recargos</strong> podés <strong className="text-ink">agregar</strong> (etiqueta, monto,
+              <strong className="text-ink">Recordatorios</strong> podés <strong className="text-ink">agregar</strong> (etiqueta, monto,
               tipo de recupero, cada cuántos meses, y desde qué período), <strong className="text-ink">editar</strong>,{' '}
               <strong className="text-ink">activar / desactivar</strong> y <strong className="text-ink">borrar</strong>.
             </p>

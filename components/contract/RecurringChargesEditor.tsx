@@ -149,7 +149,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
     <div className="bg-paper border border-line rounded p-4">
       <div className="mb-3">
         <div className="flex items-baseline justify-between gap-3 flex-wrap">
-          <p className="label-cap text-slate">Recargos mensuales</p>
+          <p className="label-cap text-slate">Recordatorios mensuales</p>
           {charges.length > 0 && (
             <p className="text-[12px] text-slate-dark">
               Total activo: <strong className="text-ink tabular-nums">{fmtMoney(totalActive)}</strong>
@@ -160,7 +160,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
         <p className="text-[12px] text-slate mt-1">
           Cargos fijos que se suman al alquiler (ABL, THU, Camuzzi, etc.). Indicá
           desde qué mes se cobran y cada cuánto (mensual, bimestral…). Aparecen en
-          la columna <strong className="text-ink">Recargos</strong> de la planilla
+          la columna <strong className="text-ink">Recordatorios</strong> de la planilla
           con un puntito verde cuando el cobro está cargado o rojo cuando falta —
           solo en los meses que corresponde.
         </p>

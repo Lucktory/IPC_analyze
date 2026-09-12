@@ -39,7 +39,7 @@ export function RecurringChargesPanel({ summary, period, contractId, editHref }:
   return (
     <div className="text-[12.5px]">
       <p className="font-display text-[14px] font-medium text-ink mb-3">
-        Recargos · {periodLabel(period)}
+        Recordatorios · {periodLabel(period)}
       </p>
 
       {!hasLines && (
