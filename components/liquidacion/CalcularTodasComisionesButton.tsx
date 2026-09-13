@@ -58,9 +58,15 @@ export function CalcularTodasComisionesButton({ period }: { period: string }) {
         type="button"
         onClick={openModal}
         title="Ver, calcular y actualizar las comisiones del período"
-        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-success text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0 shadow-sm"
+        /* Compacto a pedido de Alejandro (2026-09-13): "achicando un poquito
+           entra junto con contrato nuevo en la fila de arriba". Los dos botones
+           ya estaban en la misma fila que los filtros de estado, pero al ser
+           mas altos que el resto de la tira (13px contra 11.5px) la desbordaban
+           y caian a un renglon aparte. Achicandolos entran, y la grilla gana
+           una fila de alto. */
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-success text-white text-[12px] font-medium hover:brightness-110 transition-all shrink-0 shadow-sm"
       >
-        <Calculator size={15} /> Calcular todas
+        <Calculator size={13} /> Calcular todas
       </button>
 
       {open && (

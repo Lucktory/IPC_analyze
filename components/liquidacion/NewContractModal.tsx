@@ -324,7 +324,10 @@ export function NewContractModal({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-info text-white text-[13px] font-medium hover:brightness-110 transition-all shrink-0 shadow-sm"
+        /* Mismo tamaño compacto que "Calcular todas": los dos comparten fila
+           con los filtros de estado y tienen que entrar juntos (ver el
+           comentario en CalcularTodasComisionesButton). */
+        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-info text-white text-[12px] font-medium hover:brightness-110 transition-all shrink-0 shadow-sm"
       >
         + Nuevo contrato
       </button>
