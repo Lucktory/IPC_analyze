@@ -43,6 +43,13 @@ export default function ReferenciaPage() {
 
       {/* columnas */}
       <GuideCard title="Columnas de la planilla" tint="#0891B2">
+        {/* Esta tabla contesta "que es esta columna". La pregunta de todos los
+            dias es la otra: "donde cargo esto". Por eso el puntero. */}
+        <p className="text-[12.5px] text-slate-dark leading-relaxed mb-3">
+          Qué es cada columna. Si lo que necesitás es saber <strong className="text-ink">dónde cargar
+          algo</strong>, andá a la guía{' '}
+          <Link href="/ayuda/donde-cargo" className="text-info hover:underline">¿Dónde cargo cada cosa?</Link>.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-[13px] border-collapse min-w-[520px]">
             <thead>
