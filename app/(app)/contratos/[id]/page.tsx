@@ -17,6 +17,7 @@ import { getSuggestedAumento } from '@/lib/contract/aumento-suggest'
 import { ContractStatusControl } from '@/components/contract/ContractStatusControl'
 import { InlineParticipantsCell } from '@/components/liquidacion/InlineParticipantsCell'
 import { CommissionPctEditor } from '@/components/contract/CommissionPctEditor'
+import { CommissionOnDepositEditor } from '@/components/contract/CommissionOnDepositEditor'
 import { RentEditor } from '@/components/contract/RentEditor'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
@@ -231,6 +232,19 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
             <div className="flex items-center justify-between gap-3">
               <dt className="text-slate shrink-0">Comisión</dt>
               <dd className="w-24"><CommissionPctEditor contractId={contract.id} pct={contract.commissionPct} period={period} /></dd>
+            </div>
+            {/* Concesion por contrato: si la comision alcanza al deposito en
+                garantia. Va pegado al % porque es la otra mitad de la misma
+                pregunta — cuanto se cobra y sobre que. */}
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-slate shrink-0">Comisión s/ depósito</dt>
+              <dd>
+                <CommissionOnDepositEditor
+                  contractId={contract.id}
+                  value={contract.commissionOnDeposit}
+                  period={period}
+                />
+              </dd>
             </div>
             {/* Alquiler CARGADO — el valor guardado, editable para corregirlo.
                 Distinto del KPI "Alquiler vigente" de arriba, que muestra el

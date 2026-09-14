@@ -105,6 +105,11 @@ export type ValidationCode =
 //    without breaking validations.ts.
 export interface ValidatableRow {
   ingresos:          number
+  /** Base sobre la que se cobra la comision = ingresos menos el deposito
+   *  cuando el contrato lo tiene exceptuado (commissionBaseOf en funnel.ts).
+   *  Opcional: si falta cae en `ingresos`, que es lo mismo mientras no haya
+   *  ninguna garantia cobrada en el periodo. */
+  comisionBase?:     number
   admi:              number
   otros:             number
   /** Computed neto (= recibo). What SHOULD be transferred to the owner. */
@@ -719,12 +724,17 @@ export function validateRow(
   // commission was never recorded, so the owner's transfer doesn't discount it
   // (a silent over-payment to the dueño). The deviation check below only runs
   // when admi > 0, so it skips exactly this case — this rule catches it.
-  if (contractPct != null && contractPct > 0 && r.ingresos > 0 && r.admi === 0) {
-    const expectedAdmi = expectedCommission(r.ingresos, contractPct, commissionIncludesIva)
+  // Se mide contra la BASE y no contra `ingresos`: si el unico cobro del mes es
+  // un deposito y ese contrato tiene cedida la comision sobre la garantia, la
+  // base es 0 y no falta ninguna comision. Comparar con ingresos pediria una
+  // comision "esperada" de $0, que es un aviso sin sentido.
+  const comisionBase = r.comisionBase ?? r.ingresos
+  if (contractPct != null && contractPct > 0 && comisionBase > 0 && r.admi === 0) {
+    const expectedAdmi = expectedCommission(comisionBase, contractPct, commissionIncludesIva)
     issues.push({
       code:     'COMMISSION_NOT_RECORDED',
       severity: 'warning',
-      message:  `Hay ingresos cobrados (${fmtMoney(r.ingresos)}) pero no se registró la comisión (ADMI = $0). Esperado ~${fmtMoney(expectedAdmi)} al ${contractPct}%. Calculala o cargala en el banco.`,
+      message:  `Hay ingresos cobrados (${fmtMoney(comisionBase)}) pero no se registró la comisión (ADMI = $0). Esperado ~${fmtMoney(expectedAdmi)} al ${contractPct}%. Calculala o cargala en el banco.`,
       expected: expectedAdmi,
       actual:   0,
       diff:     expectedAdmi,
@@ -735,14 +745,18 @@ export function validateRow(
   // which isn't on the row itself. Inline it here when caller provides it.
   if (
     contractPct != null && contractPct > 0 &&
-    r.ingresos > 0 && r.admi > 0
+    comisionBase > 0 && r.admi > 0
   ) {
     const ivaFactor    = commissionIvaFactor(commissionIncludesIva)
-    const expectedAdmi = expectedCommission(r.ingresos, contractPct, commissionIncludesIva)
+    const expectedAdmi = expectedCommission(comisionBase, contractPct, commissionIncludesIva)
     // Effective pct is computed against the IVA-inclusive expectation so
     // an RI contract booked correctly shows 0 deviation, not the ~21%
     // surplus you'd get if we ignored IVA.
-    const effectivePct = (r.admi / r.ingresos / ivaFactor) * 100
+    // Sobre la BASE, no sobre `ingresos`: en un contrato con la comision cedida
+    // sobre el deposito, dividir por los ingresos completos daria un porcentaje
+    // efectivo mas bajo que el del contrato y marcaria una desviacion falsa
+    // todos los meses que entre una garantia.
+    const effectivePct = (r.admi / comisionBase / ivaFactor) * 100
     const pctDiff      = Math.abs(effectivePct - contractPct)
     if (pctDiff > VALIDATION_TOLERANCES.COMMISSION_PP) {
       const ivaSuffix = commissionIncludesIva ? ' (incluye IVA 21%)' : ''

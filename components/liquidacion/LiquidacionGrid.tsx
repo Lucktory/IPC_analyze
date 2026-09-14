@@ -497,7 +497,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       contractId={r.contractId}
                       period={r.periodo}
                       value={r.commissionPctConfigured}
-                      ingresos={r.ingresos}
+                      ingresos={r.comisionBase}
                       admi={r.admi}
                       includesIva={r.commissionIncludesIva}
                       cobrado={cobrado}
@@ -782,7 +782,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       contractId={r.contractId}
                       period={r.periodo}
                       admi={r.admi}
-                      ingresos={r.ingresos}
+                      ingresos={r.comisionBase}
                       commissionPct={r.commissionPctConfigured}
                       bankSum={r.admGalicia + r.admFrances509 + r.admFrances516}
                       textClass={cellTextClass(cobrado)}
@@ -824,7 +824,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       value={r.admGalicia}
                       cobrado={cobrado}
                       label="Comisión administración"
-                      maxPlausibleComm={expectedCommission(r.ingresos, r.commissionPctConfigured ?? 0, r.commissionIncludesIva)}
+                      maxPlausibleComm={expectedCommission(r.comisionBase, r.commissionPctConfigured ?? 0, r.commissionIncludesIva)}
                     />
                   </Td>
 
@@ -838,7 +838,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       value={r.admFrances509}
                       cobrado={cobrado}
                       label="Comisión administración"
-                      maxPlausibleComm={expectedCommission(r.ingresos, r.commissionPctConfigured ?? 0, r.commissionIncludesIva)}
+                      maxPlausibleComm={expectedCommission(r.comisionBase, r.commissionPctConfigured ?? 0, r.commissionIncludesIva)}
                     />
                   </Td>
 
@@ -852,7 +852,7 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                       value={r.admFrances516}
                       cobrado={cobrado}
                       label="Comisión administración"
-                      maxPlausibleComm={expectedCommission(r.ingresos, r.commissionPctConfigured ?? 0, r.commissionIncludesIva)}
+                      maxPlausibleComm={expectedCommission(r.comisionBase, r.commissionPctConfigured ?? 0, r.commissionIncludesIva)}
                     />
                   </Td>
 

@@ -24,7 +24,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { dbFailure } from '@/lib/db-errors'
 import { updateContractCommissionPct } from '@/lib/contract/inline-field-actions'
 import { expectedCommission } from '@/lib/liquidacion/thresholds'
-import { accumulateFunnel, type FunnelTxnRow } from '@/lib/liquidacion/funnel'
+import { accumulateFunnel, commissionBaseOf, type FunnelTxnRow } from '@/lib/liquidacion/funnel'
 import { isManagedRow, managedRowMessage, stripOtrosMarker, OTROS_CELL_MARKER, OTROS_CELL_ILIKE } from '@/lib/transaction/managed-rows'
 import { deriveCommissionDest, buildCommissionMarker, COMMISSION_MARKER_RE, DESTINATION_SHORT_LABEL, type CommissionDest } from '@/lib/bancos/destination'
 import { pickPrimaryLandlord } from '@/lib/contract/primary'
@@ -218,6 +218,11 @@ export interface CommissionComputation {
   amount:      number
   pct:         number
   includesIva: boolean
+  /** La BASE sobre la que se calculo `amount`, no los ingresos crudos: en un
+   *  contrato con el deposito en garantia exceptuado los dos numeros difieren.
+   *  Se llama asi por compatibilidad con los consumidores (la vista previa de
+   *  "Calcular todas" lo muestra), y lo que corresponde mostrar ahi es
+   *  justamente la base. */
   ingresos:    number
   destination: CommissionDest | null   // contract's default bank (or null)
 }
@@ -228,7 +233,7 @@ export async function computeCommissionForPeriod(
   const supabase = await createSupabaseServer()
   const { data: contract, error: contractErr } = await supabase
     .from('contracts')
-    .select('commission_pct, commission_includes_iva, commission_destination')
+    .select('commission_pct, commission_includes_iva, commission_destination, commission_on_deposit')
     .eq('id', contractId)
     .maybeSingle()
   if (contractErr) return { ok: false, error: contractErr.message }
@@ -242,9 +247,13 @@ export async function computeCommissionForPeriod(
   // factor the deviation check and the IVA column use. Monotributo: no IVA.
   const includesIva = (contract as any).commission_includes_iva === true
 
+  // `code` es obligatorio en el select: funnelBucketOf lo mira para separar
+  // COMMISSION_OUT y LANDLORD_PAYOUT, y para el subtotal del deposito. Antes
+  // faltaba y no se notaba porque de los tres baldes aca solo se leia
+  // `ingresos`; ahora la base depende del codigo.
   const { data: ins, error: insErr } = await supabase
     .from('transactions')
-    .select('amount, transaction_types!inner(direction, affects_liquidacion)')
+    .select('amount, transaction_types!inner(code, direction, affects_liquidacion)')
     .eq('contract_id', contractId)
     .eq('period', period)
   if (insErr) return { ok: false, error: insErr.message }
@@ -252,16 +261,27 @@ export async function computeCommissionForPeriod(
   // Same classifier the planilla, the email and the status writer use, so
   // "ingresos" can't mean one thing here and another there. (Was an inline loop
   // over affects_liquidacion + direction === 'IN'.)
-  const { ingresos } = accumulateFunnel(ins as unknown as FunnelTxnRow[] | null)
-  if (ingresos <= 0) {
-    return { ok: false, error: 'No hay ingresos cobrados todavía para este período — la comisión sería $0.', code: 'NO_INCOME' }
+  const buckets = accumulateFunnel(ins as unknown as FunnelTxnRow[] | null)
+  // La comision se cobra sobre el deposito salvo que se le haya cedido a ese
+  // propietario. El deposito se le transfiere igual en los dos casos: lo que
+  // cambia es la BASE, no la transferencia.
+  const onDeposit = (contract as any).commission_on_deposit !== false
+  const base      = commissionBaseOf(buckets, onDeposit)
+  if (base <= 0) {
+    return {
+      ok:    false,
+      error: buckets.ingresos > 0
+        ? 'Lo cobrado en el período no lleva comisión (el depósito está exceptuado en este contrato).'
+        : 'No hay ingresos cobrados todavía para este período — la comisión sería $0.',
+      code:  'NO_INCOME',
+    }
   }
 
   // THE commission formula (lib/liquidacion/thresholds.ts). Rounding to 2
   // decimals stays here: this is the writer, the validators compare raw.
-  const amount = Math.round(expectedCommission(ingresos, pct, includesIva) * 100) / 100
+  const amount = Math.round(expectedCommission(base, pct, includesIva) * 100) / 100
   const destination = deriveCommissionDest((contract as any).commission_destination ?? null) ?? null
-  return { ok: true, value: { amount, pct, includesIva, ingresos, destination } }
+  return { ok: true, value: { amount, pct, includesIva, ingresos: base, destination } }
 }
 
 // generateCommissionForPeriod — compute (above) + WRITE via setCommission. The
@@ -459,7 +479,11 @@ async function commissionsToSyncForPeriod(
     .from('transactions')
     .select('contract_id, transaction_types!inner(code)')
     .eq('period', period)
-    .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN'])
+    // DEPOSIT_IN entra en la lista (2026-09-15): un contrato que arranca a mitad
+    // de mes puede tener cobrado el deposito y todavia no el alquiler. Sin esto,
+    // "Calcular todas" lo saltea y la comision de ese deposito no se genera
+    // nunca — habria que acordarse de calcularla a mano, contrato por contrato.
+    .in('transaction_types.code', ['RENT_IN', 'RENT_NF_IN', 'DEPOSIT_IN'])
   if (txErr) return { ok: false, error: txErr.message, items: [] }
   const cobroIds = [...new Set(((tx ?? []) as any[]).map(t => t.contract_id).filter(Boolean))] as string[]
   if (!cobroIds.length) return { ok: true, error: null, items: [] }

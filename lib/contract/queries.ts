@@ -32,6 +32,10 @@ export interface ContractDetail {
   createdAt:       string | null
   paymentDay:      number
   commissionPct:   number
+  /** false = la comision de este contrato no alcanza al deposito en garantia.
+   *  El deposito se le transfiere al propietario igual; lo que cambia es la
+   *  base del calculo (commissionBaseOf en lib/liquidacion/funnel.ts). */
+  commissionOnDeposit: boolean
   depositAmount:   number | null
   depositStatus:   string | null
   notes:           string | null
@@ -48,7 +52,7 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     .select(`
       id, contract_number, status, current_rent, initial_rent, expensas,
       rent_facturado_neto, rent_no_facturado, rent_iva_rate, currency, cadence, indexer,
-      start_date, end_date, next_adjustment_date, last_adjustment_date, created_at, payment_day, commission_pct, deposit_amount, deposit_status, notes,
+      start_date, end_date, next_adjustment_date, last_adjustment_date, created_at, payment_day, commission_pct, commission_on_deposit, deposit_amount, deposit_status, notes,
       contract_landlords(ownership_pct, landlords(id, name, dni_or_cuit)),
       contract_tenants(is_primary, share_pct, tenants(id, name, phone, dni)),
       properties(id, address, unit, city, property_type)
@@ -79,6 +83,7 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     createdAt:       c.created_at ?? null,
     paymentDay:      c.payment_day,
     commissionPct:   Number(c.commission_pct ?? 8),
+    commissionOnDeposit: c.commission_on_deposit !== false,
     depositAmount:   c.deposit_amount != null ? Number(c.deposit_amount) : null,
     depositStatus:   c.deposit_status ?? null,
     notes:           c.notes,

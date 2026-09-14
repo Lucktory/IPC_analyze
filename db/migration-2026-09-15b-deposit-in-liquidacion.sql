@@ -1,0 +1,69 @@
+-- ============================================================================
+-- 2026-09-15b - DEPOSIT_IN entra en la liquidacion
+--
+-- Correr DESPUES de migration-2026-09-15-commission-on-deposit.sql.
+--
+-- POR QUE
+--
+-- El deposito en garantia se cobra al inquilino y se le transfiere al
+-- propietario previa deduccion de la administracion (Alejandro, 2026-09-14).
+-- Es plata que entra y sale como cualquier otro cobro, pero el tipo DEPOSIT_IN
+-- nacio con affects_liquidacion = false, asi que el embudo lo ignoraba: no
+-- sumaba a ingresos, no entraba en la base de la comision y no llegaba a la
+-- transferencia calculada.
+--
+-- ESTO NO INVENTA UNA REGLA NUEVA, CORRIGE UNA QUE YA SE APLICABA
+--
+-- Los datos de Mayo 2026 lo prueban. Hay 3 depositos cargados, y la comision
+-- registrada de dos de ellos es exactamente el porcentaje del contrato sobre
+-- (ingresos + deposito), al centavo:
+--
+--   C-2024-0006 Buzzi    9%  x (1.300.000 + 270.769,11) = 141.369,22  registrado 141.369,22
+--   C-2026-0014 Neyertz 10%  x (  900.000 + 148.030,00) = 104.803,00  registrado 104.803,00
+--
+-- Y la transferencia tambien los incluye: en los 3 contratos, sumar el
+-- deposito mueve la diferencia entre lo transferido y lo calculado por
+-- exactamente el monto del deposito. Neyertz cierra al centavo:
+--   1.048.030 - 104.803 - 185.061,28 = 758.165,72 = lo transferido.
+--
+-- O sea que la oficina SIEMPRE lo cobro y lo transfirio; el sistema era el
+-- unico que no lo miraba. Hasta hoy esos contratos figuraban con una
+-- desviacion de comision falsa (9% configurado contra 10,87% "efectivo"),
+-- porque el sistema esperaba la comision sobre los ingresos sin el deposito.
+--
+-- EFECTO SOBRE MAYO
+--
+-- Cambia: 3 contratos de Mayo 2026 pasan a tener el deposito dentro de
+-- ingresos, y su comision esperada pasa a coincidir con la registrada. Se
+-- apagan 3 avisos de desviacion que estaban mal.
+--
+-- No hay otro periodo afectado: DEPOSIT_IN solo tiene filas en Mayo 2026.
+-- DEPOSIT_REFUND no se toca — la devolucion al inquilino no es un gasto del
+-- propietario.
+-- ============================================================================
+
+update transaction_types
+set affects_liquidacion = true
+where code = 'DEPOSIT_IN'
+returning code, label, direction, affects_liquidacion;
+
+-- ============================================================================
+-- VERIFICACION
+-- ============================================================================
+--   -- 1. El tipo quedo en true:
+--   select code, direction, affects_liquidacion
+--   from transaction_types where code like 'DEPOSIT%';
+--
+--   -- 2. La comision registrada de Mayo ahora coincide con la esperada:
+--   select ct.contract_number, ct.commission_pct,
+--          round(sum(t.amount) filter (where tt.direction = 'IN'
+--                and tt.affects_liquidacion), 2)                       as base,
+--          round(sum(t.amount) filter (where tt.code = 'COMMISSION_OUT'), 2) as admi
+--   from transactions t
+--   join transaction_types tt on tt.id = t.transaction_type_id
+--   join contracts ct on ct.id = t.contract_id
+--   where t.period = date '2026-05-01'
+--     and ct.contract_number in ('C-2024-0006','C-2026-0014')
+--   group by ct.id, ct.contract_number, ct.commission_pct;
+--   -- admi tiene que dar base * commission_pct / 100.
+-- ============================================================================

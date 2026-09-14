@@ -272,6 +272,11 @@ export interface LiquidacionGridRow {
    *  cell shows + edits. The effective `pct` above stays for the deviation
    *  check; showing it in the cell read as 0% / stale to the encargada. */
   commissionPctConfigured: number | null
+  /** Base sobre la que se cobra la comision. Igual a `ingresos` salvo que el
+   *  contrato tenga cedida la comision sobre el deposito en garantia, en cuyo
+   *  caso le resta ese subtotal. Es el numero que tienen que usar la vista
+   *  previa del % y el tope de ADMI — con `ingresos` marcarian de mas. */
+  comisionBase:  number
   admi:          number          // sum COMMISSION_OUT (already includes IVA when applicable)
   /** True when the contract is invoiced by an RI administrator AND the
    *  commission line includes IVA (contracts.commission_includes_iva).
@@ -643,7 +648,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         id, status, contract_number, lfa_code, expensas, current_rent, initial_rent,
         rent_facturado_neto, rent_no_facturado, rent_iva_rate,
         cadence, start_date, end_date, payment_day,
-        created_at, updated_at, commission_pct, commission_includes_iva,
+        created_at, updated_at, commission_pct, commission_includes_iva, commission_on_deposit,
         late_interest_enabled, late_interest_rate,
         next_adjustment_date, last_adjustment_date, sellado_total, sellado_applied_at, deposit_status,
         billing_administrator_id,
@@ -975,7 +980,16 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       { ingresos: a.ingresos, admi: a.admi, otros: a.otros }, adjustment,
     )
 
-    const pct = a.ingresos > 0 ? (a.admi / a.ingresos) * 100 : 0
+    // Base de la comision. El deposito en garantia se le transfiere igual al
+    // propietario (por eso sigue en `ingresos` y en `transferencia`); lo que
+    // decide este flag es si la comision lo alcanza. Default true — Alejandro
+    // lo cobra salvo que le haya cedido a ese dueño.
+    const comisionBase = commissionBaseOf(a, c.commission_on_deposit !== false)
+
+    // Porcentaje efectivo sobre la BASE, no sobre los ingresos: en un contrato
+    // con el deposito exceptuado, dividir por los ingresos completos mostraria
+    // un % mas bajo que el del contrato sin que nada este mal.
+    const pct = comisionBase > 0 ? (a.admi / comisionBase) * 100 : 0
 
     // IVA portion embedded inside the recorded ADMI. When the contract is
     // billed by an RI administrator (commission_includes_iva=true), the
@@ -1011,6 +1025,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       otros:         a.otros,
       pct,
       commissionPctConfigured: c.commission_pct != null ? Number(c.commission_pct) : null,
+      comisionBase,
       admi:          a.admi,
       commissionIncludesIva,
       iva,
@@ -1104,6 +1119,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       validationIssues: validateRow(
         {
           ingresos:         a.ingresos,
+          comisionBase,
           admi:             a.admi,
           otros:            a.otros,
           transferencia,

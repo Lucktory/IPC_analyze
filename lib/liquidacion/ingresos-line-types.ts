@@ -24,6 +24,11 @@ export const INGRESOS_LINE_TYPES = [
   'RECUPERO_COAGUA_IN',
   'RECUPERO_OTRO_IN',
   'UTILITY_REFUND_IN',
+  // Deposito en garantia. Se cobra al inquilino y se le transfiere al
+  // propietario previa deduccion de la administracion, asi que se carga como
+  // cualquier otro ingreso. Si la comision lo alcanza o no se decide por
+  // contrato (contracts.commission_on_deposit).
+  'DEPOSIT_IN',
   'OTHER_IN',
 ] as const
 

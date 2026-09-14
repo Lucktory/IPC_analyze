@@ -97,6 +97,36 @@ export async function updateContractCommissionIncludesIva(
   return { ok: true, error: null }
 }
 
+// ── Comision sobre el deposito en garantia ──────────────────────────────────
+// Alejandro, 2026-09-14: "Se lo mandamos al propietario, previa deduccion de la
+// administracion. Hay algun caso que nos pelea para que no le cobremos."
+//
+// Por eso es una concesion POR CONTRATO y el default es true. Apagarlo NO deja
+// de transferirle el deposito al dueño: solo lo saca de la base de la comision.
+export async function updateContractCommissionOnDeposit(
+  contractId: string,
+  onDeposit:  boolean,
+  /** Cuando viene, recalcula la comision de ese periodo para que el ADMI no
+   *  quede con el valor viejo hasta el proximo "Calcular". Mismo reflejo que
+   *  usa el toggle de IVA. */
+  period?: string,
+): Promise<InlineResult> {
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase
+    .from('contracts')
+    .update({ commission_on_deposit: onDeposit })
+    .eq('id', contractId)
+  if (error) return dbFailure(error)
+
+  if (period && /^\d{4}-\d{2}-01$/.test(period)) {
+    const { syncCommissionForPeriod } = await import('@/lib/transaction/actions')
+    await syncCommissionForPeriod(contractId, period)
+  }
+
+  revalidate(contractId)
+  return { ok: true, error: null }
+}
+
 // (The 2026-06-19 updateContractAblSurcharge action was removed on
 // 2026-06-20 along with the contracts.includes_abl / abl_amount columns.
 // Recurring charges now live in `contract_recurring_charges` with N rows
