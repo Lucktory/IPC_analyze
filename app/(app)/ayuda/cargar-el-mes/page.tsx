@@ -19,7 +19,8 @@ export default function CargarElMesPage() {
         </nav>
         <h1 className="text-[24px] font-semibold text-ink tracking-tight mt-1">Cargar el mes</h1>
         <p className="text-[13.5px] text-slate-dark mt-1">
-          Cargar lo que se cobró en el período: el alquiler, los recuperos (ABL, gas, etc.) y las
+          Cargar lo que se cobró en el período: el alquiler, los recuperos (THU, gas, etc.), el depósito
+          en garantía y las
           observaciones (arreglos / ajustes). Todo desde la planilla (Liquidación).
         </p>
       </header>
@@ -45,8 +46,9 @@ export default function CargarElMesPage() {
             recuperos y otros ingresos. Tipos que podés elegir:
           </p>
           <p className="text-[12.5px] text-slate-dark leading-relaxed">
-            Alquiler · Alquiler s/factura (N/F) · Expensas · Mora / recargo · Recupero ABL · Recupero AySA ·
-            Recupero Metrogas / Gas · Recupero Edesur / Luz · Recupero otro servicio · Reintegro servicios · Otro ingreso.
+            Alquiler · Alquiler s/factura (N/F) · Expensas · Mora / recargo · Recupero ABL / THU · Recupero AySA ·
+            Recupero Metrogas / Gas · Recupero Edesur / Luz · Recupero otro servicio · Reintegro servicios ·
+            Depósito de garantía · Otro ingreso.
           </p>
         </div>
 

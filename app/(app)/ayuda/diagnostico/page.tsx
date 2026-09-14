@@ -100,13 +100,28 @@ export default function DiagnosticoPage() {
           La columna <strong className="text-ink">Deuda</strong> muestra lo que el inquilino debe. Hacé clic para ver el desglose:
         </p>
         <ul className="mt-2 space-y-2">
-          <Step n={1}><strong className="text-ink">Deuda de este mes</strong> = alquiler esperado − lo cobrado.</Step>
-          <Step n={2}><strong className="text-ink">Arrastrado</strong>: mira los <strong className="text-ink">3 meses anteriores</strong> y suma lo que quedó sin cobrar.</Step>
-          <Step n={3}><strong className="text-ink">Intereses por mora</strong> (si están activados): una <strong className="text-ink">estimación</strong> proporcional al mes. Es solo informativa; <strong className="text-ink">no se cobra sola</strong> — vos decidís si cargar el recargo.</Step>
+          <Step n={1}><strong className="text-ink">Deuda de este mes</strong> = alquiler esperado − lo cobrado. Un cobro cuenta cuando tiene <strong className="text-ink">fecha de banco</strong>: si cargaste el monto sin la fecha, para el sistema todavía no entró.</Step>
+          <Step n={2}><strong className="text-ink">Adeudado anterior</strong>: mira hasta <strong className="text-ink">12 meses para atrás</strong> y suma lo que quedó sin cobrar.</Step>
+          <Step n={3}>Cada mes viejo se cuenta al <strong className="text-ink">alquiler que regía en ese momento</strong>, según el historial de aumentos del contrato — no al alquiler de hoy.</Step>
+          <Step n={4}><strong className="text-ink">Intereses por mora</strong> (si están activados): una <strong className="text-ink">estimación</strong> proporcional al mes. Es solo informativa; <strong className="text-ink">no se cobra sola</strong> — vos decidís si cargar el recargo.</Step>
         </ul>
-        <Callout tone="warn" title="Un supuesto a tener en cuenta">
-          Para los meses anteriores, la deuda toma como referencia el <strong className="text-ink">alquiler actual</strong>. El desglose lo aclara.
-          Si un mes viejo nunca se cargó, no lo cuenta como deuda (para no inventar deuda).
+
+        <p className="text-[13px] text-slate-dark leading-relaxed mt-3">
+          En la celda, un <strong className="text-danger">+</strong> chiquito al lado del monto quiere decir que además
+          debe meses anteriores. Si sólo debe el mes en curso, no aparece.
+        </p>
+
+        <Callout tone="warn" title="La deuda arranca en Septiembre 2026">
+          Nada anterior a <strong className="text-ink">Septiembre 2026</strong> se cuenta como deuda automáticamente.
+          Los meses previos no se cargaron completos en el sistema, así que la falta de un alquiler ahí no prueba
+          que el inquilino no haya pagado: contarlo le inventaría deuda a casi todos los contratos a la vez.
+        </Callout>
+
+        <Callout tone="tip" title="Los que sí deben de antes">
+          Se cargan a mano. En la ficha del contrato, abajo del desglose de Deuda, tenés{' '}
+          <strong className="text-ink">Deuda anterior</strong>: ponés el mes y el monto que sabés que debe, y podés
+          cargar varias líneas si debe más de un mes. Aparece en la columna Deuda con el <strong className="text-danger">+</strong>,
+          marcado como <em>cargado a mano</em> para no confundirlo con lo que calculó el sistema.
         </Callout>
       </GuideCard>
 

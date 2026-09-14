@@ -143,13 +143,35 @@ export default function EditarContratoPage() {
       </GuideCard>
 
       {/* C — depósito */}
-      <GuideCard title="C. Depósito" tint="#7C3AED">
+      <GuideCard title="C. Depósito en garantía" tint="#7C3AED">
         <p className="text-[13px] text-slate-dark leading-relaxed">
-          El depósito se edita desde la ficha de la <strong className="text-ink">propiedad</strong>: abrí la propiedad,
-          desplegá <strong className="text-ink">Editar propiedad</strong> y en <strong className="text-ink">Depósito en garantía</strong> cargás
-          el <strong className="text-ink">monto</strong> del depósito del contrato activo y su <strong className="text-ink">estado</strong>:{' '}
-          en garantía con el propietario / parcialmente usado / devuelto al inquilino.
+          Son <strong className="text-ink">dos cosas distintas</strong> y se cargan en dos lugares distintos: el
+          <strong className="text-ink"> dato</strong> de cuánto es el depósito, y el <strong className="text-ink">cobro</strong> del
+          día que el inquilino lo paga.
         </p>
+        <ul className="mt-2 space-y-2">
+          <Step n={1}>
+            <strong className="text-ink">El dato</strong> — en la ficha de la <strong className="text-ink">propiedad</strong>:
+            desplegá <strong className="text-ink">Editar propiedad</strong> y en <strong className="text-ink">Depósito en garantía</strong>{' '}
+            cargás el <strong className="text-ink">monto</strong> y el <strong className="text-ink">estado</strong>
+            (en garantía / parcialmente usado / devuelto al inquilino).
+          </Step>
+          <Step n={2}>
+            <strong className="text-ink">El cobro</strong> — en la planilla, columna{' '}
+            <strong className="text-ink">Extras</strong>: elegís «Depósito de garantía», monto y fecha de banco.
+            Entra como plata cobrada, se le descuenta la administración y el resto va en la transferencia al propietario.
+          </Step>
+        </ul>
+        <Callout tone="tip" title="Comisión sobre el depósito">
+          En la ficha del contrato, al lado de la comisión, tenés{' '}
+          <strong className="text-ink">Comisión s/ depósito</strong> con dos opciones: <strong className="text-ink">Sí</strong> / <strong className="text-ink">No</strong>.
+          <br />
+          Viene en <strong className="text-ink">Sí</strong>, que es lo habitual. Si a un propietario se le cedió, le ponés{' '}
+          <strong className="text-ink">No</strong>: el depósito se le sigue transfiriendo igual — no cambia lo que recibe —
+          pero deja de cobrarse la administración sobre esa parte.
+          <br />
+          Es <strong className="text-ink">por contrato</strong>. Un dueño con varios contratos necesita la marca en cada uno.
+        </Callout>
       </GuideCard>
 
       {/* D — terminar */}

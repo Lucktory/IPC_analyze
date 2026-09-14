@@ -64,20 +64,20 @@ export default function ReferenciaPage() {
               <ColRow col="LFA">Administrador a cargo (L / F / A / FL / D).</ColRow>
               <ColRow col="F. banco">Fecha en que entró el cobro al banco.</ColRow>
               <ColRow col="Propietario">El/los dueño(s) de la propiedad.</ColRow>
-              <ColRow col="Expensas">Las expensas mensuales del contrato.</ColRow>
+              <ColRow col="Expensas">Cuánto son las expensas mensuales del contrato. Es un dato de referencia, no un cobro: cuando el inquilino las paga, va en Extras.</ColRow>
               <ColRow col="Inquilino">El/los inquilino(s).</ColRow>
               <ColRow col="Pct">El % de comisión de administración.</ColRow>
               <ColRow col="Cadencia">Cada cuánto aumenta el alquiler (mensual, trimestral, etc.).</ColRow>
               <ColRow col="Contrato">Número y vigencia (inicio / fin) del contrato.</ColRow>
-              <ColRow col="Deuda">Lo que debe el inquilino (este mes + arrastrado).</ColRow>
+              <ColRow col="Deuda">Lo que debe el inquilino: este mes + hasta 12 meses de atrás. Un (+) al lado del monto avisa que además debe meses anteriores.</ColRow>
               <ColRow col="Pago">Día de pago del mes.</ColRow>
               <ColRow col="Alquiler">El alquiler del período. Sube solo por IPC: muestra el valor nuevo (en gris) hasta que cargás lo cobrado.</ColRow>
               <ColRow col="Recordatorios">Aviso de los cargos que se repiten cada mes (THU, gas…) + punto verde/rojo. No es plata cobrada.</ColRow>
-              <ColRow col="Extras">Recuperos y otros ingresos que no son alquiler.</ColRow>
+              <ColRow col="Extras">Todo lo que entra y no es alquiler: THU, gas, ABL, agua, expensas cobradas, depósito en garantía, recargos por mora.</ColRow>
               <ColRow col="Honorarios">El fee de la inmobiliaria (ingreso propio, no va al dueño).</ColRow>
               <ColRow col="Transferencia">El neto que va al propietario.</ColRow>
-              <ColRow col="Otros">Otros descuentos del período.</ColRow>
-              <ColRow col="Movs.">Cantidad y neto de movimientos del contrato en el mes.</ColRow>
+              <ColRow col="Otros">Todo lo que se le descuenta al propietario. Nunca es plata que entra. Incluye lo que cargues desde Movs.</ColRow>
+              <ColRow col="Movs.">Todos los movimientos del contrato en el mes, entradas y salidas, con fecha y detalle. Desde acá también podés cargar una salida.</ColRow>
               <ColRow col="D. transf">Fecha en que se transfirió al dueño.</ColRow>
               <ColRow col="ADMI">Comisión total de administración (suma de los bancos).</ColRow>
               <ColRow col="IVA">La parte de IVA de la comisión (cuando corresponde).</ColRow>
@@ -96,7 +96,11 @@ export default function ReferenciaPage() {
           <Term t="Honorarios">El fee que cobra la inmobiliaria por hacer o renovar un contrato. Se cobra una vez (o en cuotas). Es ingreso de la inmobiliaria, no del dueño.</Term>
           <Term t="N/F (facturado / no facturado)">Alquiler en dos partes: una parte facturada (con IVA si corresponde) y otra no facturada.</Term>
           <Term t="Cadencia">Cada cuánto se actualiza el alquiler: mensual, bimestral, trimestral, cuatrimestral, semestral o anual.</Term>
-          <Term t="Recupero">Un gasto que el inquilino reintegra (ABL, AySA, Metrogas, Edesur, etc.).</Term>
+          <Term t="Recupero">Un gasto que el inquilino reintegra (THU, gas, agua, luz, etc.).</Term>
+          <Term t="THU">Tasa de Higiene Urbana. Es como se le dice acá; en Buenos Aires le dicen ABL.</Term>
+          <Term t="Depósito en garantía">Lo que deja el inquilino al empezar. Se cobra en Extras, se le transfiere al propietario, y se le descuenta la administración salvo que a ese dueño se le haya cedido.</Term>
+          <Term t="Deuda anterior">La deuda de antes de Septiembre 2026, que se carga a mano en la ficha del contrato. El sistema no la calcula solo porque esos meses no están completos.</Term>
+          <Term t="Conciliado">Un movimiento con fecha de banco, o sea confirmado. Sin fecha está «pendiente» y el sistema lo toma como que la plata todavía no se movió.</Term>
           <Term t="Recargo / mora">Interés por pago atrasado.</Term>
           <Term t="Liquidación">La cuenta del mes que se le rinde al dueño: cobros − comisión − otros + ajustes = neto a transferir.</Term>
           <Term t="Transferencia (neto al propietario)">Lo que finalmente le queda y se le transfiere al dueño.</Term>
@@ -111,7 +115,26 @@ export default function ReferenciaPage() {
         <dl className="-my-2">
           <Term t="Un mes se ve vacío, ¿está mal?">No. Cada mes se carga por separado; si todavía no lo cargaste, se ve vacío. No es un error.</Term>
           <Term t="Los honorarios, ¿le descuentan algo al dueño?">No. Los honorarios son ingreso de la inmobiliaria y nunca entran en la liquidación del dueño.</Term>
-          <Term t="¿Cómo cambio el alquiler del contrato?">El alquiler sube solo por IPC según la cadencia — no hace falta cambiarlo a mano. Para dejarlo registrado o poner un % propio, usá «Aplicar aumento» en la ficha.</Term>
+          <Term t="¿Cómo cambio el alquiler del contrato?">
+            El alquiler sube solo por IPC según la cadencia — no hace falta tocarlo. Si necesitás dejarlo en un
+            valor puntual (por ejemplo para igualarlo a la planilla de la oficina), andá a la ficha del contrato,{' '}
+            <strong className="text-ink">Aumentos → Manual</strong> y poné el monto. Ese camino además le avisa al
+            sistema que desde ese mes ese valor es el bueno, así no te lo vuelve a recalcular.
+          </Term>
+          <Term t="Escribí en la columna Alquiler y me lo tomó como un pago, ¿por qué?">
+            Porque esa columna es para los <strong className="text-ink">cobros</strong>, no para el valor del contrato.
+            Cuando todavía no cargaste nada te muestra en gris lo que tendría que pagar, y por eso parece el campo del
+            alquiler. Para cambiar el valor, ficha del contrato.
+          </Term>
+          <Term t="¿Por qué me figura deuda en un contrato que está al día?">
+            Casi siempre es la fecha. Un cobro cuenta cuando tiene <strong className="text-ink">fecha de banco</strong>:
+            si cargaste el monto y te faltó la fecha, el sistema lo toma como no cobrado y te lo muestra en Deuda.
+          </Term>
+          <Term t="¿Por qué no me aparece deuda de meses viejos?">
+            Porque la deuda automática arranca en <strong className="text-ink">Septiembre 2026</strong>. Los meses
+            anteriores no se cargaron completos, así que contarlos inventaría deuda. Si alguien debe de antes, se
+            carga a mano con <strong className="text-ink">Deuda anterior</strong> en la ficha del contrato.
+          </Term>
           <Term t="Rescindí / di de baja algo por error, ¿lo puedo recuperar?">Sí. Todo es reversible: Reactivar contrato o Reactivar propiedad.</Term>
         </dl>
       </GuideCard>

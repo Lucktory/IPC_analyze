@@ -36,6 +36,19 @@ export default function ComisionTransferenciaPage() {
           Si cargás en un banco un monto <strong className="text-ink">mayor</strong> a la comisión esperada (ingresos × %), el sistema
           te pide confirmar, por las dudas.
         </Callout>
+        <Callout tone="tip" title="«Calcular todas» — el repaso final del mes">
+          Arriba de la planilla, al lado de <strong className="text-ink">+ Nuevo contrato</strong>, calcula de una vez la
+          comisión de todos los contratos del mes.
+          <br />
+          Primero te muestra la lista de lo que va a calcular —qué contrato, con qué % y cuánto— y no toca nada hasta
+          que confirmás. Sólo agarra los contratos que ya tienen cobros cargados, y cada uno va con SU % y su banco.
+          <br />
+          También corrige las que quedaron viejas: si calculaste la comisión y después cargaste una THU o un recupero,
+          esa comisión quedó corta y este botón la pone al día. Por eso conviene pasarlo <strong className="text-ink">al
+          final</strong>, cuando ya no vas a cargar más nada del mes.
+          <br />
+          Si está todo bien, la lista sale vacía y no pasa nada.
+        </Callout>
       </GuideCard>
 
       {/* transferencia */}
@@ -68,8 +81,22 @@ export default function ComisionTransferenciaPage() {
           </Step>
         </ul>
         <Callout tone="warn" title="Importante: el sistema no manda mails solo">
-          Vos confirmás y enviás desde tu propio mail. Recién <strong className="text-ink">al tocar uno de esos dos botones</strong> la
-          liquidación se marca como <strong className="text-ink">Enviada</strong>. Si tocás <strong className="text-ink">Cancelar</strong>, queda en Borrador.
+          Vos confirmás y enviás desde tu propio mail. El mail sale de <strong className="text-ink">tu casilla</strong>,
+          no de una dirección del sistema, así que el propietario te ve a vos como remitente y te puede contestar.
+        </Callout>
+        <Callout tone="warn" title="Abrir Gmail NO lo marca como enviado">
+          Al volver, la ventana te pregunta si lo mandaste. Recién cuando tocás{' '}
+          <strong className="text-ink">«Sí, ya lo envié»</strong> la liquidación pasa a <strong className="text-ink">Enviada</strong>.
+          <br />
+          Es a propósito: si abrís Gmail y después te arrepentís, no queda marcado como mandado cuando en realidad no lo mandaste.
+        </Callout>
+        <Callout tone="tip" title="Los descuentos salen detallados">
+          En el mail, los <strong className="text-ink">Otros descuentos</strong> le llegan al propietario uno por uno, con el
+          nombre de cada uno, y después el total.
+          <br />
+          <strong className="text-ink">Ojo:</strong> ese nombre es la <strong className="text-ink">descripción</strong> que
+          cargaste al anotar el gasto. O sea que lo lee el dueño. Poné descripciones claras y cortas
+          («Expensas extraordinarias», «Reparación termotanque»), no notas internas.
         </Callout>
       </GuideCard>
 
