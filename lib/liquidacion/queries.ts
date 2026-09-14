@@ -15,7 +15,7 @@
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { classifyDestination } from '@/lib/reconciliation/queries'
 import { validateRow, type ValidationIssue } from './validations'
-import { funnelTransferencia } from './funnel'
+import { funnelTransferencia, funnelBucketOf, commissionBaseOf, DEPOSIT_TYPE_CODE } from './funnel'
 import { COMMISSION_IVA_RATE, type ContractExpiryRowStatus } from './thresholds'
 import { buildDeudaBreakdownsBulk, type DeudaBreakdown } from './deuda-breakdown'
 import { buildRecurringChargesSummariesBulk, type RecurringChargesSummary } from '@/lib/contract/recurring-charges-bulk'
@@ -673,6 +673,8 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     ingresos:    number
     admi:        number
     otros:       number
+    /** Subtotal de DEPOSIT_IN, ya contado dentro de ingresos (ver funnel.ts). */
+    depositoIn:  number
     payout:      number
     galicia:     number
     frances509:  number
@@ -690,7 +692,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     movTotalOut: number
   }
   const blank = (): Agg => ({
-    ingresos: 0, admi: 0, otros: 0, payout: 0, galicia: 0, frances509: 0, frances516: 0,
+    ingresos: 0, admi: 0, otros: 0, depositoIn: 0, payout: 0, galicia: 0, frances509: 0, frances516: 0,
     fechaBanco: null, diaTransf: null,
     ingresosLines: [],
     movCount: 0, movTotalIn: 0, movTotalOut: 0,
@@ -717,38 +719,51 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
     if (typ.direction === 'IN')      entry.movTotalIn  += amt
     else if (typ.direction === 'OUT') entry.movTotalOut += amt
 
-    if (typ.code === 'RENT_IN' || typ.code === 'RENT_NF_IN') {
-      if (typ.affects_liquidacion) entry.ingresos += amt
-      if (t.bank_date && (!entry.fechaBanco || t.bank_date > entry.fechaBanco)) {
-        entry.fechaBanco = t.bank_date
-      }
-      // RENT_IN + RENT_NF_IN (N/F) are always part of the Ingresos breakdown.
+    // Los tres baldes salen de la MISMA regla que usa accumulateFunnel
+    // (funnelBucketOf, en lib/liquidacion/funnel.ts). Antes esta cadena de
+    // else-if reescribia la regla con sus palabras y no decia lo mismo: sumaba
+    // COMMISSION_OUT a `admi` sin mirar affects_liquidacion. Coincidian de
+    // casualidad, porque ese tipo esta marcado true en el catalogo.
+    //
+    // Este fold sigue existiendo aparte: saca 13 valores por contrato en una
+    // sola pasada sobre todos los contratos, y necesita id / description /
+    // bank_date / label, que FunnelTxnRow no lleva. Lo que se comparte es la
+    // DECISION, no el bucle.
+    const bucket = funnelBucketOf(typ)
+    if (bucket) entry[bucket] += amt
+    // Subtotal del deposito, siempre adentro de ingresos. Lo usa
+    // commissionBaseOf() para descontarlo en los contratos donde se cedio la
+    // comision sobre la garantia.
+    if (bucket === 'ingresos' && typ.code === DEPOSIT_TYPE_CODE) entry.depositoIn += amt
+
+    const isRent = typ.code === 'RENT_IN' || typ.code === 'RENT_NF_IN'
+    if (isRent && t.bank_date && (!entry.fechaBanco || t.bank_date > entry.fechaBanco)) {
+      entry.fechaBanco = t.bank_date
+    }
+    // RENT_IN + RENT_NF_IN (N/F) van SIEMPRE al desglose, aunque no sumen;
+    // el resto de los ingresos entra cuando efectivamente suma (EXPENSAS_IN,
+    // RECUPERO_*_IN, LATE_FEE_IN, UTILITY_REFUND_IN, OTHER_IN, ...).
+    if (isRent || bucket === 'ingresos') {
       entry.ingresosLines.push({
         transactionId: t.id, typeCode: typ.code, typeLabel: typ.label,
         amount: amt, description: t.description ?? null, bankDate: t.bank_date,
       })
-    } else if (typ.affects_liquidacion && typ.direction === 'IN') {
-      entry.ingresos += amt
-      // Every IN that contributes to ingresos (EXPENSAS_IN, RECUPERO_*_IN,
-      // LATE_FEE_IN, UTILITY_REFUND_IN, OTHER_IN, ...) gets its own line
-      // in the breakdown so the encargada can see what was deposited.
-      entry.ingresosLines.push({
-        transactionId: t.id, typeCode: typ.code, typeLabel: typ.label,
-        amount: amt, description: t.description ?? null, bankDate: t.bank_date,
-      })
-    } else if (typ.code === 'COMMISSION_OUT') {
-      entry.admi += amt
+    }
+    // El reparto por banco cuelga del balde y no del codigo, para que la suma
+    // de las columnas de banco no pueda separarse nunca del total de ADMI.
+    if (bucket === 'admi') {
       const dest = classifyDestination(t.description ?? null)
       if      (dest === 'ADM_GALICIA')      entry.galicia    += amt
       else if (dest === 'ADM_FRANCES_50_9') entry.frances509 += amt
       else if (dest === 'ADM_FRANCES_51_6') entry.frances516 += amt
-    } else if (typ.code === 'LANDLORD_PAYOUT') {
+    }
+    // LANDLORD_PAYOUT nunca cae en un balde (funnelBucketOf lo excluye por
+    // codigo): es el REGISTRO de la transferencia, no una entrada del embudo.
+    if (typ.code === 'LANDLORD_PAYOUT') {
       entry.payout += amt
       if (t.bank_date && (!entry.diaTransf || t.bank_date > entry.diaTransf)) {
         entry.diaTransf = t.bank_date
       }
-    } else if (typ.affects_liquidacion && typ.direction === 'OUT') {
-      entry.otros += amt
     }
     agg.set(t.contract_id, entry)
   }
