@@ -100,7 +100,7 @@ export default function ConciliacionPage() {
         <ul className="space-y-2">
           <Step n={1}>Elegí el <strong className="text-ink">mes</strong> arriba.</Step>
           <Step n={2}>Mirá la tarjeta <strong className="text-ink">Sin conciliar</strong>: te dice cuánto falta cobrar y cuánto falta pagar.</Step>
-          <Step n={3}>En la lista, filtrá con la vista los que están en <strong className="text-warn">Pend.</strong> y revisá uno por uno contra el extracto.</Step>
+          <Step n={3}>En la lista están todos los movimientos del mes, ordenados por fecha de banco. Los que están en <strong className="text-warn">Pend.</strong> no tienen fecha, así que te quedan <strong className="text-ink">al final de la lista</strong>: bajá hasta ahí y revisalos contra el extracto.</Step>
           <Step n={4}>Cuando confirmes que un movimiento entró o salió, cargale la <strong className="text-ink">fecha de banco</strong> desde la planilla o desde Movs. Al hacerlo pasa a <strong className="text-success">OK</strong> solo.</Step>
         </ul>
         <Callout tone="tip" title="Una entrada y una salida sin confirmar son dos tareas distintas">
