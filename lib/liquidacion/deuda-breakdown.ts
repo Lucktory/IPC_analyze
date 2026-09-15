@@ -22,9 +22,12 @@
 //     valued at the rent in force THEN, not at today's. (Until 2026-09-10 this
 //     used current_rent for every prior period, which over-stated the debt of
 //     any contract that had since had an increase.)
-//   • Intereses = totalDebt × rate% × (daysOverdue / 30). Monthly
-//     proportional. Compound / daily formulas land in a follow-up if
-//     Alejandro tells us his actual convention.
+//   • Intereses = totalDebt × rate% × daysOverdue. DIARIO y simple, no
+//     compuesto. Mariela confirmo la convencion el 2026-09-16: 1% por dia.
+//     Los dias se cuentan una sola vez, desde el vencimiento de ESTE periodo,
+//     y se aplican al total: los meses arrastrados no devengan aparte por su
+//     propia antiguedad. Es deliberado: el numero es una estimacion para que
+//     la oficina negocie, no una liquidacion de intereses.
 //   • Display only — does NOT auto-create LATE_FEE_IN. The encargada
 //     decides whether to charge inside the popover (toggle) and records
 //     it manually via the Movs. modal.
@@ -95,7 +98,7 @@ export interface DeudaBreakdown {
   daysOverdue:         number
   lateInterestEnabled: boolean
   lateInterestRate:    number
-  /** Computed estimate when applied — `(deuda × rate × daysOverdue / 30)`. */
+  /** Computed estimate when applied — `(deuda × rate% × daysOverdue)`, diario. */
   interesesEstimado:   number
 }
 
