@@ -62,8 +62,13 @@ export default function EditarContratoPage() {
               <CellRow col="Estado">El estado de la liquidación (Borrador → Enviada → Pagada).</CellRow>
               <CellRow col="Transferencia · Otros · Galicia · BBVA">Los montos: clic y editás el número.</CellRow>
               <CellRow col="Alquiler · Extras">Lo cobrado del mes (ver la guía <em>Cargar el mes</em>).</CellRow>
-              <CellRow col="Recordatorios">Qué hay que cobrar cada mes. Es un aviso, no plata cobrada.</CellRow>
+              <CellRow col="D. transf">La fecha en que le transferiste al propietario. Es la que deja registrada la transferencia.</CellRow>
+              <CellRow col="Movs.">Abre el detalle del contrato en el mes. Desde ahí también cargás una salida, con fecha y descripción.</CellRow>
               <CellRow col="Observación">Arreglos, ajustes y honorarios (ver esas guías).</CellRow>
+              <CellRow col="Recordatorios">
+                <strong className="text-ink">Solo lectura.</strong> Muestra qué hay que cobrar cada mes; no se edita
+                desde acá. Los recordatorios se cargan en la ficha del contrato.
+              </CellRow>
             </tbody>
           </table>
         </div>

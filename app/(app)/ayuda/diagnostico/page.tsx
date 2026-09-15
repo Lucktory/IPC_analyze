@@ -88,6 +88,10 @@ export default function DiagnosticoPage() {
           <IssueRow dice="Fecha de transferencia anterior al cobro">El orden de fechas no cierra. Verificá F. banco y D. transf.</IssueRow>
           <IssueRow dice="IVA marcado pero el administrador no es RI">Revisá el IVA de la comisión: desactivá el flag o asigná un administrador RI.</IssueRow>
           <IssueRow dice="Recargo recurrente sin registrar">Un recargo (THU, gas…) no tiene el cobro cargado este mes (es el punto rojo en Recordatorios).</IssueRow>
+          <IssueRow dice="Comisión efectiva difiere del contrato">La comisión cargada no da el % del contrato sobre lo cobrado. O está mal el monto, o está mal el %. El aviso te dice cuánto esperaba.</IssueRow>
+          <IssueRow dice="Aumento IPC pendiente">A este contrato le toca aumento y todavía no se aplicó. Entrá a la ficha y aplicalo.</IssueRow>
+          <IssueRow dice="Observación sin confirmar">Un arreglo o ajuste de este mes quedó «a cobrar» y nunca se confirmó. Mientras siga así no entra en la liquidación del dueño.</IssueRow>
+          <IssueRow dice="Sellado sin aplicar">El contrato tiene un sellado cargado que no se aplicó, y ya pasaron más de 35 días del inicio. <strong className="text-ink">Por ahora no se puede resolver desde el sistema</strong> — avisale a Medhi si te aparece.</IssueRow>
         </IssueTable>
         <p className="text-[12px] text-slate mt-2.5">
           Cada aviso trae el texto exacto con los números; deciles qué mirar. Empezá por los rojos, después los amarillos.
