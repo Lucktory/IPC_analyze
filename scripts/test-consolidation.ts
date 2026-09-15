@@ -10,6 +10,7 @@ import { equalSplit, isPctSum100 } from '../lib/shared/percentages'
 import { resolveCommissionPct, DEFAULT_COMMISSION_PCT } from '../lib/contract/create-helpers'
 import { pickPrimaryLandlord } from '../lib/contract/primary'
 import { recurringChargeAppliesToPeriod, cuotaNumberFor } from '../lib/contract/recurring-charges-bulk'
+import { computeIntereses } from '../lib/liquidacion/deuda-breakdown'
 import { hasRentForAudit, isRecentlyTouched } from '../lib/contract/urgency'
 
 let pass = 0, fail = 0
@@ -99,6 +100,23 @@ check('bimestral: Mar ya terminó',    !recurringChargeAppliesToPeriod(P('09'), 
 // resuelve: arranca en Septiembre y la última es Agosto del año siguiente.
 check('expensas extraordinarias: mes 12',  recurringChargeAppliesToPeriod(P('09'), 1, '2027-08-01', 12))
 check('expensas extraordinarias: mes 13 no', !recurringChargeAppliesToPeriod(P('09'), 1, '2027-09-01', 12))
+
+// ── Interés por mora: DIARIO (2026-09-16) ───────────────────────────────────
+// Mariela, vía Alejandro: «el interés por atraso es del 1% diario». Antes esto
+// dividía por 30 y trataba la tasa como mensual, mostrando la sexta parte.
+console.log('\n# computeIntereses — tasa diaria')
+eq('1% diario, 1 día',   computeIntereses(100000, 1, 1),   1000)
+eq('1% diario, 10 días', computeIntereses(100000, 1, 10), 10000)
+eq('1% diario, 30 días', computeIntereses(100000, 1, 30), 30000)
+// El caso real de la pantalla de Alejandro: 2.653.114 con 5 días de atraso.
+// Con la fórmula vieja (5% mensual) daba 22.109; al 1% diario son 132.656.
+eq('caso real: 5 días al 1%', computeIntereses(2653114, 1, 5), 132656)
+// Guardas: cualquier entrada no positiva da 0, nunca un número raro.
+eq('deuda 0',        computeIntereses(0, 1, 5),        0)
+eq('tasa 0',         computeIntereses(100000, 0, 5),   0)
+eq('sin atraso',     computeIntereses(100000, 1, 0),   0)
+eq('días negativos', computeIntereses(100000, 1, -3),  0)
+check('crece con los días', computeIntereses(100000, 1, 10) > computeIntereses(100000, 1, 9))
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'}: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

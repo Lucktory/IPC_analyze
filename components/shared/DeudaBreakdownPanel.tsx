@@ -130,7 +130,7 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
             <span className="text-slate-dark">
               Intereses por mora{' '}
               <span className="text-[10.5px] text-slate">
-                ({breakdown.lateInterestRate}% mensual × {breakdown.daysOverdue} {breakdown.daysOverdue === 1 ? 'día' : 'días'} de atraso)
+                ({breakdown.lateInterestRate}% diario × {breakdown.daysOverdue} {breakdown.daysOverdue === 1 ? 'día' : 'días'} de atraso)
               </span>
             </span>
             <span className="inline-flex items-baseline gap-2">

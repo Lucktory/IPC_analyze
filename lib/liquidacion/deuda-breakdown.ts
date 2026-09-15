@@ -65,7 +65,6 @@ export const DEUDA_EPOCH = '2026-09-01'
  *  SILENT truncation — which here would UNDER-report debt, the exact opposite
  *  of what this feature is for. So the window fetch pages explicitly. */
 const PAGE_SIZE = 1000
-const DAYS_PER_MONTH = 30
 
 export interface DeudaCarryoverEntry {
   /** YYYY-MM-DD start-of-month of the prior period. */
@@ -114,12 +113,28 @@ export function priorPeriods(period: string, n: number): string[] {
   return out
 }
 
-/** Monthly proportional interest. Returns 0 for any non-positive input. */
+/**
+ * Interés por mora DIARIO. Devuelve 0 ante cualquier entrada no positiva.
+ *
+ * Mariela, vía Alejandro (2026-09-16): «El interés por atraso. Es del 1%
+ * diario.» Hasta ese día esto dividía por 30 y trataba la tasa como mensual
+ * —el panel decía «5% mensual»— así que mostraba la sexta parte de lo que
+ * corresponde: $22.109 donde iban $132.655.
+ *
+ * Se pudo cambiar sin convertir ninguna decisión porque los 103 contratos
+ * tenían el mismo 5.00 por defecto y ninguno tenía el interés activado. La
+ * migración 2026-09-16b los pasa a 1.00 y va ANTES del deploy: con el código
+ * nuevo y los datos viejos, ese 5 se leería como 5% diario.
+ *
+ * Sigue siendo una ESTIMACIÓN: no crea ningún LATE_FEE_IN. La oficina decide
+ * si lo cobra y lo carga a mano. Alejandro: «el 1% es justamente para que no
+ * se atrasen».
+ */
 export function computeIntereses(totalDebt: number, ratePct: number, daysOverdue: number): number {
   if (!isFinite(totalDebt) || totalDebt <= 0) return 0
   if (!isFinite(ratePct)   || ratePct   <= 0) return 0
   if (!isFinite(daysOverdue) || daysOverdue <= 0) return 0
-  return Math.round(totalDebt * (ratePct / 100) * (daysOverdue / DAYS_PER_MONTH))
+  return Math.round(totalDebt * (ratePct / 100) * daysOverdue)
 }
 
 /** Days from today to the contract's due day for the given period, clamped to
