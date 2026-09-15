@@ -28,11 +28,46 @@ export function recurringChargeAppliesToPeriod(
   startPeriod:    string | null,
   intervalMonths: number,
   period:         string,
+  /** Cantidad total de veces que se cobra. null = indefinido (historico). */
+  cuotasTotal:    number | null = null,
 ): boolean {
+  // Sin start_period es un recargo viejo, de los que no tienen desde-cuándo:
+  // aplica siempre. Va acá y no en cuotaNumberFor porque ese devuelve el NÚMERO
+  // de cuota, y a estos no se les puede calcular ninguno — no hay desde dónde
+  // contar. Delegar sin esta línea los apagaría a todos de golpe.
   if (!startPeriod) return true
-  if (period < startPeriod) return false
-  if (!intervalMonths || intervalMonths <= 1) return true
-  return monthsBetween(startPeriod, period) % intervalMonths === 0
+  return cuotaNumberFor(startPeriod, intervalMonths, period, cuotasTotal) !== null
+}
+
+/**
+ * Qué número de cuota le toca a este período, o null si no corresponde.
+ *
+ * Alejandro, 2026-09-16: "estaría bueno que el sistema me diga al mes siguiente
+ * que la cuota 2 de 3 hay que cobrarla. Y luego la 3 de 3."
+ *
+ * Devolver el número en vez de un booleano resuelve las dos cosas de una: si
+ * hay número, el recargo corresponde; y ese número es el que se muestra.
+ * `recurringChargeAppliesToPeriod` queda como el booleano de siempre encima de
+ * esto, para no tocar a sus llamadores.
+ *
+ * Sin `cuotasTotal` el recargo no termina nunca — que es como se comportaron
+ * todos hasta hoy, y como tienen que seguir comportándose los cargos fijos
+ * (THU, gas): esos no son cuotas, son permanentes.
+ */
+export function cuotaNumberFor(
+  startPeriod:    string | null,
+  intervalMonths: number,
+  period:         string,
+  cuotasTotal:    number | null = null,
+): number | null {
+  if (!startPeriod) return null          // legacy "siempre": aplica, pero sin nº de cuota
+  if (period < startPeriod) return null
+  const step  = !intervalMonths || intervalMonths <= 1 ? 1 : intervalMonths
+  const delta = monthsBetween(startPeriod, period)
+  if (delta % step !== 0) return null    // mes fuera de ciclo (gas bimestral, etc.)
+  const n = delta / step + 1             // 1-based: el mes de inicio es la cuota 1
+  if (cuotasTotal != null && n > cuotasTotal) return null   // ya se terminó
+  return n
 }
 
 export interface RecurringChargeLine {
@@ -45,6 +80,10 @@ export interface RecurringChargeLine {
   recorded:          boolean | null
   /** YYYY-MM-DD of the matching transaction's bank_date when recorded. */
   recordedOn:        string | null
+  /** Cuota que le toca a este período y total, cuando el recargo es finito:
+   *  { n: 2, total: 3 } se muestra como «2 de 3». null = recargo sin final
+   *  (un cargo fijo como la THU o el gas, que no son cuotas). */
+  cuota:             { n: number; total: number } | null
 }
 
 export interface RecurringChargesSummary {
@@ -95,7 +134,7 @@ export async function buildRecurringChargesSummariesBulk(
   const [chargesRes, txnsRes] = await Promise.all([
     supabase
       .from('contract_recurring_charges')
-      .select('id, contract_id, label, amount, recupero_type_code, sort_order, start_period, interval_months')
+      .select('id, contract_id, label, amount, recupero_type_code, sort_order, start_period, interval_months, cuotas_total')
       .in('contract_id', contractIds)
       .eq('active', true)
       .order('sort_order', { ascending: true }),
@@ -129,10 +168,12 @@ export async function buildRecurringChargesSummariesBulk(
     // Schedule gate: a charge only counts in periods where it actually bills.
     // Skipping it here keeps it out of totalExpected, the dot, the panel, and
     // the RECURRING_CHARGE_NOT_RECORDED validation in one move.
+    const cuotasTotal = c.cuotas_total != null ? Number(c.cuotas_total) : null
     if (!recurringChargeAppliesToPeriod(
           c.start_period ?? null,
           Number(c.interval_months ?? 1),
-          period)) continue
+          period,
+          cuotasTotal)) continue
     const amount = Number(c.amount)
     const typeCode: string | null = c.recupero_type_code ?? null
     let recorded: boolean | null = null
@@ -160,6 +201,10 @@ export async function buildRecurringChargesSummariesBulk(
       recuperoTypeCode: typeCode,
       recorded,
       recordedOn,
+      cuota: cuotasTotal == null ? null : (() => {
+        const n = cuotaNumberFor(c.start_period ?? null, Number(c.interval_months ?? 1), period, cuotasTotal)
+        return n == null ? null : { n, total: cuotasTotal }
+      })(),
     })
   }
 

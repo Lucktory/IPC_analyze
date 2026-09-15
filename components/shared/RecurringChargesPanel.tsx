@@ -72,6 +72,15 @@ export function RecurringChargesPanel({ summary, period, contractId, editHref }:
                 </span>
                 <span className="text-slate-dark">
                   <strong className="text-ink font-medium">{l.label}</strong>
+                  {/* «2 de 3» — pedido de Alejandro (2026-09-16) para el depósito
+                      en cuotas: que el sistema le diga al mes siguiente cuál
+                      cuota toca cobrar. Sólo aparece en los recargos finitos;
+                      un cargo fijo (THU, gas) no tiene número de cuota. */}
+                  {l.cuota && (
+                    <span className="text-[10.5px] text-info ml-2 font-medium tabular-nums">
+                      cuota {l.cuota.n} de {l.cuota.total}
+                    </span>
+                  )}
                   {l.recorded === true && l.recordedOn && (
                     <span className="text-[10.5px] text-slate ml-2">
                       cobrado el {l.recordedOn.slice(8, 10)}/{l.recordedOn.slice(5, 7)}

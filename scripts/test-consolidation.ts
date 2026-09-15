@@ -9,6 +9,7 @@ import {
 import { equalSplit, isPctSum100 } from '../lib/shared/percentages'
 import { resolveCommissionPct, DEFAULT_COMMISSION_PCT } from '../lib/contract/create-helpers'
 import { pickPrimaryLandlord } from '../lib/contract/primary'
+import { recurringChargeAppliesToPeriod, cuotaNumberFor } from '../lib/contract/recurring-charges-bulk'
 import { hasRentForAudit, isRecentlyTouched } from '../lib/contract/urgency'
 
 let pass = 0, fail = 0
@@ -61,6 +62,43 @@ check('recent rent 47h',      isRecentlyTouched({ rentBankDate: '2026-07-10T14:0
 check('old rent 72h → false', !isRecentlyTouched({ rentBankDate: '2026-07-09T00:00:00Z', now }))
 check('recent note',          isRecentlyTouched({ noteUpdatedAt: '2026-07-11T12:00:00Z', now }))
 check('nothing → false',      !isRecentlyTouched({ now }))
+
+// ── Recordatorios finitos (cuotas) — 2026-09-16 ─────────────────────────────
+// Alejandro: "que el sistema me diga al mes siguiente que la cuota 2 de 3 hay
+// que cobrarla. Y luego la 3 de 3."
+console.log('\n# recurringChargeAppliesToPeriod / cuotaNumberFor')
+const P = (m: string) => `2026-${m}-01`
+
+// Sin cuotasTotal se comporta como siempre: no termina nunca.
+check('sin final, mes de inicio',  recurringChargeAppliesToPeriod(P('09'), 1, P('09')))
+check('sin final, un año después', recurringChargeAppliesToPeriod(P('09'), 1, '2027-09-01'))
+check('antes del inicio → no',     !recurringChargeAppliesToPeriod(P('09'), 1, P('08')))
+// start_period null = recargo viejo sin desde-cuándo: aplica siempre. Esta es
+// la regresión que casi introduzco al delegar en cuotaNumberFor sin más.
+check('legacy sin start_period aplica', recurringChargeAppliesToPeriod(null, 1, P('01')))
+
+// Con 3 cuotas mensuales desde Septiembre: Sep, Oct, Nov — y se apaga.
+check('cuota 1 (Sep)', recurringChargeAppliesToPeriod(P('09'), 1, P('09'), 3))
+check('cuota 2 (Oct)', recurringChargeAppliesToPeriod(P('09'), 1, P('10'), 3))
+check('cuota 3 (Nov)', recurringChargeAppliesToPeriod(P('09'), 1, P('11'), 3))
+check('Dic ya no: terminó', !recurringChargeAppliesToPeriod(P('09'), 1, P('12'), 3))
+
+eq('nº de cuota en Sep', cuotaNumberFor(P('09'), 1, P('09'), 3), 1)
+eq('nº de cuota en Oct', cuotaNumberFor(P('09'), 1, P('10'), 3), 2)
+eq('nº de cuota en Nov', cuotaNumberFor(P('09'), 1, P('11'), 3), 3)
+eq('después del final → null', cuotaNumberFor(P('09'), 1, P('12'), 3), null)
+
+// Bimestral: cuenta CUOTAS, no meses. 3 cuotas desde Sep = Sep, Nov, Ene.
+check('bimestral cuota 2 cae en Nov',  recurringChargeAppliesToPeriod(P('09'), 2, P('11'), 3))
+check('bimestral saltea Octubre',     !recurringChargeAppliesToPeriod(P('09'), 2, P('10'), 3))
+eq('bimestral: Nov es la cuota 2',     cuotaNumberFor(P('09'), 2, P('11'), 3), 2)
+eq('bimestral: Ene es la cuota 3',     cuotaNumberFor(P('09'), 2, '2027-01-01', 3), 3)
+check('bimestral: Mar ya terminó',    !recurringChargeAppliesToPeriod(P('09'), 2, '2027-03-01', 3))
+
+// Los 12 meses de expensas extraordinarias de Alassia, el otro caso que esto
+// resuelve: arranca en Septiembre y la última es Agosto del año siguiente.
+check('expensas extraordinarias: mes 12',  recurringChargeAppliesToPeriod(P('09'), 1, '2027-08-01', 12))
+check('expensas extraordinarias: mes 13 no', !recurringChargeAppliesToPeriod(P('09'), 1, '2027-09-01', 12))
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'}: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

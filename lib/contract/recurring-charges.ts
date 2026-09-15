@@ -33,6 +33,11 @@ export interface RecurringCharge {
   startPeriod:       string | null
   /** Billing cadence in months: 1 = mensual, 2 = bimestral, 3 = trimestral… */
   intervalMonths:    number
+  /** Cantidad total de veces que se cobra, contando desde startPeriod.
+   *  null = sin final: un cargo fijo (THU, gas) que se cobra siempre.
+   *  3 = tres cuotas y se apaga solo (depósito en partes, expensas
+   *  extraordinarias por un plazo). */
+  cuotasTotal:       number | null
 }
 
 interface InlineResult {
@@ -51,7 +56,7 @@ export async function listRecurringCharges(contractId: string): Promise<Recurrin
   const supabase = await createSupabaseServer()
   const { data } = await supabase
     .from('contract_recurring_charges')
-    .select('id, contract_id, label, amount, recupero_type_code, active, sort_order, start_period, interval_months')
+    .select('id, contract_id, label, amount, recupero_type_code, active, sort_order, start_period, interval_months, cuotas_total')
     .eq('contract_id', contractId)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
@@ -65,6 +70,7 @@ export async function listRecurringCharges(contractId: string): Promise<Recurrin
     sortOrder:         Number(r.sort_order ?? 0),
     startPeriod:       r.start_period ?? null,
     intervalMonths:    Number(r.interval_months ?? 1),
+    cuotasTotal:       r.cuotas_total != null ? Number(r.cuotas_total) : null,
   }))
 }
 
@@ -78,11 +84,16 @@ export async function addRecurringCharge(args: {
   startPeriod?:      string | null
   /** Billing cadence in months (1 = mensual). Defaults to 1. */
   intervalMonths?:   number
+  cuotasTotal?:      number | null
 }): Promise<InlineResult> {
   const label = args.label.trim()
   if (!label) return { ok: false, error: 'Cargá una etiqueta para el recargo.' }
   if (!isFinite(args.amount) || args.amount <= 0) {
     return { ok: false, error: 'El monto debe ser mayor a 0.' }
+  }
+  const cuotasTotal = args.cuotasTotal ?? null
+  if (cuotasTotal != null && (!Number.isInteger(cuotasTotal) || cuotasTotal < 1 || cuotasTotal > 60)) {
+    return { ok: false, error: 'Las cuotas deben ser un número entre 1 y 60, o vacío para que no termine.' }
   }
   const intervalMonths = args.intervalMonths ?? 1
   if (!Number.isInteger(intervalMonths) || intervalMonths < 1 || intervalMonths > 12) {
@@ -111,6 +122,7 @@ export async function addRecurringCharge(args: {
       sort_order:          nextOrder,
       start_period:        args.startPeriod ?? null,
       interval_months:     intervalMonths,
+      cuotas_total:        cuotasTotal,
     })
     .select('id')
     .single()
@@ -129,6 +141,7 @@ export async function updateRecurringCharge(
     active:            boolean
     startPeriod:       string | null
     intervalMonths:    number
+    cuotasTotal:       number | null
   }>,
 ): Promise<InlineResult> {
   const supabase = await createSupabaseServer()
@@ -153,6 +166,13 @@ export async function updateRecurringCharge(
       return { ok: false, error: 'La frecuencia debe ser entre 1 y 12 meses.' }
     }
     updates.interval_months = iv
+  }
+  if ('cuotasTotal' in patch) {
+    const ct = patch.cuotasTotal
+    if (ct != null && (!Number.isInteger(ct) || ct < 1 || ct > 60)) {
+      return { ok: false, error: 'Las cuotas deben ser un número entre 1 y 60, o vacío para que no termine.' }
+    }
+    updates.cuotas_total = ct
   }
 
   if (Object.keys(updates).length === 0) return { ok: true, error: null }

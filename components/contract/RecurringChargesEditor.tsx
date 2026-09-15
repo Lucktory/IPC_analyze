@@ -42,6 +42,8 @@ interface DraftLine {
   /** 'YYYY-MM' (the <input type="month"> value). */
   startPeriod:       string
   intervalMonths:    number
+  /** Vacío = sin final (cargo fijo). Un número lo vuelve finito. */
+  cuotasTotal:       string
 }
 
 // Free-text "Etiqueta" name suggestions: the shared service names (so they
@@ -76,7 +78,7 @@ const SUGGESTED_TYPE_CODES: Array<{ code: string; label: string }> = [
 ]
 
 const emptyDraft = (startMonth: string): DraftLine => ({
-  label: '', amount: '', recuperoTypeCode: '', startPeriod: startMonth, intervalMonths: 1,
+  label: '', amount: '', recuperoTypeCode: '', startPeriod: startMonth, intervalMonths: 1, cuotasTotal: '',
 })
 
 export function RecurringChargesEditor({ contractId, currentRent, currentPeriod }: Props) {
@@ -116,6 +118,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
         recuperoTypeCode: draft.recuperoTypeCode || null,
         startPeriod:      fromMonthInput(draft.startPeriod),
         intervalMonths:   draft.intervalMonths,
+        cuotasTotal:      draft.cuotasTotal.trim() === '' ? null : Number(draft.cuotasTotal),
       })
       if (!res.ok) { setError(res.error); return }
       setDraft(emptyDraft(toMonthInput(currentPeriod)))
@@ -124,7 +127,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
     })
   }
 
-  function patchRow(id: string, patch: Partial<{ label: string; amount: number; recuperoTypeCode: string | null; active: boolean; startPeriod: string | null; intervalMonths: number }>) {
+  function patchRow(id: string, patch: Partial<{ label: string; amount: number; recuperoTypeCode: string | null; active: boolean; startPeriod: string | null; intervalMonths: number; cuotasTotal: number | null }>) {
     setCharges(prev => prev.map(r => r.id === id ? { ...r, ...patch } as RecurringCharge : r))
     startTx(async () => {
       const res = await updateRecurringCharge(id, patch)
@@ -179,6 +182,7 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
               <th className="text-left  px-2 py-1.5 font-medium">Tipo</th>
               <th className="text-left  px-2 py-1.5 font-medium w-[130px]">Desde</th>
               <th className="text-left  px-2 py-1.5 font-medium w-[100px]">Cada</th>
+              <th className="text-left  px-2 py-1.5 font-medium w-[70px]">Cuotas</th>
               <th className="text-center px-2 py-1.5 font-medium w-[52px]">Activo</th>
               <th className="w-8"></th>
             </tr>
@@ -249,6 +253,23 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
                   >
                     {INTERVAL_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
                   </select>
+                </td>
+                <td className="px-2 py-1">
+                  {/* Cuotas: vacío = cargo fijo (se cobra siempre). Un número
+                      lo vuelve finito y el recordatorio se apaga solo al
+                      terminar. Pedido de Alejandro para el depósito en partes. */}
+                  <input
+                    type="number" min={1} max={60}
+                    defaultValue={r.cuotasTotal ?? ''}
+                    placeholder="—"
+                    title="Cuántas veces se cobra en total. Vacío = siempre (cargo fijo)."
+                    onBlur={e => {
+                      const raw = e.target.value.trim()
+                      const v = raw === '' ? null : Number(raw)
+                      if (v !== r.cuotasTotal) patchRow(r.id, { cuotasTotal: v })
+                    }}
+                    className="w-full bg-transparent text-[11.5px] tabular-nums outline-none focus:bg-cream/40 rounded px-1"
+                  />
                 </td>
                 <td className="px-2 py-1 text-center">
                   <input
@@ -325,6 +346,14 @@ export function RecurringChargesEditor({ contractId, currentRent, currentPeriod 
           >
             {INTERVAL_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
           </select>
+          <input
+            type="number" min={1} max={60}
+            value={draft.cuotasTotal}
+            onChange={e => setDraft(s => ({ ...s, cuotasTotal: e.target.value }))}
+            placeholder="Cuotas"
+            title="Cuántas veces se cobra en total. Vacío = siempre (cargo fijo)."
+            className="h-8 w-[84px] px-2 rounded border border-line bg-paper text-[12px] tabular-nums outline-none focus:border-info"
+          />
           <button
             type="button"
             onClick={handleAdd}
