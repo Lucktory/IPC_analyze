@@ -115,6 +115,11 @@ export default function ConciliacionPage() {
         pueda subir el archivo del banco y cruzarlo solo. Por ahora no está disponible, y el botón aparece apagado.
         Hoy la conciliación se hace mirando: el sistema de un lado, el extracto del otro.
       </Callout>
+
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <Link href="/ayuda/dar-de-baja-propiedad" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Dar de baja / reactivar propiedad</Link>
+        <Link href="/ayuda/diagnostico" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Diagnóstico y errores →</Link>
+      </div>
     </div>
   )
 }

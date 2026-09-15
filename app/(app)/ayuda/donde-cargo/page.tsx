@@ -202,6 +202,11 @@ export default function DondeCargoPage() {
         queda al propietario. Si ese número no es el que esperabas, cargaste en el lugar equivocado.
         Siempre se puede borrar la línea y volver a empezar.
       </Callout>
+
+      <div className="flex items-center justify-between gap-3 pt-1">
+        <Link href="/ayuda/cargar-el-mes" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Cargar el mes</Link>
+        <Link href="/ayuda/honorarios" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Honorarios →</Link>
+      </div>
     </div>
   )
 }

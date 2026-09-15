@@ -40,6 +40,10 @@ const TYPE_LABELS: Record<string, string> = {
   // never drift from the Recargos editor / DB.
   ...Object.fromEntries(RECUPERO_SERVICES.map(s => [s.code, s.full] as [string, string])),
   UTILITY_REFUND_IN:     'Reintegro servicios',
+  // Sin esta linea el desplegable mostraba el codigo crudo "DEPOSIT_IN": la
+  // opcion se arma con {TYPE_LABELS[t] ?? t}, asi que agregar el tipo a
+  // INGRESOS_LINE_TYPES sin su etiqueta lo deja a la vista en bruto.
+  DEPOSIT_IN:            'Depósito de garantía',
   OTHER_IN:              'Otro ingreso',
 }
 

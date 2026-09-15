@@ -137,8 +137,8 @@ export default function DiagnosticoPage() {
       </GuideCard>
 
       <div className="flex items-center justify-between gap-3 pt-1">
-        <Link href="/ayuda/dar-de-baja-propiedad" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Dar de baja / reactivar propiedad</Link>
-        <span className="text-[13px] text-slate/60">Siguiente: Referencia y glosario (próximamente)</span>
+        <Link href="/ayuda/conciliacion" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Conciliación</Link>
+        <Link href="/ayuda/referencia" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Referencia y glosario →</Link>
       </div>
     </div>
   )

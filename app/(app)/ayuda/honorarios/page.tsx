@@ -64,7 +64,7 @@ export default function HonorariosPage() {
         <ul className="space-y-2">
           <Step n={1}>El monto que cargás es el <strong className="text-ink">neto</strong> (el ingreso de la inmobiliaria).</Step>
           <Step n={2}>Si el honorario lleva IVA, el inquilino paga <strong className="text-ink">neto + 21%</strong>; en el listado se marca con <strong className="text-ink">+IVA</strong> y el tooltip muestra el total con IVA.</Step>
-          <Step n={3}>La columna <strong className="text-ink">Honorarios</strong> y el total del Panel muestran el <strong className="text-ink">neto</strong> (el IVA es aparte, para AFIP).</Step>
+          <Step n={3}>La columna <strong className="text-ink">Honorarios</strong> muestra lo que efectivamente cobrás: el neto cuando va sin IVA, y el <strong className="text-ink">total con IVA</strong> cuando lo lleva. O sea, el mismo número que te mostró el modal al cargarlo.</Step>
         </ul>
       </GuideCard>
 
@@ -93,8 +93,8 @@ export default function HonorariosPage() {
       </GuideCard>
 
       <div className="flex items-center justify-between gap-3 pt-1">
-        <Link href="/ayuda/cargar-el-mes" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Cargar el mes</Link>
-        <span className="text-[13px] text-slate/60">Siguiente: Comisión y transferencia (próximamente)</span>
+        <Link href="/ayuda/donde-cargo" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← ¿Dónde cargo cada cosa?</Link>
+        <Link href="/ayuda/comision-transferencia" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Comisión y transferencia →</Link>
       </div>
     </div>
   )

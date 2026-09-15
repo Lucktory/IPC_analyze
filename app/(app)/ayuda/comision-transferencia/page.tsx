@@ -114,7 +114,7 @@ export default function ComisionTransferenciaPage() {
 
       <div className="flex items-center justify-between gap-3 pt-1">
         <Link href="/ayuda/honorarios" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Honorarios</Link>
-        <span className="text-[13px] text-slate/60">Siguiente: Rescindir / reactivar contrato (próximamente)</span>
+        <Link href="/ayuda/rescindir-contrato" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Rescindir / reactivar contrato →</Link>
       </div>
     </div>
   )
