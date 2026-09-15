@@ -43,7 +43,9 @@ export default function EditarContratoPage() {
       {/* A — desde la planilla */}
       <GuideCard title="A. Desde la planilla (clic en la celda)" tint="#0891B2">
         <p className="text-[13.5px] text-slate-dark leading-relaxed mb-3">
-          En la planilla (Liquidación), hacés clic directo sobre la celda y editás. Se guarda solo.
+          En la planilla (Liquidación) hacés clic directo sobre la celda y editás. Se guarda solo.
+          Acá van las celdas que cambian <strong className="text-ink">el contrato</strong>; las del trabajo del
+          mes están más abajo.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full text-[13px] border-collapse min-w-[480px]">
@@ -59,19 +61,26 @@ export default function EditarContratoPage() {
               <CellRow col="Pct">La comisión de administración (%).</CellRow>
               <CellRow col="IVA">Si la comisión lleva IVA o no (con / sin).</CellRow>
               <CellRow col="Contrato">La vigencia: fecha de <strong className="text-ink">inicio</strong> y de <strong className="text-ink">fin</strong>.</CellRow>
-              <CellRow col="Estado">El estado de la liquidación (Borrador → Enviada → Pagada).</CellRow>
-              <CellRow col="Transferencia · Otros · Galicia · BBVA">Los montos: clic y editás el número.</CellRow>
-              <CellRow col="Alquiler · Extras">Lo cobrado del mes (ver la guía <em>Cargar el mes</em>).</CellRow>
-              <CellRow col="D. transf">La fecha en que le transferiste al propietario. Es la que deja registrada la transferencia.</CellRow>
-              <CellRow col="Movs.">Abre el detalle del contrato en el mes. Desde ahí también cargás una salida, con fecha y descripción.</CellRow>
-              <CellRow col="Observación">Arreglos, ajustes y honorarios (ver esas guías).</CellRow>
-              <CellRow col="Recordatorios">
-                <strong className="text-ink">Solo lectura.</strong> Muestra qué hay que cobrar cada mes; no se edita
-                desde acá. Los recordatorios se cargan en la ficha del contrato.
-              </CellRow>
             </tbody>
           </table>
         </div>
+        {/* Las otras celdas de la fila son trabajo del mes, no del contrato, y
+            ya estan explicadas en sus propias guias. Antes estaban listadas
+            aca tambien, o sea tres descripciones de las mismas columnas
+            (esta, "Donde cargo cada cosa" y la tabla de Referencia). */}
+        <Callout tone="tip" title="Las demás celdas de la fila son del mes, no del contrato">
+          <strong className="text-ink">Alquiler</strong>, <strong className="text-ink">Extras</strong>,{' '}
+          <strong className="text-ink">Transferencia</strong>, <strong className="text-ink">Otros</strong>,{' '}
+          <strong className="text-ink">D. transf</strong>, <strong className="text-ink">Movs.</strong>,{' '}
+          <strong className="text-ink">Observación</strong> y <strong className="text-ink">Estado</strong> no cambian
+          el contrato: son lo que se carga cada mes.
+          <br />
+          Están en{' '}
+          <Link href="/ayuda/donde-cargo" className="text-info hover:underline">¿Dónde cargo cada cosa?</Link> y en{' '}
+          <Link href="/ayuda/comision-transferencia" className="text-info hover:underline">Comisión y transferencia</Link>.
+          <br />
+          <strong className="text-ink">Recordatorios</strong> es de solo lectura: se carga en la ficha del contrato.
+        </Callout>
         <Callout tone="tip" title="El alquiler sube solo por IPC">
           El <strong className="text-ink">alquiler del contrato</strong> se actualiza <strong className="text-ink">solo</strong>: cada período que
           toca aumento, la app calcula el nuevo valor por IPC y lo muestra en la celda <strong className="text-ink">Alquiler</strong> (en gris)
@@ -183,7 +192,7 @@ export default function EditarContratoPage() {
       <GuideCard title="D. Terminar el contrato" tint="#DC2626">
         <p className="text-[13px] text-slate-dark leading-relaxed">
           Para dar de baja un contrato (o volver atrás), usá <strong className="text-ink">Rescindir / Reactivar</strong> en la
-          ficha. Está explicado en la guía <em>Rescindir / reactivar contrato</em>.
+          ficha. Está explicado en la guía <Link href="/ayuda/terminar" className="text-info hover:underline">Terminar un contrato o una propiedad</Link>.
         </p>
       </GuideCard>
 

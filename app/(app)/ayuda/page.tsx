@@ -36,8 +36,7 @@ const DE_VEZ_EN_CUANDO: Chapter[] = [
   { n: 8,  title: 'Crear un contrato',                desc: 'Dar de alta un contrato nuevo, campo por campo.',                       href: '/ayuda/crear-contrato', tint: '#0F766E' },
   { n: 9,  title: 'Editar un contrato',               desc: 'Planilla y ficha: %, participantes, vigencia, aumento, recordatorios.',  href: '/ayuda/editar-contrato', tint: '#0F766E' },
   { n: 10, title: 'Honorarios',                       desc: 'Fee de la inmobiliaria: cuotas, IVA y saldo.',                          href: '/ayuda/honorarios', tint: '#7C3AED' },
-  { n: 11, title: 'Rescindir / reactivar contrato',   desc: 'Terminar un contrato y volver atrás si hace falta.',                    href: '/ayuda/rescindir-contrato', tint: '#DC2626' },
-  { n: 12, title: 'Dar de baja / reactivar propiedad', desc: 'Sacar una propiedad de la cartera (reversible).',                      href: '/ayuda/dar-de-baja-propiedad', tint: '#16A34A' },
+  { n: 11, title: 'Terminar un contrato o una propiedad', desc: 'Rescindir, dar de baja, y volver atrás. Son cosas distintas.',        href: '/ayuda/terminar', tint: '#DC2626' },
 ]
 
 function ChapterCard({ ch }: { ch: Chapter }) {

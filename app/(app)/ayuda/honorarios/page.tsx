@@ -94,7 +94,7 @@ export default function HonorariosPage() {
 
       <div className="flex items-center justify-between gap-3 pt-1">
         <Link href="/ayuda/editar-contrato" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Editar un contrato</Link>
-        <Link href="/ayuda/rescindir-contrato" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Rescindir / reactivar contrato →</Link>
+        <Link href="/ayuda/terminar" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Terminar un contrato o una propiedad →</Link>
       </div>
     </div>
   )
