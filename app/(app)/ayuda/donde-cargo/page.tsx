@@ -83,7 +83,7 @@ export default function DondeCargoPage() {
                     efecto="Entra plata y se le transfiere al dueño. La administración se le cobra salvo que a ese propietario se le haya cedido." />
               <Caso situacion="Paga el depósito en 2 o 3 cuotas"
                     donde="Extras"
-                    efecto="Una línea por cuota, en el mes en que paga cada una. Nunca las tres juntas por adelantado." />
+                    efecto="Una línea por cuota, en el mes en que paga cada una. Nunca las tres juntas por adelantado. En la ficha del contrato podés dejar un recordatorio con las cuotas, y te avisa cuál toca." />
               <Caso situacion="Pagó un recargo por atraso"
                     donde="Extras"
                     efecto="Entra plata." />

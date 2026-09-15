@@ -87,7 +87,7 @@ export default function DiagnosticoPage() {
           <IssueRow dice="ADMI sin marcador de banco (Galicia / BBVA)">La comisión está cargada pero no asignada a un banco. En la celda <strong className="text-ink">ADMI</strong> tocá <strong className="text-ink">«banco?»</strong> y elegí Galicia / BBVA (así no se duplica).</IssueRow>
           <IssueRow dice="Fecha de transferencia anterior al cobro">El orden de fechas no cierra. Verificá F. banco y D. transf.</IssueRow>
           <IssueRow dice="IVA marcado pero el administrador no es RI">Revisá el IVA de la comisión: desactivá el flag o asigná un administrador RI.</IssueRow>
-          <IssueRow dice="Recargo recurrente sin registrar">Un recargo (THU, gas…) no tiene el cobro cargado este mes (es el punto rojo en Recordatorios).</IssueRow>
+          <IssueRow dice="Recargo recurrente sin registrar">Un recargo (THU, gas…) no tiene el cobro cargado este mes (es el punto rojo en Recordatorios). Si el recordatorio tiene cuotas, el aviso deja de salir solo cuando se cumplen todas.</IssueRow>
           <IssueRow dice="Comisión efectiva difiere del contrato">La comisión cargada no da el % del contrato sobre lo cobrado. O está mal el monto, o está mal el %. El aviso te dice cuánto esperaba.</IssueRow>
           <IssueRow dice="Aumento IPC pendiente">A este contrato le toca aumento y todavía no se aplicó. Entrá a la ficha y aplicalo.</IssueRow>
           <IssueRow dice="Observación sin confirmar">Un arreglo o ajuste de este mes quedó «a cobrar» y nunca se confirmó. Mientras siga así no entra en la liquidación del dueño.</IssueRow>

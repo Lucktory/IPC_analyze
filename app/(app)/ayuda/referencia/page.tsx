@@ -72,7 +72,7 @@ export default function ReferenciaPage() {
               <ColRow col="Deuda">Lo que debe el inquilino: este mes + hasta 12 meses de atrás. Un (+) al lado del monto avisa que además debe meses anteriores.</ColRow>
               <ColRow col="Pago">Día de pago del mes.</ColRow>
               <ColRow col="Alquiler">El alquiler del período. Sube solo por IPC: muestra el valor nuevo (en gris) hasta que cargás lo cobrado.</ColRow>
-              <ColRow col="Recordatorios">Aviso de los cargos que se repiten cada mes (THU, gas…) + punto verde/rojo. No es plata cobrada.</ColRow>
+              <ColRow col="Recordatorios">Aviso de los cargos que se repiten cada mes (THU, gas…) + punto verde/rojo. No es plata cobrada. Si el cargo tiene cuotas, avisa en cuál va: «cuota 2 de 3».</ColRow>
               <ColRow col="Extras">Todo lo que entra y no es alquiler: THU, gas, ABL, agua, expensas cobradas, depósito en garantía, recargos por mora.</ColRow>
               <ColRow col="Honorarios">El fee de la inmobiliaria (ingreso propio, no va al dueño).</ColRow>
               <ColRow col="Transferencia">El neto que va al propietario.</ColRow>

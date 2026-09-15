@@ -136,11 +136,25 @@ export default function EditarContratoPage() {
           <div className="pt-3 border-t border-line">
             <h3 className="text-[13.5px] font-semibold text-ink mb-1.5">Recordatorios recurrentes (THU, gas, etc.)</h3>
             <p className="text-[13px] text-slate-dark leading-relaxed">
-              Cargos que se cobran <strong className="text-ink">todos los meses</strong> aparte del alquiler. En el editor de{' '}
+              Cargos que se cobran <strong className="text-ink">aparte del alquiler</strong>. En el editor de{' '}
               <strong className="text-ink">Recordatorios</strong> podés <strong className="text-ink">agregar</strong> (etiqueta, monto,
-              tipo de recupero, cada cuántos meses, y desde qué período), <strong className="text-ink">editar</strong>,{' '}
-              <strong className="text-ink">activar / desactivar</strong> y <strong className="text-ink">borrar</strong>.
+              tipo de recupero, desde qué mes, cada cuántos meses y <strong className="text-ink">cuántas cuotas</strong>),{' '}
+              <strong className="text-ink">editar</strong>, <strong className="text-ink">activar / desactivar</strong> y{' '}
+              <strong className="text-ink">borrar</strong>.
             </p>
+            <div className="mt-2.5">
+              <Callout tone="tip" title="La columna Cuotas: para lo que tiene fin">
+                <strong className="text-ink">Vacío</strong> = cargo fijo, se cobra siempre. Así van la THU, el gas y
+                todos los de siempre.
+                <br />
+                <strong className="text-ink">Un número</strong> = se cobra esa cantidad de veces y se apaga solo.
+                Sirve para un <strong className="text-ink">depósito en 2 o 3 cuotas</strong>, o para unas expensas
+                extraordinarias <strong className="text-ink">por 12 meses</strong>.
+                <br />
+                En la planilla, esos recordatorios te avisan en qué cuota vas: <em>«cuota 2 de 3»</em>. Y cuando se
+                cumplen todas, dejan de aparecer sin que tengas que acordarte de sacarlos.
+              </Callout>
+            </div>
           </div>
 
           <div className="pt-3 border-t border-line">
