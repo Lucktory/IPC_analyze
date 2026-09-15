@@ -117,7 +117,7 @@ export default function ConciliacionPage() {
       </Callout>
 
       <div className="flex items-center justify-between gap-3 pt-1">
-        <Link href="/ayuda/dar-de-baja-propiedad" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Dar de baja / reactivar propiedad</Link>
+        <Link href="/ayuda/comision-transferencia" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Comisión y transferencia</Link>
         <Link href="/ayuda/diagnostico" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Diagnóstico y errores →</Link>
       </div>
     </div>

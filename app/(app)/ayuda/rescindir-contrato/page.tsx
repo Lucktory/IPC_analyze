@@ -65,7 +65,7 @@ export default function RescindirContratoPage() {
       </GuideCard>
 
       <div className="flex items-center justify-between gap-3 pt-1">
-        <Link href="/ayuda/comision-transferencia" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Comisión y transferencia</Link>
+        <Link href="/ayuda/honorarios" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Honorarios</Link>
         <Link href="/ayuda/dar-de-baja-propiedad" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Dar de baja / reactivar propiedad →</Link>
       </div>
     </div>

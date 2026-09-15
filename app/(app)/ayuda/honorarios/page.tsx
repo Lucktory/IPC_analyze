@@ -93,8 +93,8 @@ export default function HonorariosPage() {
       </GuideCard>
 
       <div className="flex items-center justify-between gap-3 pt-1">
-        <Link href="/ayuda/como-se-calcula" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Cómo se calcula la liquidación</Link>
-        <Link href="/ayuda/comision-transferencia" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Comisión y transferencia →</Link>
+        <Link href="/ayuda/editar-contrato" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Editar un contrato</Link>
+        <Link href="/ayuda/rescindir-contrato" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Rescindir / reactivar contrato →</Link>
       </div>
     </div>
   )

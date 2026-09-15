@@ -99,7 +99,7 @@ export default function CargarElMesPage() {
       </GuideCard>
 
       <div className="flex items-center justify-between gap-3 pt-1">
-        <Link href="/ayuda/editar-contrato" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Editar un contrato</Link>
+        <span />
         <Link href="/ayuda/donde-cargo" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: ¿Dónde cargo cada cosa? →</Link>
       </div>
     </div>

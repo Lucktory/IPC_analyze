@@ -122,8 +122,8 @@ export default function ComisionTransferenciaPage() {
       </GuideCard>
 
       <div className="flex items-center justify-between gap-3 pt-1">
-        <Link href="/ayuda/honorarios" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Honorarios</Link>
-        <Link href="/ayuda/rescindir-contrato" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Rescindir / reactivar contrato →</Link>
+        <Link href="/ayuda/como-se-calcula" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Cómo se calcula la liquidación</Link>
+        <Link href="/ayuda/conciliacion" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Conciliación →</Link>
       </div>
     </div>
   )

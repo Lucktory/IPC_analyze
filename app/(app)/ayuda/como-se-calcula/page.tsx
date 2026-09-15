@@ -179,7 +179,7 @@ export default function ComoSeCalculaPage() {
 
       <div className="flex items-center justify-between gap-3 pt-1">
         <Link href="/ayuda/donde-cargo" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← ¿Dónde cargo cada cosa?</Link>
-        <Link href="/ayuda/honorarios" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Honorarios →</Link>
+        <Link href="/ayuda/comision-transferencia" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Comisión y transferencia →</Link>
       </div>
     </div>
   )

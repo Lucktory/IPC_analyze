@@ -213,7 +213,7 @@ export default function EditarContratoPage() {
 
       <div className="flex items-center justify-between gap-3 pt-1">
         <Link href="/ayuda/crear-contrato" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Crear un contrato</Link>
-        <Link href="/ayuda/cargar-el-mes" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Cargar el mes →</Link>
+        <Link href="/ayuda/honorarios" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Honorarios →</Link>
       </div>
     </div>
   )
