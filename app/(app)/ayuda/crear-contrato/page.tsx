@@ -65,6 +65,11 @@ export default function CrearContratoPage() {
           <Field campo="Fecha de inicio" obligatorio porDefecto="hoy">Arranque de la vigencia.</Field>
           <Field campo="Fecha de fin" obligatorio porDefecto="+3 años">Fin estimado (se puede ajustar después). Tiene que ser <strong className="text-ink">posterior</strong> al inicio.</Field>
           <Field campo="Día de pago (1–31)" porDefecto="5">Qué día del mes paga el inquilino.</Field>
+          <Field campo="Comisión administración (%)" porDefecto="8">
+            El <strong className="text-ink">% que cobra la inmobiliaria</strong> por administrar ese contrato.
+            Viene en 8: cambialo si ese propietario tiene otro. Si lo dejás vacío, el contrato queda sin
+            comisión y el Diagnóstico te lo va a marcar.
+          </Field>
           <Field campo="Moneda" porDefecto="ARS">Pesos (ARS) o Dólares (USD).</Field>
           <Field campo="Número de contrato" porDefecto="automático">Si lo dejás vacío, el sistema le asigna uno solo con el formato <strong className="text-ink">C-AÑO-NNNN</strong>.</Field>
           <Field campo="LFA (admin a cargo)">Código del administrador a cargo: <strong className="text-ink">L</strong>, <strong className="text-ink">F</strong> o <strong className="text-ink">A</strong>.</Field>

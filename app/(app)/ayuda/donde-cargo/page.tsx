@@ -81,6 +81,9 @@ export default function DondeCargoPage() {
               <Caso situacion="Dejó el depósito en garantía"
                     donde="Extras"
                     efecto="Entra plata y se le transfiere al dueño. La administración se le cobra salvo que a ese propietario se le haya cedido." />
+              <Caso situacion="Paga el depósito en 2 o 3 cuotas"
+                    donde="Extras"
+                    efecto="Una línea por cuota, en el mes en que paga cada una. Nunca las tres juntas por adelantado." />
               <Caso situacion="Pagó un recargo por atraso"
                     donde="Extras"
                     efecto="Entra plata." />
@@ -194,6 +197,12 @@ export default function DondeCargoPage() {
             Cada pago va en el mes al que corresponde, aunque la plata entre en otro. Si termina de
             pagar Agosto en Septiembre, eso va en Agosto, con la fecha real.
           </li>
+          <li>
+            <strong className="text-ink">Cargar por adelantado las cuotas del depósito.</strong>{' '}
+            Si el inquilino va a pagar el depósito en tres veces, cargá cada cuota el mes que la paga.
+            Si cargás las tres juntas, el sistema toma que ya entró todo y le transfiere al propietario
+            plata que todavía no tenés.
+          </li>
         </ul>
       </GuideCard>
 
@@ -205,7 +214,7 @@ export default function DondeCargoPage() {
 
       <div className="flex items-center justify-between gap-3 pt-1">
         <Link href="/ayuda/cargar-el-mes" className="text-[13px] text-slate hover:text-ink transition-colors inline-flex items-center gap-1">← Cargar el mes</Link>
-        <Link href="/ayuda/honorarios" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Honorarios →</Link>
+        <Link href="/ayuda/como-se-calcula" className="text-[13px] text-info hover:underline transition-colors inline-flex items-center gap-1">Siguiente: Cómo se calcula la liquidación →</Link>
       </div>
     </div>
   )

@@ -90,6 +90,15 @@ export default function ComisionTransferenciaPage() {
           <br />
           Es a propósito: si abrís Gmail y después te arrepentís, no queda marcado como mandado cuando en realidad no lo mandaste.
         </Callout>
+        <Callout tone="warn" title="Contratos con DOS propietarios: no los mandes todavía">
+          Hay <strong className="text-ink">15 contratos</strong> con dos dueños al 50 y 50. En esos, el sistema le
+          manda la rendición a <strong className="text-ink">uno solo</strong> de los dos, y con el monto
+          <strong className="text-ink"> completo</strong> del contrato, como si fuera todo suyo. El otro dueño no
+          recibe nada.
+          <br />
+          Todavía no está definido cómo corresponde repartirlo, así que esos contratos manejalos a mano
+          hasta nuevo aviso. Los de un solo propietario están bien.
+        </Callout>
         <Callout tone="tip" title="Los descuentos salen detallados">
           En el mail, los <strong className="text-ink">Otros descuentos</strong> le llegan al propietario uno por uno, con el
           nombre de cada uno, y después el total.

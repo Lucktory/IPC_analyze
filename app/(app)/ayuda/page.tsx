@@ -16,13 +16,14 @@ const CHAPTERS: Chapter[] = [
   // columna. Va pegado a "Cargar el mes" porque es la duda que aparece
   // justo ahi, con la planilla abierta y algo en la mano.
   { n: 4, title: '¿Dónde cargo cada cosa?',        desc: 'Extras, Movs., Expensas, Observación y Otros: cuál usar en cada caso.', href: '/ayuda/donde-cargo', tint: '#0891B2' },
-  { n: 5, title: 'Honorarios',                     desc: 'Fee de la inmobiliaria: cuotas, IVA y saldo.',               href: '/ayuda/honorarios', tint: '#7C3AED' },
-  { n: 6, title: 'Comisión y transferencia',       desc: 'ADMI, bancos, y enviar la liquidación al dueño.',            href: '/ayuda/comision-transferencia', tint: '#16A34A' },
-  { n: 7, title: 'Rescindir / reactivar contrato', desc: 'Terminar un contrato y volver atrás si hace falta.',          href: '/ayuda/rescindir-contrato', tint: '#DC2626' },
-  { n: 8, title: 'Dar de baja / reactivar propiedad', desc: 'Sacar una propiedad de la cartera (reversible).',          href: '/ayuda/dar-de-baja-propiedad', tint: '#16A34A' },
-  { n: 9, title: 'Conciliación',                   desc: 'Qué movimientos están confirmados en el banco y cuáles no.',  href: '/ayuda/conciliacion', tint: '#3B82F6' },
-  { n: 10, title: 'Diagnóstico y errores',         desc: 'Qué mirar cuando algo no cierra, y cómo resolverlo.',         href: '/ayuda/diagnostico', tint: '#475569' },
-  { n: 11, title: 'Referencia y glosario',         desc: 'Columnas de la planilla, términos y preguntas.',              href: '/ayuda/referencia', tint: '#64748B' },
+  { n: 5, title: 'Cómo se calcula la liquidación', desc: 'De dónde sale el neto del propietario, término por término.', href: '/ayuda/como-se-calcula', tint: '#16A34A' },
+  { n: 6, title: 'Honorarios',                     desc: 'Fee de la inmobiliaria: cuotas, IVA y saldo.',               href: '/ayuda/honorarios', tint: '#7C3AED' },
+  { n: 7, title: 'Comisión y transferencia',       desc: 'ADMI, bancos, y enviar la liquidación al dueño.',            href: '/ayuda/comision-transferencia', tint: '#16A34A' },
+  { n: 8, title: 'Rescindir / reactivar contrato', desc: 'Terminar un contrato y volver atrás si hace falta.',          href: '/ayuda/rescindir-contrato', tint: '#DC2626' },
+  { n: 9, title: 'Dar de baja / reactivar propiedad', desc: 'Sacar una propiedad de la cartera (reversible).',          href: '/ayuda/dar-de-baja-propiedad', tint: '#16A34A' },
+  { n: 10, title: 'Conciliación',                   desc: 'Qué movimientos están confirmados en el banco y cuáles no.',  href: '/ayuda/conciliacion', tint: '#3B82F6' },
+  { n: 11, title: 'Diagnóstico y errores',         desc: 'Qué mirar cuando algo no cierra, y cómo resolverlo.',         href: '/ayuda/diagnostico', tint: '#475569' },
+  { n: 12, title: 'Referencia y glosario',         desc: 'Columnas de la planilla, términos y preguntas.',              href: '/ayuda/referencia', tint: '#64748B' },
 ]
 
 export default function AyudaPage() {
