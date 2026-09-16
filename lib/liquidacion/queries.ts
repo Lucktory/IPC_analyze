@@ -188,6 +188,11 @@ export interface LiquidacionDetail extends Omit<LiquidacionRow, never> {
   netoTransacciones: number
   /** Explicit ajuste lines for the receipt, so the owner sees each one. */
   ajusteLines:     AjusteLine[]
+  /** Every co-owner with their share, sorted by % desc.
+   *  La rendicion en papel de la oficina lista una linea por dueño con su
+   *  mitad (ejemplo JUAN / ADRIAN, 2026-09-16), asi que el documento nunca
+   *  elige "el" propietario: los muestra a todos. */
+  landlordsList:   { id: string; name: string; ownershipPct: number }[]
 }
 
 // ============================================================================
@@ -1278,10 +1283,18 @@ export async function getLiquidacionDetail(
   const landlords = (c.contract_landlords ?? []) as any[]
   if (landlords.length === 0) return null
 
-  const primary = [...landlords].sort(
+  const sortedLandlords = [...landlords].sort(
     (a, b) => Number(b.ownership_pct ?? 0) - Number(a.ownership_pct ?? 0),
-  )[0]
+  )
+  const primary = sortedLandlords[0]
   if (!primary?.landlords) return null
+  const landlordsList = sortedLandlords
+    .map((cl: any) => ({
+      id:           cl.landlords?.id ?? '',
+      name:         cl.landlords?.name ?? '',
+      ownershipPct: Number(cl.ownership_pct ?? 0),
+    }))
+    .filter((l: { id: string; name: string }) => l.id && l.name)
 
   const tenant = (c.contract_tenants ?? []).find((ct: any) => ct.is_primary) ?? c.contract_tenants?.[0]
 
@@ -1335,6 +1348,7 @@ export async function getLiquidacionDetail(
     landlordName:         primary.landlords.name ?? '(sin propietario)',
     totalCobrado, comisionAdmin, otrosDescuentos, netoTransacciones, ajustes, ajusteLines, netoAlPropietario, comisionPct,
     hasMultipleLandlords: landlords.length > 1,
+    landlordsList,
     liquidacionId:        (liq as any)?.id ?? null,
     status:               ((liq as any)?.status ?? 'draft') as LiquidacionStatus,
     sentAt:               (liq as any)?.sent_at ?? null,

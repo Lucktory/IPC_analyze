@@ -145,7 +145,7 @@ const W = {
   estado: 55,
   // Column 20: Mail — per-row "Liquidar y enviar" action button.
   // Alejandro: "faltaría agregarle al final liquidar contrato y mandarle el mail."
-  mail: 75,
+  mail: 108,
   // Column 21: Check — per-row validation badge (Phase 7A).
   // Green ✓ if all checks pass; yellow / red count badge if there are
   // warnings / errors. Click → popover with the issue details.
@@ -871,14 +871,31 @@ export function LiquidacionGrid({ rows, totals, period, landlordOptions, tenantO
                        confirm modal with the prepared email; sending happens
                        via mailto: in the encargada's own mail client. */}
                   <Td width={W.mail} align="center">
-                    <LiquidarYEnviarButton
-                      contractId={r.contractId}
-                      landlordId={r.landlordId}
-                      period={r.periodo}
-                      landlordName={r.propietario}
-                      landlordEmail={r.propietarioEmail}
-                      status={r.status}
-                    />
+                    <div className="inline-flex items-center gap-1">
+                      <LiquidarYEnviarButton
+                        contractId={r.contractId}
+                        landlordId={r.landlordId}
+                        period={r.periodo}
+                        landlordName={r.propietario}
+                        landlordEmail={r.propietarioEmail}
+                        status={r.status}
+                      />
+                      {/* La rendicion imprimible. La pagina existia desde
+                          siempre pero no habia ningun link hacia ella, asi que
+                          en la practica era inalcanzable. */}
+                      <Link
+                        href={`/liquidacion/${r.contractId}?period=${r.periodo}`}
+                        title="Ver / imprimir la rendicion del propietario"
+                        className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-slate-dark hover:bg-ink/10 hover:text-ink transition-colors"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                          <line x1="8" y1="13" x2="16" y2="13" />
+                          <line x1="8" y1="17" x2="16" y2="17" />
+                        </svg>
+                      </Link>
+                    </div>
                   </Td>
 
                   {/* 21. CHECK — per-row validation badge (Phase 7A).

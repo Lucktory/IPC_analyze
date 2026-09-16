@@ -2,12 +2,13 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { Badge } from '@/components/ui/Badge'
 import { BreadcrumbTitle } from '@/components/shell/BreadcrumbContext'
-import { getCurrentPeriod, periodLabel } from '@/lib/period'
+import { getArgentinaToday, getCurrentPeriod, periodLabel } from '@/lib/period'
 import { getLiquidacionDetail, type LiquidacionDetailLine, type LiquidacionStatus } from '@/lib/liquidacion/queries'
 import { fmtMoney as fmt, fmtDate, fmtDateTime } from '@/lib/format'
 import { LiquidacionActionsBar } from '@/components/liquidacion/LiquidacionActionsBar'
 import { GenerateCommissionButton } from '@/components/liquidacion/GenerateCommissionButton'
 import { PrintButton } from '@/components/ui/PrintButton'
+import { RendicionSheet } from '@/components/liquidacion/RendicionSheet'
 
 const STATUS_THEME: Record<LiquidacionStatus, { label: string; dot: string; tint: string; text: string; border: string }> = {
   draft: { label: 'Borrador', dot: 'bg-slate',   tint: 'bg-cream-2',     text: 'text-slate-dark', border: 'border-l-slate' },
@@ -29,6 +30,10 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
   if (!detail) notFound()
 
   const theme = STATUS_THEME[detail.status]
+  // La fecha del papel se resuelve en el server: getArgentinaToday evita que
+  // el reloj del navegador (o el UTC de Vercel) corra el dia.
+  const arToday  = getArgentinaToday()
+  const todayISO = `${arToday.getFullYear()}-${String(arToday.getMonth() + 1).padStart(2, '0')}-${String(arToday.getDate()).padStart(2, '0')}`
   const total = detail.totalCobrado
   const hasAjustes   = detail.ajusteLines.length > 0
   const pctComision  = total > 0 ? (detail.comisionAdmin     / total) * 100 : 0
@@ -53,7 +58,7 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
       </div>
 
       {/* Header: tenant + landlord + status pill */}
-      <div className="flex items-baseline justify-between mb-6 flex-wrap gap-3">
+      <div className="flex items-baseline justify-between mb-6 flex-wrap gap-3 print:hidden">
         <div>
           <p className="label-cap text-slate">Liquidación · {periodLabel(period)}</p>
           <h1 className="font-display text-[22px] font-medium text-ink mt-1">{detail.tenantName}</h1>
@@ -69,8 +74,34 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
         </Badge>
       </div>
 
+      {/* ── RENDICION ──────────────────────────────────────────────────────
+           El documento que recibe el propietario, con el formato propio de la
+           oficina. En pantalla va arriba de todo como vista previa; al
+           imprimir es lo UNICO que sale (todo el analisis de abajo lleva
+           print:hidden), asi "Imprimir / PDF" produce la hoja tal cual.
+           Alejandro, 2026-09-16: "todo el trabajo que estamos haciendo es
+           para presentarselo al propietario". */}
+      <section className="mb-6">
+        <div className="flex items-baseline justify-between mb-2 print:hidden">
+          <h2 className="font-display text-[15px] font-medium text-ink">Rendición</h2>
+          <p className="text-[11px] text-slate">Así sale impresa o en PDF</p>
+        </div>
+        <div className="overflow-x-auto print:overflow-visible">
+          <RendicionSheet
+            period={detail.period}
+            tenantName={detail.tenantName}
+            landlordsList={detail.landlordsList}
+            lines={detail.lines}
+            comisionAdmin={detail.comisionAdmin}
+            ajusteLines={detail.ajusteLines}
+            sentAt={detail.sentAt}
+            todayISO={todayISO}
+          />
+        </div>
+      </section>
+
       {/* Embudo — horizontal stacked bar showing the funnel */}
-      <section className="bg-paper border border-line rounded shadow-card overflow-hidden">
+      <section className="bg-paper border border-line rounded shadow-card overflow-hidden print:hidden">
         <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 className="font-display text-[15px] font-medium text-ink">Embudo del período</h2>
@@ -156,7 +187,7 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
           change the neto. Shown explicitly, line by line, so the owner sees
           exactly why the final number differs from the funnel. */}
       {hasAjustes && (
-        <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
+        <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden print:hidden">
           <div className="px-5 py-4 border-b border-line">
             <h2 className="font-display text-[15px] font-medium text-ink">Ajustes del período</h2>
             <p className="text-[12px] text-slate mt-0.5">
@@ -215,7 +246,7 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
       </section>
 
       {/* Breakdown — transactions that contributed to the embudo */}
-      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden">
+      <section className="mt-6 bg-paper border border-line rounded shadow-card overflow-hidden print:hidden">
         <div className="px-5 py-4 border-b border-line">
           <h2 className="font-display text-[15px] font-medium text-ink">Desglose de transacciones</h2>
           <p className="text-[12px] text-slate mt-0.5">
