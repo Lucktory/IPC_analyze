@@ -827,6 +827,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
         expectedRentCurrentPeriod: expectedRentByContract.get(c.id)?.value ?? Number(c.current_rent ?? 0),
         paymentDay:          Number(c.payment_day ?? 5),
         startDate:           c.start_date ?? null,
+        endDate:             c.end_date ?? null,
         lateInterestEnabled: c.late_interest_enabled === true,
         lateInterestRate:    Number(c.late_interest_rate ?? 0),
       })),

@@ -140,6 +140,87 @@ export function computeIntereses(totalDebt: number, ratePct: number, daysOverdue
   return Math.round(totalDebt * (ratePct / 100) * daysOverdue)
 }
 
+/**
+ * Divisor del prorrateo: un mes vale SIEMPRE 31 dias, tenga los que tenga.
+ *
+ * No es un descuido, es lo que hace la oficina. En la rendicion que mando
+ * Alejandro el 2026-09-16 (BOZZOLO / DE SANTIS, alquiler 800.000, 22 dias de
+ * Septiembre) el monto cobrado es 567.741,94, y eso sale de 800.000 / 31 x 22
+ * al centavo. Con 30 hubiera dado 586.666,67, que no es lo que cobraron.
+ *
+ * Esta en una sola constante justamente porque es la parte discutible: si algun
+ * dia dicen que van por dias reales del mes, se cambia aca y en ningun otro
+ * lado.
+ */
+export const PRORATE_DIVISOR = 31
+
+/** Parsea 'YYYY-MM-DD' sin pasar por Date. new Date('2026-09-09') es medianoche
+ *  UTC, asi que getDate() en Argentina (UTC-3) devuelve 8: un dia menos en cada
+ *  prorrateo. */
+function ymd(iso: string | null): { y: number; m: number; d: number } | null {
+  if (!iso) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (!m) return null
+  return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) }
+}
+
+/**
+ * Cuanto alquiler corresponde esperar en este periodo, contando solo los dias
+ * que el contrato estuvo vigente.
+ *
+ * EL PROBLEMA QUE RESUELVE (2026-09-16)
+ *
+ * Hasta hoy el sistema esperaba un mes entero SIEMPRE, incluso el mes en que el
+ * inquilino recien se mudaba. Alejandro alquilo una propiedad a mitad de
+ * Septiembre, cobro 22 dias, y la columna Deuda le marco ~232.000 que nadie
+ * debia. Peor: el arrastre revalua cada mes anterior contra el alquiler
+ * completo, asi que esa deuda inventada reaparecia en Octubre, Noviembre y
+ * Diciembre — y desde esta manana devenga 1% DIARIO de interes.
+ *
+ * LA REGLA
+ *
+ * Solo se prorratea el mes en que el contrato ARRANCA o TERMINA. Un mes
+ * completo devuelve el alquiler completo, sin pasar por la division: si no,
+ * dividir 30 dias por 31 le recortaria un dia de alquiler a los 105 contratos
+ * todos los meses.
+ *
+ * Los dias se cuentan inclusive en ambas puntas, igual que ellos: del 9 al 30
+ * de Septiembre son 22 dias, no 21.
+ */
+export function expectedRentForPeriod(
+  fullRent:  number,
+  period:    string,
+  startDate: string | null,
+  endDate:   string | null,
+): number {
+  if (!isFinite(fullRent) || fullRent <= 0) return 0
+  const p = ymd(period)
+  if (!p) return fullRent
+  const lastDay = new Date(p.y, p.m, 0).getDate()
+
+  const s = ymd(startDate)
+  const e = ymd(endDate)
+
+  // Fuera de vigencia por completo: no se espera nada. En la practica la
+  // planilla ya filtra estos contratos, pero si algo cambia rio arriba es
+  // preferible esperar 0 antes que un mes entero de deuda fantasma.
+  if (s && (s.y > p.y || (s.y === p.y && s.m > p.m))) return 0
+  if (e && (e.y < p.y || (e.y === p.y && e.m < p.m))) return 0
+
+  const startsHere = !!s && s.y === p.y && s.m === p.m
+  const endsHere   = !!e && e.y === p.y && e.m === p.m
+  if (!startsHere && !endsHere) return fullRent
+
+  const from = startsHere ? Math.min(Math.max(1, s!.d), lastDay) : 1
+  const to   = endsHere   ? Math.min(Math.max(1, e!.d), lastDay) : lastDay
+  if (to < from) return 0
+  // Entra y sale el mismo dia, o cubre el mes entero: sin prorrateo.
+  if (from === 1 && to === lastDay) return fullRent
+
+  const days = to - from + 1
+  return Math.round((fullRent / PRORATE_DIVISOR) * days * 100) / 100
+}
+
 /** Days from today to the contract's due day for the given period, clamped to
  *  the last day of the month. Returns 0 when not yet due, positive when overdue. */
 export function daysOverdueForPeriod(period: string, paymentDay: number): number {
@@ -167,6 +248,9 @@ export async function buildDeudaBreakdownsBulk(
     expectedRentCurrentPeriod?: number
     paymentDay:            number
     startDate:             string | null
+    /** Fin de vigencia. Se usa para prorratear el ULTIMO mes: un inquilino que
+     *  se va el 5 no debe el mes entero. Null = sigue vigente. */
+    endDate?:              string | null
     lateInterestEnabled:   boolean
     lateInterestRate:      number
   }>,
@@ -288,7 +372,12 @@ export async function buildDeudaBreakdownsBulk(
     // (same value the Alquiler cell shows), so an unpaid aumento shows the right
     // debt and a cobro at the new value clears it. Prior periods are measured
     // against the rent in force in each of those months (see rentInForce).
-    const expectedCurrent   = c.expectedRentCurrentPeriod ?? c.currentRent
+    // ...y prorrateado cuando el contrato arranca o termina DENTRO de este mes,
+    // asi un inquilino que se muda el 9 no arrastra los 8 dias previos como
+    // deuda. Un mes completo pasa intacto por expectedRentForPeriod.
+    const expectedCurrent   = expectedRentForPeriod(
+      c.expectedRentCurrentPeriod ?? c.currentRent, period, c.startDate, c.endDate ?? null,
+    )
     const cobradoThisPeriod = cobradoByKey.get(`${c.id}|${period}`) ?? 0
     const deudaCurrent = Math.max(0, expectedCurrent - cobradoThisPeriod)
 
@@ -304,7 +393,12 @@ export async function buildDeudaBreakdownsBulk(
       // Corte: antes del epoch la deuda no se deriva, se carga a mano.
       if (p < DEUDA_EPOCH) continue
       const cobrado      = cobradoByKey.get(`${c.id}|${p}`) ?? 0
-      const expectedThen = rentInForce(c.id, p, c.currentRent)
+      // El MISMO prorrateo que el mes corriente. Sin esto el arreglo duraba un
+      // mes: Septiembre cerraba bien en Septiembre y volvia a figurar impago en
+      // Octubre, porque el arrastre lo revaluaba contra el alquiler entero.
+      const expectedThen = expectedRentForPeriod(
+        rentInForce(c.id, p, c.currentRent), p, c.startDate, c.endDate ?? null,
+      )
       const deuda        = Math.max(0, expectedThen - cobrado)
       carryover.push({
         period:       p,
@@ -365,7 +459,7 @@ export async function getDeudaBreakdown(
   const supabase = await createSupabaseServer()
   const { data: c } = await supabase
     .from('contracts')
-    .select('id, current_rent, payment_day, start_date, cadence, last_adjustment_date, created_at, late_interest_enabled, late_interest_rate')
+    .select('id, current_rent, payment_day, start_date, end_date, cadence, last_adjustment_date, created_at, late_interest_enabled, late_interest_rate')
     .eq('id', contractId)
     .maybeSingle()
   if (!c) return null
@@ -388,6 +482,7 @@ export async function getDeudaBreakdown(
       expectedRentCurrentPeriod,
       paymentDay:          Number((c as any).payment_day ?? 5),
       startDate:           (c as any).start_date ?? null,
+      endDate:             (c as any).end_date ?? null,
       lateInterestEnabled: (c as any).late_interest_enabled === true,
       lateInterestRate:    Number((c as any).late_interest_rate ?? 0),
     }],
