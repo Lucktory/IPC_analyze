@@ -1300,14 +1300,19 @@ export async function getLiquidacionDetail(
 
   let totalCobrado = 0, comisionAdmin = 0, otrosDescuentos = 0
   const lines: LiquidacionDetailLine[] = []
+  // La clasificacion sale de funnelBucketOf, la misma regla que usan la
+  // planilla y el mail. Esta funcion la repetia a mano y le faltaba excluir
+  // LANDLORD_PAYOUT por codigo: hoy no cambia nada porque ese tipo tiene
+  // affects_liquidacion = false, pero si alguien lo prendiera en el catalogo,
+  // la transferencia al propietario pasaba a contarse como un descuento QUE SE
+  // LE HACE, justo en la pagina que ahora imprime su rendicion.
   for (const t of (txnsRes.data ?? []) as any[]) {
     const typ = t.transaction_types
-    const affects = !!typ.affects_liquidacion
-    if (affects) {
-      if (typ.direction === 'IN') totalCobrado += Number(t.amount)
-      else if (typ.code === 'COMMISSION_OUT') comisionAdmin += Number(t.amount)
-      else                                    otrosDescuentos += Number(t.amount)
-    }
+    const bucket = funnelBucketOf(typ)
+    const affects = bucket !== null
+    if (bucket === 'ingresos')    totalCobrado    += Number(t.amount)
+    else if (bucket === 'admi')   comisionAdmin   += Number(t.amount)
+    else if (bucket === 'otros')  otrosDescuentos += Number(t.amount)
     lines.push({
       transactionId:      t.id,
       direction:          typ.direction,
