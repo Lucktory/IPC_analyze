@@ -132,7 +132,7 @@ export async function createContractFromGrid(input: CreateFromGridInput): Promis
     }
     for (const l of input.landlords) {
       if (!isFinite(l.ownershipPct) || l.ownershipPct <= 0 || l.ownershipPct > 100) {
-        return { ok: false, error: 'Cada propietario debe tener un porcentaje entre 0 y 100.' }
+        return { ok: false, error: 'Cada propietario debe tener un porcentaje mayor a 0 y hasta 100. Para sacar a alguien, usa la X.' }
       }
     }
     for (const t of input.tenants) {

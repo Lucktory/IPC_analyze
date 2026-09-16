@@ -170,7 +170,7 @@ export async function updateContractTenants(
     for (const r of rows) {
       if (!r.tenantId) return { ok: false, error: 'Todos los inquilinos deben estar seleccionados.' }
       if (!Number.isFinite(r.sharePct) || r.sharePct <= 0 || r.sharePct > 100) {
-        return { ok: false, error: 'Cada inquilino debe tener un porcentaje entre 0 y 100.' }
+        return { ok: false, error: 'Cada inquilino debe tener un porcentaje mayor a 0 y hasta 100. Para sacar a alguien, usa la X.' }
       }
     }
     const pcts = rows.map(r => r.sharePct)

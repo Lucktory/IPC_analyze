@@ -141,7 +141,7 @@ export async function prepareEmailDraft(
     supabase.from('landlords').select('name, email, alt_emails').eq('id', landlordId).maybeSingle(),
     supabase
       .from('contracts')
-      .select('id, contract_tenants(is_primary, tenants(name))')
+      .select('id, administrations(name), contract_tenants(is_primary, tenants(name))')
       .eq('id', contractId)
       .maybeSingle(),
   ])
@@ -156,6 +156,13 @@ export async function prepareEmailDraft(
   const tenant = (contractRes.data as any)?.contract_tenants?.find((ct: any) => ct.is_primary)
               ?? (contractRes.data as any)?.contract_tenants?.[0]
   const tenantName = tenant?.tenants?.name ?? '(sin inquilino)'
+
+  // La firma sale de la base, no de una constante. Hasta el 2026-09-16 este
+  // mail iba firmado "Pampa Administracion" — el nombre de otra inmobiliaria—
+  // asi que cada propietario de Patagonia Propiedades recibia su rendicion
+  // firmada por quien no era. Leerlo de administrations.name hace que no
+  // pueda volver a desincronizarse si el dia de mañana cambia.
+  const adminName = (contractRes.data as any)?.administrations?.name?.trim() || 'Administracion'
 
   // Build subject + body.
   const monthLabel = periodLabel(period)
@@ -196,7 +203,7 @@ export async function prepareEmailDraft(
   lines.push('Realizaremos la transferencia en los próximos días hábiles. Cualquier consulta, quedamos a disposición.')
   lines.push('')
   lines.push('Saludos cordiales,')
-  lines.push('Pampa Administración')
+  lines.push(adminName)
   if (senderEmail?.trim()) lines.push(senderEmail.trim())
   const body = lines.join('\n')
 
