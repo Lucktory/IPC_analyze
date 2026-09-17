@@ -3,7 +3,7 @@
 // `LiquidacionGridRow[]` the grid uses so the totals can't drift from the
 // per-row data shown above.
 //
-//   TOTAL COBRADO  ──►  COMISIÓN  ──►  OTROS  ──►  TRANSFERIDO AL PROPIETARIO
+//   TOTAL COBRADO  ──►  COMISIÓN  ──►  OTROS  ──►  NETO AL PROPIETARIO
 //
 // Visual: four KPI tiles + a horizontal stacked bar that shows the
 // proportion of each slice against TOTAL COBRADO.
@@ -35,6 +35,12 @@ export function ResumenView({ rows, period, honorarios }: Props) {
   const totalTransferido  = rows.reduce((s, r) => s + r.transferencia, 0)
   const cobrados          = rows.filter(r => !!r.fechaBanco).length
   const transferidos      = rows.filter(r => !!r.diaTransf).length
+  // Lo que REALMENTE salio (suma de LANDLORD_PAYOUT), distinto de
+  // totalTransferido, que es lo que CORRESPONDE transferir. Alejandro,
+  // 2026-09-17: "Porque dice transferido al propietario? Arriba dice A
+  // Transferir". Tenia razon: era el mismo numero con dos nombres, y el de
+  // aca afirmaba que la plata ya se habia mandado.
+  const totalPagado       = rows.reduce((s, r) => s + (r.payout ?? 0), 0)
 
   // Status counts — gives the encargada a snapshot of where the workflow is
   const byStatus = { draft: 0, sent: 0, paid: 0 }
@@ -76,9 +82,13 @@ export function ResumenView({ rows, period, honorarios }: Props) {
           tone="warn"
         />
         <SummaryTile
-          label="Transferido al propietario"
+          label="A transferir al propietario"
           value={fmtMoney(totalTransferido)}
-          hint={`${pctNeto.toFixed(1)}% del cobrado · ${transferidos} transferencias hechas`}
+          hint={
+            totalPagado > 0
+              ? `${pctNeto.toFixed(1)}% del cobrado · ${fmtMoney(totalPagado)} ya transferidos en ${transferidos} ${transferidos === 1 ? 'contrato' : 'contratos'}`
+              : `${pctNeto.toFixed(1)}% del cobrado · todavía sin transferir`
+          }
           tone="info"
         />
       </div>
@@ -129,12 +139,12 @@ export function ResumenView({ rows, period, honorarios }: Props) {
         {totalIngresos > 0 ? (
           <>
             <div className="h-7 w-full rounded overflow-hidden flex border border-line/60">
-              <BarSeg widthPct={pctNeto}  className="bg-info"    title={`Transferido: ${fmtMoney(totalTransferido)} (${pctNeto.toFixed(1)}%)`} />
+              <BarSeg widthPct={pctNeto}  className="bg-info"    title={`Neto al propietario: ${fmtMoney(totalTransferido)} (${pctNeto.toFixed(1)}%)`} />
               <BarSeg widthPct={pctAdmi}  className="bg-success" title={`Comisión: ${fmtMoney(totalAdmi)} (${pctAdmi.toFixed(1)}%)`} />
               <BarSeg widthPct={pctOtros} className="bg-warn"    title={`Otros descuentos: ${fmtMoney(totalOtros)} (${pctOtros.toFixed(1)}%)`} />
             </div>
             <div className="flex flex-wrap gap-4 mt-3 text-[12px]">
-              <Legend swatch="bg-info"    label="Transferido"           value={fmtMoney(totalTransferido)} pct={pctNeto} />
+              <Legend swatch="bg-info"    label="Neto al propietario"    value={fmtMoney(totalTransferido)} pct={pctNeto} />
               <Legend swatch="bg-success" label="Comisión administración" value={fmtMoney(totalAdmi)} pct={pctAdmi} />
               <Legend swatch="bg-warn"    label="Otros descuentos"      value={fmtMoney(totalOtros)}   pct={pctOtros} />
             </div>

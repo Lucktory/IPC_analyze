@@ -269,6 +269,11 @@ export interface LiquidacionGridRow {
   // ── Transfer side (light gray until diaTransf set, then dark gray) ──
   diaTransf:     string | null   // max(LANDLORD_PAYOUT.bank_date)
   transferencia: number          // computed: ingresos - admi - otros + adjustment
+  /** Plata que REALMENTE salio: suma de los LANDLORD_PAYOUT del periodo.
+   *  Distinto de `transferencia`, que es lo que CORRESPONDE transferir. Los
+   *  dos numeros existian, pero al resumen solo llegaba el segundo y se lo
+   *  mostraba como si fuera el primero. */
+  payout:        number
   otros:         number          // sum OUT (≠ COMMISSION_OUT) affects_liquidacion
 
   // ── Commission breakdown (3 destinations stay SEPARATE per Alejandro's spec) ──
@@ -1033,6 +1038,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
       honorariosTotal,
       diaTransf:     a.diaTransf,
       transferencia,
+      payout:        a.payout,
       otros:         a.otros,
       pct,
       commissionPctConfigured: c.commission_pct != null ? Number(c.commission_pct) : null,
