@@ -799,6 +799,11 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
   // (value + orange tint), the Deuda breakdown, and the F.banco cobro default —
   // so they can never show different numbers. Non-adjustment periods just get
   // current_rent; an unapplied aumento period gets current_rent × IPC factor.
+  //
+  // Este es el alquiler del MES ENTERO. El prorrateo del primer y ultimo mes
+  // (2026-09-17) se aplica despues, adentro del modulo de deuda, y la celda
+  // Alquiler lee ESE resultado — no vuelve a prorratear. Prorratear aca
+  // tambien lo aplicaria dos veces sobre el mismo mes.
   const expectedRentByContract = new Map<string, ExpectedRent>()
   for (const c of (contractsRes.data ?? []) as any[]) {
     expectedRentByContract.set(
@@ -1116,7 +1121,12 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           expiryRowStatus:      tier.status,
           daysUntilContractEnd: tier.daysUntil,
           periodHasAumento:     er.hasAumento,
-          alquilerEsperado:     er.value,
+          // Prorrateado cuando el contrato arranca o termina dentro del mes.
+          // El calculo vive en UN solo lugar (proratedRentForPeriod, dentro
+          // del modulo de deuda) y aca se lee su resultado, en vez de
+          // repetirlo: si no, la celda diria 800.000 y la deuda esperaria
+          // 567.741,94 en el mes en que el inquilino recien se muda.
+          alquilerEsperado:     deudaBreakdown?.expectedRent ?? er.value,
         }
       })(),
       // Phase 7A validations: pure-function checks over the row data.
@@ -1135,7 +1145,7 @@ export async function getLiquidacionGridForPeriod(period: string): Promise<Liqui
           admFrances509:    a.frances509,
           admFrances516:    a.frances516,
           currentRent,
-          alquilerEsperado: expectedRentByContract.get(c.id)?.value ?? currentRent,
+          alquilerEsperado: deudaBreakdown?.expectedRent ?? (expectedRentByContract.get(c.id)?.value ?? currentRent),
           pct,
           deuda,
           status:           (liq?.status ?? 'draft') as LiquidacionStatus,
