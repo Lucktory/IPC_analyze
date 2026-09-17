@@ -30,29 +30,13 @@ import { expectedCommission } from '@/lib/liquidacion/thresholds'
 import { fmtMoney } from '@/lib/format'
 
 // ── Money-cell validators ──────────────────────────────────────────────────
-// Returned by the EditableTransactionCell wrapper to flag amounts that look
-// "off" before the encargada commits them. Each returns:
-//   • null            → no warning, commit silently
-//   • { warn, message } → surface inline "confirmar?" panel in the popover
+// Los devuelve EditableTransactionCell para marcar montos que pintan mal antes
+// de guardarlos:
+//   • null              → sin aviso, guarda derecho
+//   • { warn, message } → panel de "confirmar?" adentro del popover
 //
-// Tolerance: 15% off-target counts as a real warning. Tighter than that
-// triggers on every minor late-fee adjustment; looser misses big typos.
-
-const TOLERANCE = 0.15
-
-function validateRentIn(currentRent: number) {
-  return (n: number) => {
-    if (currentRent <= 0) return null
-    const diff = Math.abs(n - currentRent) / currentRent
-    if (diff < TOLERANCE) return null
-    const pct = (diff * 100).toFixed(0)
-    const dir = n > currentRent ? 'mayor' : 'menor'
-    return {
-      warn:    true,
-      message: `El monto ingresado (${fmtMoney(n)}) es ${pct}% ${dir} que el alquiler vigente (${fmtMoney(currentRent)}). Verificá que no sea un error de tipeo.`,
-    }
-  }
-}
+// (La constante TOLERANCE de 15% se fue junto con el validador de RENT_IN el
+// 2026-09-17: era la unica que la usaba.)
 
 function validateCommissionAmount(maxPlausible: number) {
   return (n: number) => {
@@ -175,20 +159,27 @@ export function EditableVigenciaCell({
   )
 }
 
-// ── Transaction amount (Ingresos / Otros / ADM Galicia / 50-9 / 51-6) ──────
+// ── Transaction amount (Otros / Transferencia / ADM Galicia / 50-9 / 51-6) ──
 //
-// Two optional context props enable the per-cell validator:
-//   • expectedRent     — for RENT_IN cells: flags amounts >15% off contract rent
-//   • maxPlausibleComm — for COMMISSION_OUT cells: flags amounts greater than
-//                         the expected total commission for the period
-//                         (computed by the caller as ingresos × pct/100)
+// maxPlausibleComm habilita el validador en las celdas COMMISSION_OUT: avisa
+// cuando el monto supera la comision total esperada del periodo (el llamador la
+// calcula como ingresos x pct). Corre local, antes de ir al servidor: la
+// encargada confirma o vuelve a editar, pero nunca se guarda solo un monto que
+// cae fuera de lo razonable.
 //
-// Validation runs locally before the server call. The encargada either
-// confirms or returns to editing. Either way the data is never silently
-// committed when it falls outside reasonable bounds.
+// Tenia tambien un validador de RENT_IN, que avisaba cuando el alquiler cargado
+// se iba mas de 15% del alquiler del contrato. Lo saque el 2026-09-17 porque
+// nunca se ejecuto: esta celda no edita alquileres. El alquiler se carga en
+// InlineIngresosCell (columna Alquiler) y en InlineDateCell (F.banco), y ninguna
+// de las dos pasa por aca. O sea que el codigo daba a entender que los errores de
+// tipeo en el alquiler estaban cubiertos, y no lo estaban.
+//
+// Que el alquiler NO tiene control de tipeo hoy sigue siendo cierto. Ponerlo es
+// otra tarea: InlineIngresosCell no tiene punto de validacion, hay que agregarle
+// uno.
 export function EditableTransactionCell({
   contractId, period, typeCode, destination = null, value, cobrado, label,
-  expectedRent, maxPlausibleComm, accent = '',
+  maxPlausibleComm, accent = '',
 }: {
   contractId:        string
   period:            string
@@ -197,17 +188,14 @@ export function EditableTransactionCell({
   value:             number
   cobrado:           boolean
   label?:            string
-  expectedRent?:     number
   maxPlausibleComm?: number
   /** Text color class applied when value > 0 (e.g. the green neto column). */
   accent?:           string
 }) {
   const validate =
-    typeCode === 'RENT_IN' && expectedRent != null && expectedRent > 0
-      ? validateRentIn(expectedRent)
-      : typeCode === 'COMMISSION_OUT' && maxPlausibleComm != null && maxPlausibleComm > 0
-        ? validateCommissionAmount(maxPlausibleComm)
-        : undefined
+    typeCode === 'COMMISSION_OUT' && maxPlausibleComm != null && maxPlausibleComm > 0
+      ? validateCommissionAmount(maxPlausibleComm)
+      : undefined
 
   return (
     <InlineNumberCell
