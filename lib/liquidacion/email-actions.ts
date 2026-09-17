@@ -141,7 +141,7 @@ export async function prepareEmailDraft(
     supabase.from('landlords').select('name, email, alt_emails').eq('id', landlordId).maybeSingle(),
     supabase
       .from('contracts')
-      .select('id, administrations(name), contract_tenants(is_primary, tenants(name))')
+      .select('id, administrations(name), contract_tenants(is_primary, tenants(name)), contract_landlords(landlords(id, email, alt_emails))')
       .eq('id', contractId)
       .maybeSingle(),
   ])
@@ -151,7 +151,34 @@ export async function prepareEmailDraft(
   const landlordName  = (landlordRes.data as any).name as string
   const landlordEmail = (landlordRes.data as any).email as string | null
   const altRaw        = (landlordRes.data as any).alt_emails
-  const cc            = Array.isArray(altRaw) ? (altRaw as any[]).map(e => String(e).trim()).filter(Boolean) : []
+
+  // UNA sola rendicion y UN solo mail, con todos los propietarios adentro.
+  //
+  // Alejandro, 2026-09-17, contrato por contrato sobre los 15 con dos dueños:
+  // el porcentaje decide cuanta plata le toca a cada uno, y estar en el
+  // contrato decide si recibe el mail. Son dos cosas distintas -- Larraude
+  // cobra en una cuenta comun pero los dos quieren el mail, y Andrade cobra
+  // el 100% pero la hija recibe copia.
+  //
+  // Antes el mail salia solo al propietario "principal" (el de mayor %), asi
+  // que en un 50/50 el otro no se enteraba de nada.
+  //
+  // Los alt_emails siguen entrando igual: ahi van los que NO son propietarios
+  // pero tienen que recibirla -- por ejemplo Manuel Pacho en C-2025-0009.
+  const coOwners = ((contractRes.data as any)?.contract_landlords ?? []) as any[]
+  const ccSet = new Set<string>()
+  const push = (v: unknown) => {
+    const e = String(v ?? '').trim()
+    // El destinatario principal no se repite en copia.
+    if (e && e.toLowerCase() !== String(landlordEmail ?? '').trim().toLowerCase()) ccSet.add(e)
+  }
+  if (Array.isArray(altRaw)) for (const e of altRaw) push(e)
+  for (const cl of coOwners) {
+    push(cl?.landlords?.email)
+    const alts = cl?.landlords?.alt_emails
+    if (Array.isArray(alts)) for (const e of alts) push(e)
+  }
+  const cc = [...ccSet]
 
   const tenant = (contractRes.data as any)?.contract_tenants?.find((ct: any) => ct.is_primary)
               ?? (contractRes.data as any)?.contract_tenants?.[0]

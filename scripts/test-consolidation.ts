@@ -6,7 +6,7 @@ import {
   classifyDestination, deriveCommissionDest, buildCommissionMarker,
   bankShortFromDescription, COMMISSION_MARKER_RE,
 } from '../lib/bancos/destination'
-import { equalSplit, isPctSum100 } from '../lib/shared/percentages'
+import { equalSplit, isPctSum100, ownershipPctError } from '../lib/shared/percentages'
 import { resolveCommissionPct, DEFAULT_COMMISSION_PCT } from '../lib/contract/create-helpers'
 import { pickPrimaryLandlord } from '../lib/contract/primary'
 import { recurringChargeAppliesToPeriod, cuotaNumberFor } from '../lib/contract/recurring-charges-bulk'
@@ -42,6 +42,27 @@ eq('n=3', equalSplit(3), [33.34, 33.33, 33.33])
 check('n=3 sums 100', isPctSum100(equalSplit(3)))
 check('n=7 sums 100', isPctSum100(equalSplit(7)))
 check('every n=6 row in (0,100]', equalSplit(6).every(v => v > 0 && v <= 100))
+
+// ── El 0% de propietario es valido (2026-09-17) ─────────────────────────────
+// El porcentaje decide cuanta plata le toca; estar en el contrato decide si
+// recibe el mail. Sin el 0 no habia forma de separar las dos cosas: la unica
+// manera de no transferirle a alguien era sacarlo del contrato, y eso lo dejaba
+// tambien sin mail.
+console.log('\n# ownershipPctError — el 0% habilita "va en el mail, no cobra"')
+eq('0 es valido',    ownershipPctError(0),   null)
+eq('50 es valido',   ownershipPctError(50),  null)
+eq('100 es valido',  ownershipPctError(100), null)
+eq('string "0"',     ownershipPctError('0'), null)
+check('negativo rechazado',   ownershipPctError(-1)   !== null)
+check('mayor a 100 rechazado', ownershipPctError(101) !== null)
+check('vacio rechazado',       ownershipPctError(null) !== null)
+check('texto rechazado',       ownershipPctError('x')  !== null)
+// El caso real: Andrade 100 / Silvia 0. Los dos validos y suman 100.
+check('Andrade 100 / Silvia 0 pasa',
+  ownershipPctError(100) === null && ownershipPctError(0) === null && isPctSum100([100, 0]))
+// Y lo que NO se afloja: seguir sumando 100.
+check('0 + 0 no suma 100', !isPctSum100([0, 0]))
+check('50 + 0 tampoco',    !isPctSum100([50, 0]))
 
 console.log('\n# resolveCommissionPct — both create paths agree')
 eq('blank→default', resolveCommissionPct(''), { ok: true, value: DEFAULT_COMMISSION_PCT })

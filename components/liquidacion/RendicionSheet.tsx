@@ -141,10 +141,19 @@ export function RendicionSheet({
   const totalDeducido  = deducciones.reduce((s, r) => s + r.amount, 0)
   const totalARendir   = totalIngresado - totalDeducido
 
-  // Una linea por dueño solo cuando hay mas de uno: con un solo propietario la
-  // hoja de ellos no repite el total, va directo a TOTAL A RENDIR.
-  const reparto = landlordsList.length > 1
-    ? landlordsList.map(l => ({
+  // Una linea por dueño, solo para los que efectivamente cobran.
+  //
+  // El 0% existe para decir "esta persona va en el contrato porque tiene que
+  // recibir el mail, pero no le corresponde plata" (Alejandro, 2026-09-17: la
+  // hija de Andrade, o el hermano mientras se acomoda la sucesion). Imprimirle
+  // una linea en $0,00 al propietario seria ruido; sigue figurando arriba, en
+  // PROPIETARIO, que es donde corresponde.
+  //
+  // Con un solo cobrando tampoco se reparte: la hoja de ellos no repite el
+  // total, va directo a TOTAL A RENDIR.
+  const cobran  = landlordsList.filter(l => l.ownershipPct > 0)
+  const reparto = cobran.length > 1
+    ? cobran.map(l => ({
         name:   l.name.toUpperCase(),
         amount: Math.round(totalARendir * (l.ownershipPct / 100) * 100) / 100,
       }))

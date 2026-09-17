@@ -85,7 +85,7 @@ export interface CreateFromGridInput {
 // Percentage-sum tolerance + helpers come from the shared function registry.
 // Same constants are used by NewContractModal / EditPropertyForm so client
 // and server agree exactly.
-import { isPctSum100, pctSum } from '@/lib/shared'
+import { ownershipPctError, isPctSum100, pctSum } from '@/lib/shared'
 
 const ALLOWED_CADENCES = ['mensual', 'bimestral', 'trimestral', 'cuatrimestral', 'semestral', 'anual']
 
@@ -131,9 +131,8 @@ export async function createContractFromGrid(input: CreateFromGridInput): Promis
       return { ok: false, error: `Los porcentajes de inquilinos deben sumar 100% (suman ${pctSum(tenantPcts).toFixed(2)}%).` }
     }
     for (const l of input.landlords) {
-      if (!isFinite(l.ownershipPct) || l.ownershipPct <= 0 || l.ownershipPct > 100) {
-        return { ok: false, error: 'Cada propietario debe tener un porcentaje mayor a 0 y hasta 100. Para sacar a alguien, usa la X.' }
-      }
+      const err = ownershipPctError(l.ownershipPct)
+      if (err) return { ok: false, error: err }
     }
     for (const t of input.tenants) {
       if (!isFinite(t.sharePct) || t.sharePct <= 0 || t.sharePct > 100) {
@@ -362,9 +361,8 @@ export async function updateContractLandlords(
       if (!r.landlordId) {
         return { ok: false, error: 'Todos los propietarios deben estar seleccionados.' }
       }
-      if (!Number.isFinite(r.ownershipPct) || r.ownershipPct <= 0 || r.ownershipPct > 100) {
-        return { ok: false, error: 'Cada propietario debe tener un porcentaje entre 0 y 100.' }
-      }
+      const err = ownershipPctError(r.ownershipPct)
+      if (err) return { ok: false, error: err }
     }
     const pcts = rows.map(r => r.ownershipPct)
     if (!isPctSum100(pcts)) {
