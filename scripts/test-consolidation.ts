@@ -10,7 +10,7 @@ import { equalSplit, isPctSum100 } from '../lib/shared/percentages'
 import { resolveCommissionPct, DEFAULT_COMMISSION_PCT } from '../lib/contract/create-helpers'
 import { pickPrimaryLandlord } from '../lib/contract/primary'
 import { recurringChargeAppliesToPeriod, cuotaNumberFor } from '../lib/contract/recurring-charges-bulk'
-import { computeIntereses, expectedRentForPeriod } from '../lib/liquidacion/deuda-breakdown'
+import { computeIntereses, expectedRentForPeriod, daysOverdueForPeriod } from '../lib/liquidacion/deuda-breakdown'
 import { hasRentForAudit, isRecentlyTouched } from '../lib/contract/urgency'
 
 let pass = 0, fail = 0
@@ -153,6 +153,32 @@ eq('del 10 al 20 = 11 dias', expectedRentForPeriod(800000, SEP, '2026-09-10', '2
 eq('alquiler 0',        expectedRentForPeriod(0, SEP, '2026-09-09', null), 0)
 eq('periodo invalido',  expectedRentForPeriod(800000, 'nope', '2026-09-09', null), 800000)
 check('prorrateado < mes entero', expectedRentForPeriod(800000, SEP, '2026-09-09', null) < 800000)
+
+// ── La multa se retrotrae al 1 (2026-09-17) ─────────────────────────────────
+// Alejandro: «la multa se retrotrae al 01 del mes. O sea, empieza a correr
+// desde el dia 01.» El vencimiento decide SI hay multa; el 1 decide desde
+// cuando se cuenta. No hay dias de gracia gratis.
+console.log('\n# daysOverdueForPeriod — se retrotrae al 1')
+const D = (iso: string) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d) }
+
+// Vencimiento el 5 de Septiembre.
+eq('el 1, ni vencido',        daysOverdueForPeriod(SEP, 5, D('2026-09-01')), 0)
+eq('el 4, vispera',           daysOverdueForPeriod(SEP, 5, D('2026-09-04')), 0)
+eq('el 5, dia del vencimiento', daysOverdueForPeriod(SEP, 5, D('2026-09-05')), 0)
+// Al dia siguiente ya corre, y arranca contando desde el 1: NO es 1 dia.
+eq('el 6, primer dia vencido', daysOverdueForPeriod(SEP, 5, D('2026-09-06')), 5)
+eq('el 20 son 19, no 15',      daysOverdueForPeriod(SEP, 5, D('2026-09-20')), 19)
+
+// Sigue corriendo mes a mes mientras no paguen.
+eq('Septiembre impago al 10 de Octubre', daysOverdueForPeriod(SEP, 5, D('2026-10-10')), 39)
+
+// payment_day fuera de rango se acota al ultimo dia del mes (Septiembre = 30).
+eq('payment_day 31 en Septiembre', daysOverdueForPeriod(SEP, 31, D('2026-09-30')), 0)
+eq('...y al dia siguiente',        daysOverdueForPeriod(SEP, 31, D('2026-10-01')), 30)
+
+// Los dias alimentan el interes: al 1% diario, 19 dias sobre 100.000 = 19.000.
+eq('interes con la regla nueva',
+   computeIntereses(100000, 1, daysOverdueForPeriod(SEP, 5, D('2026-09-20'))), 19000)
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'}: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

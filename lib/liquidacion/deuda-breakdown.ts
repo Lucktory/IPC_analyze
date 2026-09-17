@@ -221,9 +221,29 @@ export function expectedRentForPeriod(
   return Math.round((fullRent / PRORATE_DIVISOR) * days * 100) / 100
 }
 
-/** Days from today to the contract's due day for the given period, clamped to
- *  the last day of the month. Returns 0 when not yet due, positive when overdue. */
-export function daysOverdueForPeriod(period: string, paymentDay: number): number {
+/**
+ * Dias de atraso a los que se le aplica el 1% diario. 0 mientras no este vencido.
+ *
+ * LA MULTA SE RETROTRAE AL 1 (Alejandro, 2026-09-17)
+ *
+ * «La multa se retrotrae al 01 del mes. O sea, empieza a correr desde el dia 01.»
+ * No hay dias de gracia: el payment_day decide SI hay multa, pero una vez vencido
+ * los dias se cuentan desde el 1, asi que los dias previos al vencimiento entran
+ * igual. Con vencimiento el 5 y hoy 20, son 19 dias y no 15.
+ *
+ * Hasta el 2026-09-17 contaba desde el vencimiento, que era la lectura
+ * intuitiva pero no la de ellos: el que paga tarde no se queda con los dias de
+ * gracia gratis, justamente porque la multa existe para que no se atrasen.
+ *
+ * No esta acotado a un mes a proposito: si Septiembre sigue impago en Noviembre,
+ * los dias siguen corriendo desde el 1 de Septiembre.
+ */
+export function daysOverdueForPeriod(
+  period: string,
+  paymentDay: number,
+  /** Inyectable solo para los tests; en produccion siempre es hoy en Argentina. */
+  today: Date = getArgentinaToday(),
+): number {
   const [yStr, mStr] = period.split('-')
   const year  = Number(yStr)
   const month = Number(mStr)
@@ -231,10 +251,13 @@ export function daysOverdueForPeriod(period: string, paymentDay: number): number
   const lastDay = new Date(year, month, 0).getDate()
   const day     = Math.min(Math.max(1, paymentDay), lastDay)
   const due     = new Date(year, month - 1, day)
-  const today   = getArgentinaToday()
   const todayM  = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const diff    = Math.floor((todayM.getTime() - due.getTime()) / 86400000)
-  return Math.max(0, diff)
+  // El vencimiento decide SI hay multa; el 1 decide DESDE CUANDO se cuenta.
+  // Mientras no venza no corre nada, ni un dia.
+  if (todayM.getTime() <= due.getTime()) return 0
+  // Y una vez vencido, se retrotrae al 1: los dias de gracia entran tambien.
+  const first = new Date(year, month - 1, 1)
+  return Math.max(0, Math.floor((todayM.getTime() - first.getTime()) / 86400000))
 }
 
 /** Bulk-build breakdowns for many contracts in one Supabase round-trip. */
