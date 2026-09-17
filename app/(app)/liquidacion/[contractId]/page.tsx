@@ -9,6 +9,7 @@ import { LiquidacionActionsBar } from '@/components/liquidacion/LiquidacionActio
 import { GenerateCommissionButton } from '@/components/liquidacion/GenerateCommissionButton'
 import { PrintButton } from '@/components/ui/PrintButton'
 import { RendicionSheet } from '@/components/liquidacion/RendicionSheet'
+import { getDeudaBreakdown } from '@/lib/liquidacion/deuda-breakdown'
 
 const STATUS_THEME: Record<LiquidacionStatus, { label: string; dot: string; tint: string; text: string; border: string }> = {
   draft: { label: 'Borrador', dot: 'bg-slate',   tint: 'bg-cream-2',     text: 'text-slate-dark', border: 'border-l-slate' },
@@ -27,6 +28,13 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
   const period = paramPeriod ?? getCurrentPeriod()
 
   const detail = await getLiquidacionDetail(contractId, period)
+  // Cuanto de lo cobrado este mes queda a cuenta del proximo. Sale de los dos
+  // numeros que el desglose de deuda ya calcula: lo que correspondia y lo que
+  // entro. No hay dato nuevo ni carga extra para la oficina.
+  const deudaBd  = await getDeudaBreakdown(contractId, period)
+  const aCuenta  = deudaBd
+    ? Math.max(0, Math.round((deudaBd.cobradoThisPeriod - deudaBd.expectedRent) * 100) / 100)
+    : 0
   if (!detail) notFound()
 
   const theme = STATUS_THEME[detail.status]
@@ -96,6 +104,7 @@ export default async function LiquidacionDetailPage({ params, searchParams }: Pa
             ajusteLines={detail.ajusteLines}
             sentAt={detail.sentAt}
             todayISO={todayISO}
+            aCuentaProximo={aCuenta}
           />
         </div>
       </section>

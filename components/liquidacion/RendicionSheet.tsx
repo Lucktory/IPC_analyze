@@ -51,6 +51,26 @@ interface Props {
   /** Hoy en Argentina, calculado en el server para no depender del reloj del
    *  navegador ni romper la hidratacion. */
   todayISO:      string
+  /**
+   * Lo que el inquilino pago DE MAS este mes, o sea lo que queda a cuenta del
+   * siguiente. 0 cuando pago justo o de menos.
+   *
+   * No es una linea extra: es la MISMA linea de alquiler partida en dos, tal
+   * cual la arma la oficina a mano ("SALDO SEPTIEMBRE" + "A CTA OCTUBRE" en la
+   * planilla de Carrili). El total no se mueve, y por eso sigue cerrando contra
+   * las transacciones reales.
+   *
+   * La oficina no hace nada distinto: carga el pago como siempre, en un solo
+   * monto, y la hoja lo separa sola.
+   */
+  aCuentaProximo: number
+}
+
+/** Nombre del mes siguiente al periodo, para la etiqueta "A CUENTA <mes>". */
+function mesSiguiente(period: string): string {
+  const [y, m] = period.split('-').map(Number)
+  const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+  return periodLabel(next).split(' ')[0].toUpperCase()
 }
 
 /** Una fila de cualquiera de las dos columnas. */
@@ -62,6 +82,7 @@ const MIN_ROWS = 6
 
 export function RendicionSheet({
   period, tenantName, landlordsList, lines, comisionAdmin, ajusteLines, sentAt, todayISO,
+  aCuentaProximo,
 }: Props) {
   const fecha = new Date(sentAt ?? todayISO)
   const dd    = String(fecha.getDate()).padStart(2, '0')
@@ -82,6 +103,24 @@ export function RendicionSheet({
   }
   for (const a of ajusteLines) {
     if (a.amount > 0) ingresos.push({ label: a.label.toUpperCase(), amount: a.amount })
+  }
+
+  // Pago de mas: se parte la linea de alquiler en dos. Se le descuenta el
+  // excedente a la linea mas grande de alquiler -- que es de donde salio -- y se
+  // agrega la de "a cuenta". La suma queda igual, asi que TOTAL INGRESADO no se
+  // mueve y la hoja sigue cerrando contra los movimientos cargados.
+  if (aCuentaProximo > 0 && ingresos.length > 0) {
+    let mayor = 0
+    for (let i = 1; i < ingresos.length; i++) {
+      if (ingresos[i].amount > ingresos[mayor].amount) mayor = i
+    }
+    if (ingresos[mayor].amount > aCuentaProximo) {
+      ingresos[mayor] = {
+        ...ingresos[mayor],
+        amount: Math.round((ingresos[mayor].amount - aCuentaProximo) * 100) / 100,
+      }
+      ingresos.push({ label: `A CUENTA ${mesSiguiente(period)}`, amount: aCuentaProximo })
+    }
   }
 
   // ── DEDUCCIONES ──
