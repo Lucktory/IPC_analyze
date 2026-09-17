@@ -314,7 +314,10 @@ create index idx_contracts_next_adjustment on contracts(next_adjustment_date);
 create table contract_landlords (
   contract_id uuid not null references contracts(id) on delete cascade,
   landlord_id uuid not null references landlords(id) on delete restrict,
-  ownership_pct numeric(5,2) not null default 100.0 check (ownership_pct > 0 and ownership_pct <= 100),
+  -- 0% es valido: el porcentaje decide la plata, estar en el contrato decide
+  -- si recibe el mail. Ver migration-2026-09-18a. Los pcts igual tienen que
+  -- sumar 100, y eso lo valida la app (isPctSum100), no la base.
+  ownership_pct numeric(5,2) not null default 100.0 check (ownership_pct >= 0 and ownership_pct <= 100),
   primary key (contract_id, landlord_id)
 );
 create index idx_contract_landlords_landlord on contract_landlords(landlord_id);
