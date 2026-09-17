@@ -695,6 +695,36 @@ export async function upsertCellTransaction(
 // Wraps the existing transitionLiquidacionStatus with the next-state logic.
 // ============================================================================
 
+/**
+ * Poner la liquidacion en un estado CONCRETO, sin pasar por los otros.
+ *
+ * Reemplaza al ciclo del 2026-09-17. La pastilla avanzaba de estado con cada
+ * clic, y Alejandro la toco sin querer en su primer minuto: la liquidacion
+ * quedo como Enviada sin que se hubiera mandado ningun mail. Para volverla a
+ * Borrador habia que pasarla por Pagada, o sea que la unica forma de arreglar el
+ * error era marcar una rendicion como cobrada. En una pantalla de plata, el
+ * camino de vuelta no puede ser peor que el error.
+ *
+ * Ademas, un Enviada falso es justo lo que el flujo de mail evita a proposito:
+ * abrir Gmail y cancelar NO marca enviada, se pregunta antes. Un clic de mas en
+ * la pastilla lo lograba igual.
+ */
+export async function setLiquidacionStatus(
+  contractId:  string,
+  landlordId:  string,
+  period:      string,
+  status:      'draft' | 'sent' | 'paid',
+): Promise<InlineResult> {
+  if (!['draft', 'sent', 'paid'].includes(status)) {
+    return { ok: false, error: 'Estado inválido.' }
+  }
+  const { transitionLiquidacionStatus } = await import('@/lib/liquidacion/actions')
+  const res = await transitionLiquidacionStatus(contractId, landlordId, period, status)
+  if (!res.ok) return { ok: false, error: res.error ?? 'Error al cambiar el estado' }
+  revalidate(contractId)
+  return { ok: true, error: null }
+}
+
 export async function cycleLiquidacionStatus(
   contractId: string,
   landlordId: string,

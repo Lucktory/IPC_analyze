@@ -21,7 +21,7 @@ import {
   updateContractExpensas,
   updateContractVigencia,
   upsertCellTransaction,
-  cycleLiquidacionStatus,
+  setLiquidacionStatus,
   type CellDestination,
 } from '@/lib/contract/inline-field-actions'
 import { updateCommissionPctAndRecalc, setCommissionBankCell, setOtrosCell } from '@/lib/transaction/actions'
@@ -233,7 +233,27 @@ export function EditableTransactionCell({
   )
 }
 
-// ── Estado cycle (borrador → enviada → pagada) ─────────────────────────────
+// ── Estado: elegir el estado, no avanzarlo ─────────────────────────────────
+//
+// Hasta el 2026-09-17 esto era un ciclo: cada clic pasaba al estado siguiente.
+// Alejandro lo toco sin querer en su primer minuto con el sistema y la
+// liquidacion quedo en "Enviada" sin que se hubiera mandado ningun mail. Para
+// devolverla a Borrador habia que pasarla por "Pagada", o sea que la unica forma
+// de deshacer el error era marcar una rendicion como cobrada. En una pantalla de
+// plata, el camino de vuelta no puede ser peor que el error.
+//
+// Y un "Enviada" falso es justo lo que el flujo de mail evita a proposito: abrir
+// Gmail y cancelar NO marca enviada, pregunta antes. Un clic de mas en la
+// pastilla lo conseguia igual.
+//
+// Ahora el clic abre las tres opciones y cualquiera queda a un clic de
+// distancia, incluida la vuelta atras.
+const STATUS_OPTIONS: { value: LiquidacionStatus; label: string; pill: string }[] = [
+  { value: 'draft', label: 'Borrador', pill: 'bg-warn/15 text-warn' },
+  { value: 'sent',  label: 'Enviada',  pill: 'bg-success/15 text-success' },
+  { value: 'paid',  label: 'Pagada',   pill: 'bg-info/15 text-info' },
+]
+
 export function EditableStatusCell({
   contractId, landlordId, period, status,
 }: {
@@ -245,27 +265,22 @@ export function EditableStatusCell({
   const [pending, startTransition] = useBusyTransition()
   const [error, setError] = useState<string | null>(null)
   const [optimistic, setOptimistic] = useState<LiquidacionStatus | null>(null)
+  const [open, setOpen] = useState(false)
   const router = useRouter()
 
-  const shown = optimistic ?? status
-  const nextStatus = shown === 'draft' ? 'sent' : shown === 'sent' ? 'paid' : 'draft'
+  const shown   = optimistic ?? status
+  const current = STATUS_OPTIONS.find(o => o.value === shown) ?? STATUS_OPTIONS[0]
 
-  const pillCls =
-    shown === 'draft' ? 'bg-warn/15 text-warn' :
-    shown === 'sent'  ? 'bg-success/15 text-success' :
-                        'bg-info/15 text-info'
-  const labelCls =
-    shown === 'draft' ? 'Borrador'   :
-    shown === 'sent'  ? 'Enviada'    :
-                        'Pagada'
-
-  function cycle() {
-    setOptimistic(nextStatus)
+  function choose(next: LiquidacionStatus) {
+    setOpen(false)
+    if (next === shown) return
+    const prev = shown
+    setOptimistic(next)
     setError(null)
     startTransition(async () => {
-      const res = await cycleLiquidacionStatus(contractId, landlordId, period, shown)
+      const res = await setLiquidacionStatus(contractId, landlordId, period, next)
       if (!res.ok) {
-        setOptimistic(null)
+        setOptimistic(prev === status ? null : prev)
         setError(res.error ?? 'Error al cambiar estado')
       } else {
         router.refresh()
@@ -274,17 +289,44 @@ export function EditableStatusCell({
   }
 
   return (
-    <button
-      type="button"
-      onClick={cycle}
-      disabled={pending}
-      title={`Estado: ${labelCls} · Click para pasar a ${
-        nextStatus === 'draft' ? 'borrador' : nextStatus === 'sent' ? 'enviada' : 'pagada'
-      }`}
-      className={`inline-flex items-center gap-1 transition-transform hover:scale-105 ${pending ? 'opacity-60' : ''}`}
-    >
-      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${pillCls}`}>{labelCls}</span>
+    <span className="relative inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        disabled={pending}
+        title={`Estado: ${current.label} · Click para elegir otro`}
+        className={`inline-flex items-center transition-transform hover:scale-105 ${pending ? 'opacity-60' : ''}`}
+      >
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${current.pill}`}>
+          {current.label}
+        </span>
+      </button>
       {error && <span className="text-[9px] text-danger" title={error}>!</span>}
-    </button>
+
+      {open && (
+        <>
+          {/* Capa para cerrar tocando afuera. Sin esto el menu queda abierto y
+              tapando la fila de al lado en una grilla de 20 columnas. */}
+          <span
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+          />
+          <span className="absolute z-50 top-full left-1/2 -translate-x-1/2 mt-1 flex flex-col gap-0.5 p-1 rounded bg-paper border border-line shadow-card">
+            {STATUS_OPTIONS.map(o => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => choose(o.value)}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap transition-opacity ${o.pill} ${
+                  o.value === shown ? 'ring-1 ring-ink/30' : 'opacity-70 hover:opacity-100'
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </span>
+        </>
+      )}
+    </span>
   )
 }
