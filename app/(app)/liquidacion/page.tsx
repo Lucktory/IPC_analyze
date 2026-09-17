@@ -24,6 +24,7 @@ import { EmptyGridDiagnostic } from '@/components/liquidacion/EmptyGridDiagnosti
 import { HighlightScroller } from '@/components/liquidacion/HighlightScroller'
 import { NewContractModal } from '@/components/liquidacion/NewContractModal'
 import { CalcularTodasComisionesButton } from '@/components/liquidacion/CalcularTodasComisionesButton'
+import { PeriodCoverage } from '@/components/liquidacion/PeriodCoverage'
 import { ResumenView } from '@/components/liquidacion/ResumenView'
 import { MovimientosView } from '@/components/liquidacion/MovimientosView'
 import { DestinosView } from '@/components/liquidacion/DestinosView'
@@ -140,6 +141,10 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
     paid:  searchedRows.filter(r => r.status === 'paid').length,
   }
   const rows = statusFilter === 'todas' ? searchedRows : searchedRows.filter(r => r.status === statusFilter)
+
+  // Cobertura del mes. Va sobre allRows y NO sobre las filtradas: es el estado
+  // del periodo entero, no el del filtro que el usuario tenga puesto.
+  const cargadosCount = allRows.filter(r => (r.alquilerSum ?? 0) > 0).length
 
   // KPIs — header strip uses the grid totals when available, falls back when not
   const baseRows      = view === 'grilla' ? rows : allRows
@@ -270,6 +275,11 @@ export default async function LiquidacionPage({ searchParams }: PageProps) {
                 <StatusPill href={linkWith({ status: 'draft' })} active={statusFilter === 'draft'} label="Borrador" count={counts.draft} tone="slate" />
                 <StatusPill href={linkWith({ status: 'sent'  })} active={statusFilter === 'sent'}  label="Enviadas" count={counts.sent}  tone="success" />
                 <StatusPill href={linkWith({ status: 'paid'  })} active={statusFilter === 'paid'}  label="Pagadas"  count={counts.paid}  tone="info" />
+              </div>
+
+              {/* Cuanto de ESTE mes esta realmente cargado. Ver PeriodCoverage. */}
+              <div className="ml-3">
+                <PeriodCoverage cargados={cargadosCount} total={allRows.length} />
               </div>
 
               <div className="ml-auto flex items-center gap-2">
