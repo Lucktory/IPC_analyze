@@ -24,10 +24,20 @@
 // ============================================================================
 
 import { readFileSync } from 'node:fs'
-import { Client } from 'pg'
+import { Client, types } from 'pg'
 import { config } from 'dotenv'
 
 config({ path: '.env.local' })
+
+// Las columnas `date` vuelven como Date de JS a medianoche LOCAL, asi que
+// imprimirlas corre el dia: start_date 2025-12-01 se veia "2025-11-30T15:00Z"
+// en una maquina en UTC+9. Un dia de corrimiento en fechas de contrato es
+// exactamente el tipo de error que despues se razona como si fuera un dato.
+// Devolverlas como texto crudo, tal cual estan en la base.
+types.setTypeParser(1082, v => v)   // date
+// Igual para numeric: sin esto los montos vuelven como string igual, pero
+// dejarlo explicito documenta que NO se convierten a float (perderian centavos).
+types.setTypeParser(1700, v => v)   // numeric
 
 const args = process.argv.slice(2)
 const sql = args[0] === '-f'
