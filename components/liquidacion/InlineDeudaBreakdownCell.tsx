@@ -46,9 +46,16 @@ export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
   const carryover    = breakdown?.deudaCarryover ?? 0
   const hasCarryover = carryover > 0
 
+  // Saldo a favor: el que pago de mas. Hasta el 2026-09-17 esta celda mostraba
+  // un guion gris, exactamente igual que el que pago justo, y encima no se
+  // podia abrir. El excedente no estaba escondido por casualidad: se tiraba al
+  // calcularlo.
+  const saldo  = breakdown?.saldoAFavor ?? 0
   const amount = deuda > 0
     ? <span className="text-danger font-medium tabular-nums">{fmtMoney(deuda)}</span>
-    : <span className="text-slate tabular-nums">—</span>
+    : saldo > 0
+      ? <span className="text-success font-medium tabular-nums">+{fmtMoney(saldo)}</span>
+      : <span className="text-slate tabular-nums">—</span>
 
   // El (+) va arriba a la derecha del monto del mes. Se muestra incluso cuando
   // el mes corriente esta al dia (deuda = 0): justamente ese es el caso donde
@@ -68,6 +75,7 @@ export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
     !!breakdown && (
       breakdown.deudaCurrent > 0 ||
       breakdown.deudaCarryover > 0 ||
+      saldo > 0 ||
       (breakdown.lateInterestEnabled && breakdown.interesesEstimado > 0)
     )
 
@@ -82,9 +90,11 @@ export function InlineDeudaBreakdownCell({ deuda, breakdown }: Props) {
         type="button"
         data-editing={open ? '' : undefined}
         onClick={() => setOpen(true)}
-        title={hasCarryover
+        title={saldo > 0
+          ? `Tiene ${fmtMoney(saldo)} a favor — tocá para ver el detalle`
+          : hasCarryover
           ? `Además debe ${fmtMoney(carryover)} de meses anteriores — tocá para ver el detalle`
-          : 'Tocá para ver el desglose de la deuda'}
+            : 'Tocá para ver el desglose de la deuda'}
         className="w-full text-right hover:bg-info/10 transition-colors px-0"
       >
         {display}

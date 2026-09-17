@@ -22,12 +22,13 @@
 //     valued at the rent in force THEN, not at today's. (Until 2026-09-10 this
 //     used current_rent for every prior period, which over-stated the debt of
 //     any contract that had since had an increase.)
-//   • Intereses = totalDebt × rate% × daysOverdue. DIARIO y simple, no
-//     compuesto. Mariela confirmo la convencion el 2026-09-16: 1% por dia.
-//     Los dias se cuentan una sola vez, desde el vencimiento de ESTE periodo,
-//     y se aplican al total: los meses arrastrados no devengan aparte por su
-//     propia antiguedad. Es deliberado: el numero es una estimacion para que
-//     la oficina negocie, no una liquidacion de intereses.
+//   • Intereses = deuda × rate% × daysOverdue. DIARIO y simple, no compuesto.
+//     Mariela confirmo la convencion el 2026-09-16: 1% por dia. Cada mes
+//     adeudado envejece por su cuenta, contado desde su propio dia 1, igual
+//     que en la planilla de la oficina.
+//   • El interes corre sobre la deuda YA NETA del saldo a favor: si el
+//     inquilino venia pagando de mas, ese excedente cubre el mes impago
+//     antes de que se cobre un peso de interes (Alejandro, 2026-09-17).
 //   • Display only — does NOT auto-create LATE_FEE_IN. The encargada
 //     decides whether to charge inside the popover (toggle) and records
 //     it manually via the Movs. modal.
@@ -75,7 +76,8 @@ export interface DeudaCarryoverEntry {
   periodLabel:   string
   expectedRent:  number
   cobrado:       number
-  /** max(0, expectedRent - cobrado). */
+  /** Lo que quedo debiendo este mes DESPUES de aplicarle el saldo a favor
+   *  arrastrado. Sin saldo previo es max(0, expectedRent - cobrado). */
   deuda:         number
   /** true = cargada a mano en `deuda_anterior` (mes anterior al corte), no
    *  derivada de la falta de un alquiler cobrado. El panel la muestra
@@ -88,6 +90,9 @@ export interface DeudaCarryoverEntry {
    *  acumula mas que uno nuevo, y por eso el interes se calcula por mes y no
    *  sobre el total. El panel lo muestra al lado de cada linea. */
   daysOverdue?:  number
+  /** Lo que se cobro DE MAS en este mes. Antes se tiraba: `deuda` se recortaba
+   *  en 0 y el excedente desaparecia. */
+  credito?:      number
 }
 
 export interface DeudaBreakdown {
@@ -104,6 +109,26 @@ export interface DeudaBreakdown {
   lateInterestRate:    number
   /** Computed estimate when applied — `(deuda × rate% × daysOverdue)`, diario. */
   interesesEstimado:   number
+  /**
+   * Plata cobrada de mas, sumando el mes corriente y los arrastrados.
+   *
+   * Alejandro, 2026-09-17: "hay un caso que el hombre lleva varios meses
+   * pagando de mas, entonces le queda saldo a favor". El sistema lo tiraba: la
+   * deuda de cada mes se recortaba en 0, asi que el excedente no quedaba en
+   * ningun lado. El mes que ese inquilino no pagara, apoyandose en su saldo,
+   * le habria marcado el mes entero como deuda -- con 1% diario encima.
+   *
+   * La plata en si no cambia de manos por esto: el excedente se le transfiere
+   * al propietario como cualquier cobro, y Alejandro lo confirmo ("es plata de
+   * el, y lo que ingreso se lo mandamos"). Esto es la cuenta del inquilino, no
+   * la del dueño.
+   *
+   * Es lo que SOBRA despues de cubrir todo lo adeudado. La deuda de cada mes
+   * ya viene neta: el saldo se aplica primero y el interes se calcula sobre el
+   * resto. Por eso un inquilino que venia pagando de mas y un mes no paga ve
+   * una deuda menor -- y un interes menor -- que antes de este cambio.
+   */
+  saldoAFavor:         number
 }
 
 /** Enumerate prior period start-of-month strings, N months back from `period`. */
@@ -264,6 +289,59 @@ export function daysOverdueForPeriod(
   return Math.max(0, Math.floor((todayM.getTime() - first.getTime()) / 86400000))
 }
 
+/** Un mes del recorrido: lo que correspondia y lo que efectivamente entro. */
+export interface MesDelSaldo {
+  period:   string
+  expected: number
+  cobrado:  number
+}
+
+/**
+ * Recorre los meses del mas viejo al mas nuevo arrastrando el saldo a favor.
+ *
+ * LA REGLA (Alejandro, 2026-09-17)
+ *
+ * "Si el importe estandar menos el pago del inquilino es mayor que cero, es
+ * deuda; si no, es saldo a favor que se arrastra. Si un mes no paga, se le
+ * descuenta del saldo ANTES de calcular el interes diario."
+ *
+ * Hasta hoy la resta se recortaba en cero y el excedente se tiraba. Un inquilino
+ * que venia pagando de mas figuraba igual que uno que pagaba justo, y el mes que
+ * se apoyaba en su saldo le aparecia el mes entero como deuda -- con 1% diario
+ * encima de plata que ya habia pagado.
+ *
+ * Ejemplo, alquiler 500.000:
+ *   Sep paga 600.000 -> saldo 100.000
+ *   Oct paga 600.000 -> saldo 200.000
+ *   Nov paga 600.000 -> saldo 300.000
+ *   Dic no paga      -> debia 500.000, se le descuentan los 300.000, queda
+ *                       debiendo 200.000 y el interes corre SOLO sobre eso.
+ *
+ * El orden cronologico no es cosmetico: un saldo solo puede aplicarse hacia
+ * adelante. Por eso ordena antes de recorrer y no confia en como vengan.
+ */
+export function applyCreditForward(
+  meses: MesDelSaldo[],
+): { deudaPorMes: Map<string, number>; saldoAFavor: number } {
+  const ordenados = [...meses].sort(
+    (a, b) => (a.period < b.period ? -1 : a.period > b.period ? 1 : 0),
+  )
+  let credito = 0
+  const deudaPorMes = new Map<string, number>()
+  for (const m of ordenados) {
+    const saldo = (Number(m.expected) || 0) - (Number(m.cobrado) || 0)
+    if (saldo <= 0) {
+      credito += -saldo
+      deudaPorMes.set(m.period, 0)
+    } else {
+      const usado = Math.min(credito, saldo)
+      credito -= usado
+      deudaPorMes.set(m.period, saldo - usado)
+    }
+  }
+  return { deudaPorMes, saldoAFavor: credito }
+}
+
 /** Bulk-build breakdowns for many contracts in one Supabase round-trip. */
 export async function buildDeudaBreakdownsBulk(
   contracts: Array<{
@@ -406,10 +484,12 @@ export async function buildDeudaBreakdownsBulk(
       c.expectedRentCurrentPeriod ?? c.currentRent, period, c.startDate, c.endDate ?? null,
     )
     const cobradoThisPeriod = cobradoByKey.get(`${c.id}|${period}`) ?? 0
-    const deudaCurrent = Math.max(0, expectedCurrent - cobradoThisPeriod)
 
-    const carryover: DeudaCarryoverEntry[] = []
+    // ── Meses en juego, del mas viejo al mas nuevo ──────────────────────────
+    // El saldo a favor solo se puede aplicar hacia adelante, asi que el orden
+    // cronologico no es cosmetico: es la regla.
     const floor = firstTrackedPeriod.get(c.id)
+    const meses: { period: string; expected: number; cobrado: number }[] = []
     for (const p of priors) {
       if (c.startDate && p < c.startDate) continue
       // Before the contract's first recorded month = never imported, not
@@ -419,20 +499,56 @@ export async function buildDeudaBreakdownsBulk(
       if (!floor || p < floor) continue
       // Corte: antes del epoch la deuda no se deriva, se carga a mano.
       if (p < DEUDA_EPOCH) continue
-      const cobrado      = cobradoByKey.get(`${c.id}|${p}`) ?? 0
-      // El MISMO prorrateo que el mes corriente. Sin esto el arreglo duraba un
-      // mes: Septiembre cerraba bien en Septiembre y volvia a figurar impago en
-      // Octubre, porque el arrastre lo revaluaba contra el alquiler entero.
-      const expectedThen = proratedRentForPeriod(
-        rentInForce(c.id, p, c.currentRent), p, c.startDate, c.endDate ?? null,
-      )
-      const deuda        = Math.max(0, expectedThen - cobrado)
+      meses.push({
+        period:   p,
+        // El MISMO prorrateo que el mes corriente. Sin esto el arreglo duraba
+        // un mes: Septiembre cerraba bien en Septiembre y volvia a figurar
+        // impago en Octubre, porque el arrastre lo revaluaba contra el
+        // alquiler entero.
+        expected: proratedRentForPeriod(
+          rentInForce(c.id, p, c.currentRent), p, c.startDate, c.endDate ?? null,
+        ),
+        cobrado:  cobradoByKey.get(`${c.id}|${p}`) ?? 0,
+      })
+    }
+    // priorPeriods devuelve del mas nuevo al mas viejo; para arrastrar saldo hay
+    // que recorrer al reves. El periodo corriente cierra la lista.
+    meses.sort((a, b) => (a.period < b.period ? -1 : a.period > b.period ? 1 : 0))
+    meses.push({ period, expected: expectedCurrent, cobrado: cobradoThisPeriod })
+
+    // ── Una pasada, arrastrando el saldo a favor ────────────────────────────
+    //
+    // Alejandro, 2026-09-17: "si el importe estandar menos el pago del inquilino
+    // es mayor que cero, es deuda; si no, es saldo a favor que se arrastra. Si
+    // un mes no paga, se le descuenta del saldo ANTES de calcular el interes
+    // diario."
+    //
+    // Hasta hoy la resta se recortaba en 0 y el excedente se tiraba: un
+    // inquilino que venia pagando de mas figuraba igual que uno que pagaba
+    // justo, y el mes que se apoyaba en su saldo le aparecia el mes entero como
+    // deuda -- con 1% diario encima.
+    //
+    // Que el descuento vaya ANTES del interes es la parte que importa: el
+    // interes se calcula sobre lo que queda debiendo de verdad, no sobre el
+    // bruto del mes.
+    // La regla vive en applyCreditForward, que es pura y esta testeada. Aca
+    // solo se le pasan los meses; repetir el recorrido seria tener la misma
+    // regla en dos lugares y que un dia dejen de coincidir.
+    const { deudaPorMes, saldoAFavor: sobrante } = applyCreditForward(meses)
+    let credito = sobrante
+    const deudaCurrent = deudaPorMes.get(period) ?? 0
+
+    // Las filas del panel van del mas nuevo al mas viejo, al reves del recorrido.
+    const carryover: DeudaCarryoverEntry[] = []
+    for (const m of [...meses].reverse()) {
+      if (m.period === period) continue
       carryover.push({
-        period:       p,
-        periodLabel:  periodLabel(p),
-        expectedRent: expectedThen,
-        cobrado,
-        deuda,
+        period:       m.period,
+        periodLabel:  periodLabel(m.period),
+        expectedRent: m.expected,
+        cobrado:      m.cobrado,
+        deuda:        deudaPorMes.get(m.period) ?? 0,
+        credito:      Math.max(0, m.cobrado - m.expected),
       })
     }
     // Deuda anterior a mano. Va DESPUES de los meses automaticos porque es
@@ -440,20 +556,28 @@ export async function buildDeudaBreakdownsBulk(
     // viejo. Se saltea un mes que ya tenga fila automatica para no contarlo
     // dos veces, y el periodo corriente porque ese ya es deudaCurrent.
     const autoPeriods = new Set(carryover.map(e => e.period))
-    for (const m of manualByContract.get(c.id) ?? []) {
-      if (m.amount <= 0)            continue
-      if (m.period >= period)       continue
-      if (autoPeriods.has(m.period)) continue
+    const manuales = (manualByContract.get(c.id) ?? [])
+      .filter(m => m.amount > 0 && m.period < period && !autoPeriods.has(m.period))
+      // De la mas vieja a la mas nueva: si queda saldo a favor, se descuenta
+      // primero de la deuda mas antigua, que es la que mas interes acumulo.
+      .sort((a, b) => (a.period < b.period ? -1 : a.period > b.period ? 1 : 0))
+    for (const m of manuales) {
+      const usado = Math.min(credito, m.amount)
+      credito -= usado
       carryover.push({
         period:       m.period,
         periodLabel:  periodLabel(m.period),
         expectedRent: m.amount,
         cobrado:      0,
-        deuda:        m.amount,
+        deuda:        m.amount - usado,
         manual:       true,
         note:         m.note,
       })
     }
+
+    // Lo que sobro despues de cubrir todo lo que se debia. Este es el numero que
+    // el inquilino tiene a favor para el mes que viene.
+    const saldoAFavor = credito
 
     const deudaCarryover = carryover.reduce((s, e) => s + e.deuda, 0)
 
@@ -493,6 +617,7 @@ export async function buildDeudaBreakdownsBulk(
       lateInterestEnabled: c.lateInterestEnabled,
       lateInterestRate:    c.lateInterestRate,
       interesesEstimado,
+      saldoAFavor,
     })
   }
   return out

@@ -50,7 +50,13 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
     } catch { /* ignore */ }
   }, [applyIntereses, breakdown.contractId])
   const interesesShown = applyIntereses ? breakdown.interesesEstimado : 0
-  const total          = breakdown.deudaCurrent + breakdown.deudaCarryover + interesesShown
+  // El saldo a favor ya se aplico mes a mes hacia adelante (ver
+  // applyCreditForward), asi que lo que queda aca es el sobrante. Se resta del
+  // total porque es lo que la oficina le diria al inquilino: "de esto que
+  // figura, tenes tanto a favor".
+  const saldo          = breakdown.saldoAFavor ?? 0
+  const total          = breakdown.deudaCurrent + breakdown.deudaCarryover + interesesShown - saldo
+  const aFavor         = total < 0
   const carryoverCount = breakdown.carryover.length
   const hasIntereses   = breakdown.lateInterestRate > 0 && breakdown.daysOverdue > 0 && breakdown.interesesEstimado > 0
 
@@ -163,11 +169,27 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
         </div>
       )}
 
+      {/* Saldo a favor — lo que pago de mas y todavia no se consumio. */}
+      {saldo > 0 && (
+        <div className="mb-3">
+          <div className="grid grid-cols-[1fr_auto] gap-x-3 items-baseline">
+            <span className="text-slate-dark">Saldo a favor</span>
+            <span className="tabular-nums text-success">− {fmtMoney(saldo)}</span>
+          </div>
+          <p className="text-[10px] text-slate italic mt-1 leading-snug">
+            Pagó de más en meses anteriores. Se descuenta de lo que deba, antes de
+            calcular intereses. La plata ya se le transfirió al propietario.
+          </p>
+        </div>
+      )}
+
       {/* Total */}
       <div className="border-t-2 border-ink pt-2 grid grid-cols-[1fr_auto] gap-x-3 items-baseline">
-        <span className="text-ink font-medium text-[13px]">Total</span>
-        <span className={`tabular-nums font-display font-semibold text-[16px] ${total > 0 ? 'text-danger' : 'text-ink'}`}>
-          {fmtMoney(total)}
+        <span className="text-ink font-medium text-[13px]">{aFavor ? 'A favor del inquilino' : 'Total'}</span>
+        <span className={`tabular-nums font-display font-semibold text-[16px] ${
+          total > 0 ? 'text-danger' : aFavor ? 'text-success' : 'text-ink'
+        }`}>
+          {fmtMoney(Math.abs(total))}
         </span>
       </div>
     </div>

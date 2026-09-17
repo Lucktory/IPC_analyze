@@ -10,7 +10,9 @@ import { equalSplit, isPctSum100 } from '../lib/shared/percentages'
 import { resolveCommissionPct, DEFAULT_COMMISSION_PCT } from '../lib/contract/create-helpers'
 import { pickPrimaryLandlord } from '../lib/contract/primary'
 import { recurringChargeAppliesToPeriod, cuotaNumberFor } from '../lib/contract/recurring-charges-bulk'
-import { computeIntereses, proratedRentForPeriod, daysOverdueForPeriod } from '../lib/liquidacion/deuda-breakdown'
+import {
+  computeIntereses, proratedRentForPeriod, daysOverdueForPeriod, applyCreditForward,
+} from '../lib/liquidacion/deuda-breakdown'
 import { hasRentForAudit, isRecentlyTouched } from '../lib/contract/urgency'
 
 let pass = 0, fail = 0
@@ -202,6 +204,84 @@ check('el conteo por mes cobra mas que el viejo', porMes > 80000)
 
 // El capital no lo toca nada de esto: solo cambia el interes.
 eq('capital intacto', 100000 * 4, 400000)
+
+// ── Saldo a favor: el que paga de mas (2026-09-17) ──────────────────────────
+// Alejandro: "si el importe estandar menos el pago es mayor que cero es deuda;
+// si no, es saldo a favor que se arrastra. Si un mes no paga, se le descuenta
+// del saldo ANTES de calcular el interes diario."
+console.log('\n# applyCreditForward — el saldo a favor se arrastra')
+const M = (m: string, expected: number, cobrado: number) =>
+  ({ period: `2026-${m}-01`, expected, cobrado })
+
+// EL caso: alquiler 500.000, paga 600.000 tres meses y el cuarto no paga.
+// Debia 500.000, tenia 300.000 a favor -> queda debiendo 200.000.
+const caso = applyCreditForward([
+  M('09', 500000, 600000),
+  M('10', 500000, 600000),
+  M('11', 500000, 600000),
+  M('12', 500000,      0),
+])
+eq('Sep sin deuda', caso.deudaPorMes.get('2026-09-01'), 0)
+eq('Oct sin deuda', caso.deudaPorMes.get('2026-10-01'), 0)
+eq('Nov sin deuda', caso.deudaPorMes.get('2026-11-01'), 0)
+eq('Dic debe 200.000, no 500.000', caso.deudaPorMes.get('2026-12-01'), 200000)
+eq('no sobra saldo', caso.saldoAFavor, 0)
+// Y el interes, que es el punto: 10 dias al 1% sobre 200.000, no sobre 500.000.
+eq('interes sobre lo que debe de verdad',
+   computeIntereses(caso.deudaPorMes.get('2026-12-01') ?? 0, 1, 10), 20000)
+eq('...contra lo que daba antes', computeIntereses(500000, 1, 10), 50000)
+
+// Paga de mas y nunca deja de pagar: todo queda a favor.
+const soloFavor = applyCreditForward([M('09', 500000, 600000), M('10', 500000, 600000)])
+eq('dos meses de mas = 200.000 a favor', soloFavor.saldoAFavor, 200000)
+check('sin deuda en ningun mes',
+  [...soloFavor.deudaPorMes.values()].every(v => v === 0))
+
+// El saldo alcanza de sobra: cubre el mes entero y todavia queda vuelto.
+// (Paga 1.100.000 sobre un alquiler de 500.000 -> 600.000 a favor; el mes
+//  siguiente no paga nada, se le descuentan 500.000 y le quedan 100.000.)
+const sobra = applyCreditForward([M('09', 500000, 1100000), M('10', 500000, 0)])
+eq('Oct cubierto por el saldo', sobra.deudaPorMes.get('2026-10-01'), 0)
+eq('y sobran 100.000', sobra.saldoAFavor, 100000)
+
+// Y el borde exacto: el saldo cubre justo, ni deuda ni sobrante.
+const justo = applyCreditForward([M('09', 500000, 1000000), M('10', 500000, 0)])
+eq('cubre justo: sin deuda',    justo.deudaPorMes.get('2026-10-01'), 0)
+eq('cubre justo: sin sobrante', justo.saldoAFavor, 0)
+
+// Y cuando NO alcanza, queda debiendo la diferencia: 400.000 a favor contra un
+// mes de 500.000 deja 100.000 de deuda, no cero.
+const noAlcanza = applyCreditForward([M('09', 500000, 900000), M('10', 500000, 0)])
+eq('saldo insuficiente: debe la diferencia', noAlcanza.deudaPorMes.get('2026-10-01'), 100000)
+eq('saldo insuficiente: no sobra nada',      noAlcanza.saldoAFavor, 0)
+
+// Sin saldo previo nada cambia: la deuda es la de siempre.
+const sinSaldo = applyCreditForward([M('09', 500000, 500000), M('10', 500000, 0)])
+eq('paga justo: sin deuda', sinSaldo.deudaPorMes.get('2026-09-01'), 0)
+eq('no paga: debe todo',    sinSaldo.deudaPorMes.get('2026-10-01'), 500000)
+eq('sin saldo a favor',     sinSaldo.saldoAFavor, 0)
+
+// El saldo va hacia ADELANTE, no hacia atras: un mes impago ANTES del
+// excedente sigue siendo deuda. Por eso el recorrido es cronologico.
+const haciaAdelante = applyCreditForward([M('09', 500000, 0), M('10', 500000, 900000)])
+eq('el mes viejo sigue debiendo', haciaAdelante.deudaPorMes.get('2026-09-01'), 500000)
+eq('y el excedente queda a favor', haciaAdelante.saldoAFavor, 400000)
+
+// Da igual en que orden lleguen los meses: ordena antes de recorrer.
+const desordenado = applyCreditForward([
+  M('12', 500000, 0), M('09', 500000, 600000), M('11', 500000, 600000), M('10', 500000, 600000),
+])
+eq('desordenado da lo mismo', desordenado.deudaPorMes.get('2026-12-01'), 200000)
+
+// Pago parcial: cubre una parte y el resto queda debiendo.
+const parcial = applyCreditForward([M('09', 500000, 300000)])
+eq('pago parcial', parcial.deudaPorMes.get('2026-09-01'), 200000)
+eq('no genera saldo', parcial.saldoAFavor, 0)
+
+// Lista vacia: ni explota ni inventa nada.
+const vacio = applyCreditForward([])
+eq('sin meses: saldo 0', vacio.saldoAFavor, 0)
+eq('sin meses: sin filas', vacio.deudaPorMes.size, 0)
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'}: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
