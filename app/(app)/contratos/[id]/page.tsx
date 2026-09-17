@@ -18,6 +18,7 @@ import { ContractStatusControl } from '@/components/contract/ContractStatusContr
 import { InlineParticipantsCell } from '@/components/liquidacion/InlineParticipantsCell'
 import { CommissionPctEditor } from '@/components/contract/CommissionPctEditor'
 import { CommissionOnDepositEditor } from '@/components/contract/CommissionOnDepositEditor'
+import { SelladoEditor } from '@/components/contract/SelladoEditor'
 import { RentEditor } from '@/components/contract/RentEditor'
 import { listLandlordOptions } from '@/lib/landlord/queries'
 import { listTenantOptions } from '@/lib/tenant/queries'
@@ -242,6 +243,22 @@ export default async function ContractDetailPage({ params, searchParams }: PageP
                 <CommissionOnDepositEditor
                   contractId={contract.id}
                   value={contract.commissionOnDeposit}
+                  period={period}
+                />
+              </dd>
+            </div>
+            {/* Sellado. Va junto al deposito y la comision porque es la otra
+                cosa de una sola vez que se le descuenta al dueño al firmar.
+                Alejandro, 2026-09-17: la ley lo derogo para vivienda pero no
+                para los comerciales, asi que sigue existiendo. */}
+            <div className="flex items-start justify-between gap-3">
+              <dt className="text-slate shrink-0 pt-0.5">Sellado</dt>
+              <dd>
+                <SelladoEditor
+                  contractId={contract.id}
+                  total={contract.selladoTotal}
+                  landlordPct={contract.selladoLandlordPct}
+                  appliedAt={contract.selladoAppliedAt}
                   period={period}
                 />
               </dd>

@@ -187,6 +187,97 @@ async function persistAumento(
   return { ok: true, error: null }
 }
 
+// ── Sellado ─────────────────────────────────────────────────────────────────
+//
+// Cada contrato nuevo hay que sellarlo, mitad el propietario y mitad el
+// inquilino. Alejandro, 2026-09-17: una ley lo derogo para vivienda pero NO para
+// los comerciales, asi que todo contrato comercial va a seguir teniendo sellado.
+//
+// Los campos existian en la base desde el principio (sellado_total,
+// sellado_landlord_share_pct con default 50, sellado_applied_at) junto con una
+// validacion que avisa cuando quedo sin aplicar -- pero nunca hubo pantalla para
+// cargarlo ni forma de que llegara a la rendicion. Esto cierra las dos cosas.
+//
+// SOLO LA MITAD DEL PROPIETARIO LLEGA A LA RENDICION
+//
+// La del inquilino no pasa por aca: se le da un recibo a mano cuando viene a
+// pagar. La rendicion es del propietario y solo lleva su parte, tal cual la hoja
+// de la oficina ("SELLADO PROPIETARIO $95.075,76").
+export async function updateContractSellado(
+  contractId:  string,
+  /** Sellado TOTAL del contrato, las dos partes juntas. null lo borra. */
+  total:       number | null,
+  /** Porcentaje que paga el propietario. Casi siempre 50 — Alejandro: "es muy
+   *  raro, muy muy raro que haya un caso que no sea mitad y mitad". */
+  landlordPct: number,
+): Promise<InlineResult> {
+  if (total !== null && (!isFinite(total) || total < 0)) {
+    return { ok: false, error: 'El sellado debe ser un número ≥ 0.' }
+  }
+  if (!isFinite(landlordPct) || landlordPct <= 0 || landlordPct > 100) {
+    return { ok: false, error: 'La parte del propietario debe ser mayor a 0 y hasta 100.' }
+  }
+  const supabase = await createSupabaseServer()
+  const { error } = await supabase
+    .from('contracts')
+    .update({
+      sellado_total:              total,
+      sellado_landlord_share_pct: landlordPct,
+    })
+    .eq('id', contractId)
+  if (error) return dbFailure(error)
+  revalidate(contractId)
+  return { ok: true, error: null }
+}
+
+/**
+ * Carga la parte del propietario como descuento del periodo y marca el sellado
+ * como aplicado.
+ *
+ * Reusa upsertCellTransaction, asi que si se aplica dos veces al mismo periodo
+ * actualiza la fila en lugar de duplicarla — el sellado se cobra UNA vez.
+ */
+export async function applyContractSellado(
+  contractId: string,
+  period:     string,
+): Promise<InlineResult> {
+  if (!/^\d{4}-\d{2}-01$/.test(period)) {
+    return { ok: false, error: 'Período inválido.' }
+  }
+  const supabase = await createSupabaseServer()
+  const { data: c, error } = await supabase
+    .from('contracts')
+    .select('sellado_total, sellado_landlord_share_pct')
+    .eq('id', contractId)
+    .maybeSingle()
+  if (error) return dbFailure(error)
+  if (!c) return { ok: false, error: 'Contrato no encontrado.' }
+
+  const total = Number((c as any).sellado_total ?? 0)
+  if (!isFinite(total) || total <= 0) {
+    return { ok: false, error: 'Cargá primero el monto del sellado.' }
+  }
+  const pct   = Number((c as any).sellado_landlord_share_pct ?? 50)
+  const share = Math.round(total * (pct / 100) * 100) / 100
+
+  const res = await upsertCellTransaction(
+    contractId, period, 'SELLADO_OUT', share, null, 'SELLADO PROPIETARIO',
+  )
+  if (!res.ok) return res
+
+  // Recien se marca aplicado cuando la transaccion entro. Al reves, un error
+  // en la carga dejaria el contrato diciendo que ya se cobro algo que no se
+  // cobro, y la validacion CONTRACT_SELLADO_PENDING dejaria de avisar.
+  const { error: stampErr } = await supabase
+    .from('contracts')
+    .update({ sellado_applied_at: period })
+    .eq('id', contractId)
+  if (stampErr) return dbFailure(stampErr)
+
+  revalidate(contractId)
+  return { ok: true, error: null }
+}
+
 // ── Cadencia (how often the rent adjusts) — the aumento window depends on it,
 // so a wrong value (e.g. the Bustos import defaulted to trimestral) computes the
 // wrong increase. Editable so the encargada can correct it.

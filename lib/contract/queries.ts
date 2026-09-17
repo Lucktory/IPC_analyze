@@ -36,6 +36,12 @@ export interface ContractDetail {
    *  El deposito se le transfiere al propietario igual; lo que cambia es la
    *  base del calculo (commissionBaseOf en lib/liquidacion/funnel.ts). */
   commissionOnDeposit: boolean
+  /** Sellado TOTAL del contrato (las dos partes). null = sin cargar. */
+  selladoTotal:        number | null
+  /** Porcentaje del sellado que paga el propietario. 50 salvo excepcion. */
+  selladoLandlordPct:  number
+  /** Periodo en que se cargo el descuento al dueño, o null si sigue pendiente. */
+  selladoAppliedAt:    string | null
   depositAmount:   number | null
   depositStatus:   string | null
   notes:           string | null
@@ -53,6 +59,7 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
       id, contract_number, status, current_rent, initial_rent, expensas,
       rent_facturado_neto, rent_no_facturado, rent_iva_rate, currency, cadence, indexer,
       start_date, end_date, next_adjustment_date, last_adjustment_date, created_at, payment_day, commission_pct, commission_on_deposit, deposit_amount, deposit_status, notes,
+      sellado_total, sellado_landlord_share_pct, sellado_applied_at,
       contract_landlords(ownership_pct, landlords(id, name, dni_or_cuit)),
       contract_tenants(is_primary, share_pct, tenants(id, name, phone, dni)),
       properties(id, address, unit, city, property_type)
@@ -84,6 +91,9 @@ export async function getContractDetail(id: string): Promise<ContractDetail | nu
     paymentDay:      c.payment_day,
     commissionPct:   Number(c.commission_pct ?? 8),
     commissionOnDeposit: c.commission_on_deposit !== false,
+    selladoTotal:        c.sellado_total != null ? Number(c.sellado_total) : null,
+    selladoLandlordPct:  Number(c.sellado_landlord_share_pct ?? 50),
+    selladoAppliedAt:    c.sellado_applied_at ?? null,
     depositAmount:   c.deposit_amount != null ? Number(c.deposit_amount) : null,
     depositStatus:   c.deposit_status ?? null,
     notes:           c.notes,
