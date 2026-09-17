@@ -33,10 +33,16 @@ export default async function TenantDetailPage({ params }: PageProps) {
       ])
     : [null, null, []]
 
-  const totalDebt = deuda ? deuda.deudaCurrent + deuda.deudaCarryover : 0
+  const totalDebt   = deuda ? deuda.deudaCurrent + deuda.deudaCarryover : 0
+  // Lo que pago de mas y todavia no consumio. La deuda de arriba ya viene
+  // neta de esto (ver applyCreditForward), asi que los dos no pueden ser
+  // positivos por el mismo mes.
+  const saldoAFavor = deuda?.saldoAFavor ?? 0
   const estado: 'al_dia' | 'en_mora' | 'sin_pago' | 'sin_contrato' =
     !primary ? 'sin_contrato'
-    : deuda && deuda.cobradoThisPeriod <= 0 ? 'sin_pago'
+    // Un inquilino que este mes no pago pero venia pagando de mas NO esta
+    // sin pagar: su saldo cubre el mes. Antes figuraba en rojo igual.
+    : deuda && deuda.cobradoThisPeriod <= 0 && saldoAFavor <= 0 ? 'sin_pago'
     : totalDebt > 0 ? 'en_mora'
     : 'al_dia'
   const lastPaid = history.find(h => h.cobrado)
@@ -167,7 +173,13 @@ export default async function TenantDetailPage({ params }: PageProps) {
                 <div className="flex items-center justify-between"><dt className="text-slate">Cobrado</dt><dd className="tabular-nums text-slate-dark">{fmt(deuda!.cobradoThisPeriod)}</dd></div>
                 {deuda!.deudaCarryover > 0 && <div className="flex items-center justify-between"><dt className="text-slate">Arrastrado</dt><dd className="tabular-nums text-slate-dark">{fmt(deuda!.deudaCarryover)}</dd></div>}
                 {deuda!.interesesEstimado > 0 && <div className="flex items-center justify-between"><dt className="text-slate">Intereses est.</dt><dd className="tabular-nums text-slate-dark">{fmt(deuda!.interesesEstimado)}</dd></div>}
-                <div className="flex items-center justify-between border-t border-line pt-2"><dt className="text-ink font-medium">Saldo actual</dt><dd className="tabular-nums text-danger font-medium">{fmt(totalDebt)}</dd></div>
+                {saldoAFavor > 0 && <div className="flex items-center justify-between"><dt className="text-slate">Saldo a favor</dt><dd className="tabular-nums text-success">− {fmt(saldoAFavor)}</dd></div>}
+                <div className="flex items-center justify-between border-t border-line pt-2">
+                  <dt className="text-ink font-medium">{totalDebt <= 0 && saldoAFavor > 0 ? "A favor" : "Saldo actual"}</dt>
+                  <dd className={`tabular-nums font-medium ${totalDebt > 0 ? "text-danger" : saldoAFavor > 0 ? "text-success" : "text-ink"}`}>
+                    {fmt(totalDebt > 0 ? totalDebt : saldoAFavor)}
+                  </dd>
+                </div>
                 {deuda!.daysOverdue > 0 && <p className="text-[11px] text-slate">Vencido hace {deuda!.daysOverdue} días</p>}
               </dl>
             )}
