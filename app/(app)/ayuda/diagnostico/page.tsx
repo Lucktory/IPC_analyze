@@ -91,7 +91,7 @@ export default function DiagnosticoPage() {
           <IssueRow dice="Comisión efectiva difiere del contrato">La comisión cargada no da el % del contrato sobre lo cobrado. O está mal el monto, o está mal el %. El aviso te dice cuánto esperaba.</IssueRow>
           <IssueRow dice="Aumento IPC pendiente">A este contrato le toca aumento y todavía no se aplicó. Entrá a la ficha y aplicalo.</IssueRow>
           <IssueRow dice="Observación sin confirmar">Un arreglo o ajuste de este mes quedó «a cobrar» y nunca se confirmó. Mientras siga así no entra en la liquidación del dueño.</IssueRow>
-          <IssueRow dice="Sellado sin aplicar">El contrato tiene un sellado cargado que no se aplicó, y ya pasaron más de 35 días del inicio. <strong className="text-ink">Por ahora no se puede resolver desde el sistema</strong> — avisale a Medhi si te aparece.</IssueRow>
+          <IssueRow dice="Sellado sin aplicar">El contrato tiene un sellado cargado que todavía no se le descontó al propietario. Andá a la ficha del contrato, al lado de la comisión, y tocá <strong className="text-ink">Aplicar</strong>.</IssueRow>
         </IssueTable>
         <p className="text-[12px] text-slate mt-2.5">
           Cada aviso trae el texto exacto con los números; deciles qué mirar. Empezá por los rojos, después los amarillos.
@@ -107,7 +107,8 @@ export default function DiagnosticoPage() {
           <Step n={1}><strong className="text-ink">Deuda de este mes</strong> = alquiler esperado − lo cobrado. Un cobro cuenta cuando tiene <strong className="text-ink">fecha de banco</strong>: si cargaste el monto sin la fecha, para el sistema todavía no entró.</Step>
           <Step n={2}><strong className="text-ink">Adeudado anterior</strong>: mira hasta <strong className="text-ink">12 meses para atrás</strong> y suma lo que quedó sin cobrar.</Step>
           <Step n={3}>Cada mes viejo se cuenta al <strong className="text-ink">alquiler que regía en ese momento</strong>, según el historial de aumentos del contrato — no al alquiler de hoy.</Step>
-          <Step n={4}><strong className="text-ink">Intereses por mora</strong> (si están activados): una <strong className="text-ink">estimación</strong> proporcional al mes. Es solo informativa; <strong className="text-ink">no se cobra sola</strong> — vos decidís si cargar el recargo.</Step>
+          <Step n={4}><strong className="text-ink">Si pagó de más</strong>, lo que sobra queda como <strong className="text-success">saldo a favor</strong> y se arrastra. El mes que no pague, primero se le descuenta de ese saldo y recién después se calculan intereses sobre lo que quede.</Step>
+          <Step n={5}><strong className="text-ink">Intereses por mora</strong> (si están activados): <strong className="text-ink">1% por día</strong>. Empieza a correr desde el <strong className="text-ink">día 1 del mes</strong>, no desde el vencimiento: si vencía el 5 y paga el 20, se cobran 19 días. Cada mes adeudado cuenta sus propios días, así que uno viejo acumula más que uno nuevo. Es una <strong className="text-ink">estimación</strong>; <strong className="text-ink">no se cobra sola</strong> — vos decidís si cargar el recargo.</Step>
         </ul>
 
         <p className="text-[13px] text-slate-dark leading-relaxed mt-3">

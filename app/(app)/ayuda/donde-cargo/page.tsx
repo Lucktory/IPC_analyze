@@ -72,6 +72,12 @@ export default function DondeCargoPage() {
               <Caso situacion="Pagó una parte nomás"
                     donde="Alquiler"
                     efecto="Cargás lo que pagó. Abajo del monto te avisa en rojo cuánto falta, y la Deuda muestra el saldo." />
+              <Caso situacion="Pagó de MÁS"
+                    donde="Alquiler"
+                    efecto="Cargás todo lo que pagó, en un solo monto. Lo que sobra queda a favor del inquilino y se arrastra al mes siguiente. En la rendición del dueño sale aparte como A CUENTA." />
+              <Caso situacion="Se firmó un contrato nuevo y hay que sellarlo"
+                    donde="Ficha del contrato → Sellado"
+                    efecto="Cargás el sellado COMPLETO y tocás Aplicar. Se le descuenta al propietario la mitad que le toca. La mitad del inquilino no va acá: ésa se cobra aparte." />
               <Caso situacion="Pagó la THU, el gas, el ABL o el agua"
                     donde="Extras"
                     efecto="Entra plata, igual que el alquiler." />

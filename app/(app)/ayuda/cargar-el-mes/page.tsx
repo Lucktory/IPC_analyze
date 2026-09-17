@@ -31,6 +31,25 @@ export default function CargarElMesPage() {
       </Callout>
 
       {/* 1 — cobros */}
+      {/* cuanto falta */}
+      <GuideCard title="Cómo saber cuánto te falta del mes" tint="#0F766E">
+        <p className="text-[13px] text-slate-dark leading-relaxed">
+          Arriba de la planilla, al lado de los filtros de Estado, dice algo como
+          <strong className="text-ink"> «17 de 99 con alquiler cargado»</strong>. Es cuántos contratos del mes
+          ya tienen el alquiler puesto.
+        </p>
+        <p className="text-[13px] text-slate-dark leading-relaxed mt-2">
+          Va en <strong className="text-success">verde</strong> cuando está casi terminado,
+          <strong className="text-warn"> amarillo</strong> cuando va por la mitad y
+          <strong className="text-danger"> rojo</strong> cuando falta casi todo.
+        </p>
+        <Callout tone="tip" title="Para qué sirve">
+          La planilla muestra <strong className="text-ink">todos</strong> los contratos siempre, tengan o no algo cargado,
+          así que un mes vacío se ve igual que uno completo. Ese número es la diferencia: te dice cuánto falta,
+          y también cuándo terminaste.
+        </Callout>
+      </GuideCard>
+
       <GuideCard title="1. Cargar los cobros (Alquiler y Extras)" tint="#0891B2">
         <ul className="space-y-2">
           <Step n={1}>Hacé clic en la celda <strong className="text-ink">Alquiler</strong> (o <strong className="text-ink">Extras</strong>) de la fila. Se abre un cuadro con las líneas del período.</Step>

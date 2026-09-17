@@ -63,9 +63,11 @@ export default function ComisionTransferenciaPage() {
       {/* estado */}
       <GuideCard title="3. Estado de la liquidación" tint="#475569">
         <p className="text-[13px] text-slate-dark leading-relaxed">
-          La columna <strong className="text-ink">Estado</strong> avanza con cada clic: <strong className="text-ink">Borrador → Enviada → Pagada</strong>{' '}
-          (y vuelve a Borrador). Normalmente pasa a <em>Enviada</em> sola cuando mandás el mail (ver abajo), y a <em>Pagada</em>
-          la ponés vos cuando el dueño confirmó que recibió.
+          Tocá el cartelito de la columna <strong className="text-ink">Estado</strong> y elegí:{' '}
+          <strong className="text-ink">Borrador</strong>, <strong className="text-ink">Enviada</strong> o <strong className="text-ink">Pagada</strong>.
+          Podés ir a cualquiera de una, así que si te equivocás volvés atrás enseguida.
+          Normalmente no vas a tener que tocarlo: pasa a <em>Enviada</em> solo cuando confirmás que mandaste el mail
+          (ver abajo), y a <em>Pagada</em> la ponés vos cuando el dueño confirmó que recibió.
         </p>
       </GuideCard>
 
@@ -106,6 +108,29 @@ export default function ComisionTransferenciaPage() {
           <strong className="text-ink">Ojo:</strong> ese nombre es la <strong className="text-ink">descripción</strong> que
           cargaste al anotar el gasto. O sea que lo lee el dueño. Poné descripciones claras y cortas
           («Expensas extraordinarias», «Reparación termotanque»), no notas internas.
+        </Callout>
+      </GuideCard>
+
+      {/* rendicion */}
+      <GuideCard title="5. La rendición para imprimir" tint="#7C3AED">
+        <p className="text-[13px] text-slate-dark leading-relaxed">
+          Además del mail, cada liquidación tiene su <strong className="text-ink">hoja de rendición</strong>:
+          la misma que venían armando a mano, con el logo, los datos de la inmobiliaria,
+          y las dos columnas de <strong className="text-ink">Ingresos</strong> y <strong className="text-ink">Deducciones</strong>.
+        </p>
+        <ul className="mt-2 space-y-2">
+          <Step n={1}>En la planilla, en la columna <strong className="text-ink">Mail</strong>, tocá el iconito de hoja que está al lado de <strong className="text-ink">Enviar</strong>.</Step>
+          <Step n={2}>Se abre la rendición. Arriba a la derecha tenés <strong className="text-ink">Imprimir / PDF</strong>: sale sólo la hoja, sin el resto de la pantalla.</Step>
+          <Step n={3}>La <strong className="text-ink">fecha</strong> la pone el sistema: es el día que la mandás. Si después la reimprimís, conserva la fecha original.</Step>
+        </ul>
+        <Callout tone="tip" title="Contratos con dos propietarios">
+          Sale <strong className="text-ink">una sola hoja</strong>, con una línea por dueño mostrando la parte de cada uno,
+          y el <strong className="text-ink">Total a rendir</strong> con el monto entero. Igual que la hacían ustedes.
+        </Callout>
+        <Callout tone="tip" title="Si el inquilino pagó de más">
+          La línea del alquiler se parte sola en dos: lo que corresponde al mes, y abajo
+          <strong className="text-ink"> A CUENTA</strong> del mes siguiente. El total no cambia y al dueño le va la plata entera —
+          la línea es para que el mes que viene, cuando entre menos, no lo sorprenda.
         </Callout>
       </GuideCard>
 

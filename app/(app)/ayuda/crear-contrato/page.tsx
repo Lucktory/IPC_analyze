@@ -79,6 +79,23 @@ export default function CrearContratoPage() {
         </p>
       </GuideCard>
 
+      <GuideCard title="Si se mudan a mitad de mes" tint="#7C3AED">
+        <p className="text-[13px] text-slate-dark leading-relaxed">
+          Poné la <strong className="text-ink">fecha de inicio real</strong>, el día que entraron — no el 1 del mes.
+          Con eso el sistema espera sólo los días que corresponden y no te marca deuda de los días
+          en que la propiedad todavía estaba vacía.
+        </p>
+        <Callout tone="tip" title="Ejemplo">
+          Alquiler de $800.000 y entran el 9 de septiembre: son 22 días, así que el sistema espera
+          <strong className="text-ink"> $567.741,94</strong> y no los $800.000. Si le ponés el 1, te va a
+          reclamar $232.258 que nadie debe — y esa deuda genera intereses.
+        </Callout>
+        <p className="text-[13px] text-slate-dark leading-relaxed mt-3">
+          Lo mismo cuando se van: si la <strong className="text-ink">fecha de fin</strong> cae a mitad de mes,
+          ese último mes se cobra sólo por los días que estuvieron.
+        </p>
+      </GuideCard>
+
       <GuideCard title="Paso a paso" tint="#0F766E">
         <ul className="space-y-2">
           <Step n={1}>Completá los campos obligatorios (<span className="text-danger">*</span>): Propiedad, Inquilino, Propietario y Alquiler inicial.</Step>
