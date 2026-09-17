@@ -191,7 +191,7 @@ function ymd(iso: string | null): { y: number; m: number; d: number } | null {
  * Los dias se cuentan inclusive en ambas puntas, igual que ellos: del 9 al 30
  * de Septiembre son 22 dias, no 21.
  */
-export function expectedRentForPeriod(
+export function proratedRentForPeriod(
   fullRent:  number,
   period:    string,
   startDate: string | null,
@@ -401,8 +401,8 @@ export async function buildDeudaBreakdownsBulk(
     // against the rent in force in each of those months (see rentInForce).
     // ...y prorrateado cuando el contrato arranca o termina DENTRO de este mes,
     // asi un inquilino que se muda el 9 no arrastra los 8 dias previos como
-    // deuda. Un mes completo pasa intacto por expectedRentForPeriod.
-    const expectedCurrent   = expectedRentForPeriod(
+    // deuda. Un mes completo pasa intacto por proratedRentForPeriod.
+    const expectedCurrent   = proratedRentForPeriod(
       c.expectedRentCurrentPeriod ?? c.currentRent, period, c.startDate, c.endDate ?? null,
     )
     const cobradoThisPeriod = cobradoByKey.get(`${c.id}|${period}`) ?? 0
@@ -423,7 +423,7 @@ export async function buildDeudaBreakdownsBulk(
       // El MISMO prorrateo que el mes corriente. Sin esto el arreglo duraba un
       // mes: Septiembre cerraba bien en Septiembre y volvia a figurar impago en
       // Octubre, porque el arrastre lo revaluaba contra el alquiler entero.
-      const expectedThen = expectedRentForPeriod(
+      const expectedThen = proratedRentForPeriod(
         rentInForce(c.id, p, c.currentRent), p, c.startDate, c.endDate ?? null,
       )
       const deuda        = Math.max(0, expectedThen - cobrado)

@@ -10,7 +10,7 @@ import { equalSplit, isPctSum100 } from '../lib/shared/percentages'
 import { resolveCommissionPct, DEFAULT_COMMISSION_PCT } from '../lib/contract/create-helpers'
 import { pickPrimaryLandlord } from '../lib/contract/primary'
 import { recurringChargeAppliesToPeriod, cuotaNumberFor } from '../lib/contract/recurring-charges-bulk'
-import { computeIntereses, expectedRentForPeriod, daysOverdueForPeriod } from '../lib/liquidacion/deuda-breakdown'
+import { computeIntereses, proratedRentForPeriod, daysOverdueForPeriod } from '../lib/liquidacion/deuda-breakdown'
 import { hasRentForAudit, isRecentlyTouched } from '../lib/contract/urgency'
 
 let pass = 0, fail = 0
@@ -121,38 +121,38 @@ check('crece con los días', computeIntereses(100000, 1, 10) > computeIntereses(
 // ── Prorrateo del primer y ultimo mes (2026-09-16) ──────────────────────────
 // Alejandro alquilo una propiedad a mitad de Septiembre: el inquilino pago 22
 // dias y la columna Deuda le marcaba ~232.000 que nadie debia.
-console.log('\n# expectedRentForPeriod — prorrateo de entrada y salida')
+console.log('\n# proratedRentForPeriod — prorrateo de entrada y salida')
 const SEP = '2026-09-01'
 
 // EL caso real, el que tiene que dar exacto: su rendicion BOZZOLO / DE SANTIS.
 // 800.000 / 31 x 22 = 567.741,94. Con 30 daria 586.666,67, que NO es lo que
 // cobraron — por eso PRORATE_DIVISOR es 31.
-eq('22 dias de Septiembre (entra el 9)', expectedRentForPeriod(800000, SEP, '2026-09-09', null), 567741.94)
+eq('22 dias de Septiembre (entra el 9)', proratedRentForPeriod(800000, SEP, '2026-09-09', null), 567741.94)
 
 // El mes entero NO se prorratea: dividir 30 por 31 le recortaria un dia de
 // alquiler a los 105 contratos todos los meses. Esta es la regresion a evitar.
-eq('mes completo intacto',        expectedRentForPeriod(800000, SEP, '2025-01-01', null), 800000)
-eq('mes completo sin fechas',     expectedRentForPeriod(800000, SEP, null, null), 800000)
-eq('entra el 1 = mes completo',   expectedRentForPeriod(800000, SEP, '2026-09-01', null), 800000)
-eq('se va el 30 = mes completo',  expectedRentForPeriod(800000, SEP, null, '2026-09-30'), 800000)
+eq('mes completo intacto',        proratedRentForPeriod(800000, SEP, '2025-01-01', null), 800000)
+eq('mes completo sin fechas',     proratedRentForPeriod(800000, SEP, null, null), 800000)
+eq('entra el 1 = mes completo',   proratedRentForPeriod(800000, SEP, '2026-09-01', null), 800000)
+eq('se va el 30 = mes completo',  proratedRentForPeriod(800000, SEP, null, '2026-09-30'), 800000)
 
 // El ejemplo que planteo el usuario: entra 15-sep, se va 5-dic.
-eq('entra el 15 de Sep', expectedRentForPeriod(800000, SEP, '2026-09-15', '2026-12-05'), 412903.23)
-eq('Octubre entero',     expectedRentForPeriod(800000, '2026-10-01', '2026-09-15', '2026-12-05'), 800000)
-eq('Noviembre entero',   expectedRentForPeriod(800000, '2026-11-01', '2026-09-15', '2026-12-05'), 800000)
-eq('se va el 5 de Dic',  expectedRentForPeriod(800000, '2026-12-01', '2026-09-15', '2026-12-05'), 129032.26)
+eq('entra el 15 de Sep', proratedRentForPeriod(800000, SEP, '2026-09-15', '2026-12-05'), 412903.23)
+eq('Octubre entero',     proratedRentForPeriod(800000, '2026-10-01', '2026-09-15', '2026-12-05'), 800000)
+eq('Noviembre entero',   proratedRentForPeriod(800000, '2026-11-01', '2026-09-15', '2026-12-05'), 800000)
+eq('se va el 5 de Dic',  proratedRentForPeriod(800000, '2026-12-01', '2026-09-15', '2026-12-05'), 129032.26)
 
 // Fuera de vigencia: ni un peso esperado, nunca un mes entero de deuda fantasma.
-eq('antes de empezar', expectedRentForPeriod(800000, SEP, '2026-10-01', null), 0)
-eq('despues de irse',  expectedRentForPeriod(800000, SEP, null, '2026-08-31'), 0)
+eq('antes de empezar', proratedRentForPeriod(800000, SEP, '2026-10-01', null), 0)
+eq('despues de irse',  proratedRentForPeriod(800000, SEP, null, '2026-08-31'), 0)
 
 // Entra y sale dentro del mismo mes: solo esos dias.
-eq('del 10 al 20 = 11 dias', expectedRentForPeriod(800000, SEP, '2026-09-10', '2026-09-20'), 283870.97)
+eq('del 10 al 20 = 11 dias', proratedRentForPeriod(800000, SEP, '2026-09-10', '2026-09-20'), 283870.97)
 
 // Guardas.
-eq('alquiler 0',        expectedRentForPeriod(0, SEP, '2026-09-09', null), 0)
-eq('periodo invalido',  expectedRentForPeriod(800000, 'nope', '2026-09-09', null), 800000)
-check('prorrateado < mes entero', expectedRentForPeriod(800000, SEP, '2026-09-09', null) < 800000)
+eq('alquiler 0',        proratedRentForPeriod(0, SEP, '2026-09-09', null), 0)
+eq('periodo invalido',  proratedRentForPeriod(800000, 'nope', '2026-09-09', null), 800000)
+check('prorrateado < mes entero', proratedRentForPeriod(800000, SEP, '2026-09-09', null) < 800000)
 
 // ── La multa se retrotrae al 1 (2026-09-17) ─────────────────────────────────
 // Alejandro: «la multa se retrotrae al 01 del mes. O sea, empieza a correr
