@@ -103,6 +103,12 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
                     : e.deuda > 0
                       ? `cobrado ${fmtMoney(e.cobrado)} de ${fmtMoney(e.expectedRent)}`
                       : 'cobrado completo'}
+                  {/* Cada mes envejece por su cuenta: Febrero acumula mas dias
+                      que Mayo. Mostrarlo al lado de la linea es lo que hace
+                      entendible que el interes no sea un solo porcentaje. */}
+                  {e.deuda > 0 && (e.daysOverdue ?? 0) > 0 && (
+                    <span className="text-slate"> · {e.daysOverdue} días</span>
+                  )}
                 </span>
                 <span className="tabular-nums">
                   {e.deuda > 0 ? `+ ${fmtMoney(e.deuda)}` : '—'}
@@ -129,8 +135,14 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
           <label className="flex items-baseline justify-between gap-3 cursor-pointer select-none">
             <span className="text-slate-dark">
               Intereses por mora{' '}
+              {/* Con meses arrastrados NO hay un solo numero de dias: cada mes
+                  se cuenta desde su propio dia 1, igual que en la planilla de
+                  la oficina. Mostrar los dias del mes corriente ahi seria
+                  mentir sobre como se calculo el total. */}
               <span className="text-[10.5px] text-slate">
-                ({breakdown.lateInterestRate}% diario × {breakdown.daysOverdue} {breakdown.daysOverdue === 1 ? 'día' : 'días'} de atraso)
+                {carryoverCount > 0
+                  ? `(${breakdown.lateInterestRate}% diario, contado mes por mes)`
+                  : `(${breakdown.lateInterestRate}% diario × ${breakdown.daysOverdue} ${breakdown.daysOverdue === 1 ? 'día' : 'días'} de atraso)`}
               </span>
             </span>
             <span className="inline-flex items-baseline gap-2">

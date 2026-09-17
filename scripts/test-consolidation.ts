@@ -180,5 +180,28 @@ eq('...y al dia siguiente',        daysOverdueForPeriod(SEP, 31, D('2026-10-01')
 eq('interes con la regla nueva',
    computeIntereses(100000, 1, daysOverdueForPeriod(SEP, 5, D('2026-09-20'))), 19000)
 
+// ── Cada mes envejece por su cuenta ─────────────────────────────────────────
+// La planilla de la oficina cuenta los dias de CADA mes adeudado desde su
+// propio dia 1: en el caso real que mando Alejandro, Febrero 109 dias, Marzo
+// 81, Abril 50 y Mayo 20, los cuatro cerrando el 21 de mayo.
+console.log('\n# deuda vieja: un conteo de dias por mes')
+const CORTE = D('2026-05-21')
+eq('Febrero al 21/5', daysOverdueForPeriod('2026-02-01', 5, CORTE), 109)
+eq('Marzo al 21/5',   daysOverdueForPeriod('2026-03-01', 5, CORTE), 81)
+eq('Abril al 21/5',   daysOverdueForPeriod('2026-04-01', 5, CORTE), 50)
+eq('Mayo al 21/5',    daysOverdueForPeriod('2026-05-01', 5, CORTE), 20)
+
+// Y ese conteo por mes es lo que cambia el total. Con 100.000 por mes:
+const meses = ['2026-02-01', '2026-03-01', '2026-04-01', '2026-05-01']
+const porMes = meses.reduce(
+  (s, p) => s + computeIntereses(100000, 1, daysOverdueForPeriod(p, 5, CORTE)), 0)
+eq('sumando mes por mes', porMes, 260000)
+// Lo que hacia antes: toda la deuda junta con los dias del mes corriente.
+eq('todo junto con los dias de Mayo', computeIntereses(400000, 1, 20), 80000)
+check('el conteo por mes cobra mas que el viejo', porMes > 80000)
+
+// El capital no lo toca nada de esto: solo cambia el interes.
+eq('capital intacto', 100000 * 4, 400000)
+
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'}: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

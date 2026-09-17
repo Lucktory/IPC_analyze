@@ -84,6 +84,10 @@ export interface DeudaCarryoverEntry {
   manual?:       boolean
   /** Nota opcional que cargo la oficina junto al monto. */
   note?:         string | null
+  /** Dias de atraso de ESTE mes, contados desde su propio dia 1. Un mes viejo
+   *  acumula mas que uno nuevo, y por eso el interes se calcula por mes y no
+   *  sobre el total. El panel lo muestra al lado de cada linea. */
+  daysOverdue?:  number
 }
 
 export interface DeudaBreakdown {
@@ -453,9 +457,29 @@ export async function buildDeudaBreakdownsBulk(
 
     const deudaCarryover = carryover.reduce((s, e) => s + e.deuda, 0)
 
-    const daysOverdue       = daysOverdueForPeriod(period, c.paymentDay)
+    const daysOverdue = daysOverdueForPeriod(period, c.paymentDay)
+
+    // Cada mes envejece por su cuenta (2026-09-17). Un mes viejo acumulo mas
+    // dias que uno nuevo, asi que cobrarle a todo la misma cantidad de dias
+    // -- los del mes corriente -- le cobraba a Febrero como si fuera de ayer.
+    //
+    // Es como lo hace la planilla de la oficina, verificado contra el caso real
+    // que mando Alejandro: Febrero 109 dias, Marzo 81, Abril 50, Mayo 20, todos
+    // cerrando el mismo dia. Con 100.000 por mes eso da 260.000 de interes;
+    // sumando los cuatro meses en una sola bolsa daba 64.000.
+    //
+    // daysOverdueForPeriod ya sabe contar desde el 1 de CUALQUIER mes, asi que
+    // sirve igual para el mes corriente y para los arrastrados.
+    for (const e of carryover) {
+      e.daysOverdue = daysOverdueForPeriod(e.period, c.paymentDay)
+    }
     const totalDebt         = deudaCurrent + deudaCarryover
-    const interesesEstimado = computeIntereses(totalDebt, c.lateInterestRate, daysOverdue)
+    const interesesEstimado =
+      computeIntereses(deudaCurrent, c.lateInterestRate, daysOverdue) +
+      carryover.reduce(
+        (s, e) => s + computeIntereses(e.deuda, c.lateInterestRate, e.daysOverdue ?? 0),
+        0,
+      )
 
     out.set(c.id, {
       contractId:          c.id,
