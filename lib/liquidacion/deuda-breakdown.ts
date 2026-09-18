@@ -99,6 +99,21 @@ export interface DeudaBreakdown {
   contractId:          string
   period:              string
   expectedRent:        number
+  /**
+   * El alquiler que tiene CARGADO el contrato, sin proyectar nada.
+   *
+   * Cuando a un contrato le toca el aumento y todavia no se confirmo, la deuda
+   * se mide contra el alquiler proyectado -- un numero que no cargo nadie y que
+   * no esta guardado en ningun lado. Alejandro, 2026-09-19, con el contrato de
+   * Loddo: corrigio el monto que SI habia cargado y la deuda no se movio, porque
+   * nunca lo estaba mirando.
+   *
+   * Guardar el valor real del contrato al lado del proyectado deja que el panel
+   * explique la diferencia en vez de mostrar un numero salido de la nada.
+   */
+  contractRent:        number
+  /** true = expectedRent viene de un aumento proyectado sin confirmar. */
+  rentIsProjected:     boolean
   cobradoThisPeriod:   number
   deudaCurrent:        number
   carryover:           DeudaCarryoverEntry[]
@@ -480,8 +495,13 @@ export async function buildDeudaBreakdownsBulk(
     // ...y prorrateado cuando el contrato arranca o termina DENTRO de este mes,
     // asi un inquilino que se muda el 9 no arrastra los 8 dias previos como
     // deuda. Un mes completo pasa intacto por proratedRentForPeriod.
-    const expectedCurrent   = proratedRentForPeriod(
-      c.expectedRentCurrentPeriod ?? c.currentRent, period, c.startDate, c.endDate ?? null,
+    // El alquiler con el aumento proyectado, si lo hay. Se compara ANTES de
+    // prorratear para no confundir las dos cosas: un contrato que arranca a
+    // mitad de mes tambien espera menos que lo cargado, y eso no es un aumento.
+    const rentBase        = c.expectedRentCurrentPeriod ?? c.currentRent
+    const rentIsProjected = Math.abs(rentBase - c.currentRent) > 0.005
+    const expectedCurrent = proratedRentForPeriod(
+      rentBase, period, c.startDate, c.endDate ?? null,
     )
     const cobradoThisPeriod = cobradoByKey.get(`${c.id}|${period}`) ?? 0
 
@@ -609,6 +629,8 @@ export async function buildDeudaBreakdownsBulk(
       contractId:          c.id,
       period,
       expectedRent:        expectedCurrent,
+      contractRent:        c.currentRent,
+      rentIsProjected,
       cobradoThisPeriod,
       deudaCurrent,
       carryover,

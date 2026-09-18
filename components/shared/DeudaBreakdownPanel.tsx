@@ -71,6 +71,18 @@ export function DeudaBreakdownPanel({ breakdown }: Props) {
         <div className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5 items-baseline">
           <span className="text-slate-dark">Alquiler {periodLabel(breakdown.period)}</span>
           <span className="tabular-nums text-ink">{fmtMoney(breakdown.expectedRent)}</span>
+          {/* El numero contra el que se mide la deuda puede NO estar cargado en
+              ningun lado: si al contrato le toca el aumento y no se confirmo, es
+              una proyeccion que calcula el sistema. Alejandro, 2026-09-19:
+              corrigio el monto que si habia cargado y la deuda no se movio,
+              porque nunca lo estaba mirando. Decirlo acá, justo al lado del
+              numero, es lo que faltaba. */}
+          {breakdown.rentIsProjected && (
+            <span className="col-span-2 text-[10.5px] text-warn leading-snug mt-0.5">
+              Aumento proyectado, todavía sin confirmar. El contrato tiene cargado{' '}
+              {fmtMoney(breakdown.contractRent)} — confirmalo desde la ficha del contrato.
+            </span>
+          )}
           <span className="text-slate-dark">Cobrado este período</span>
           <span className="tabular-nums text-ink">- {fmtMoney(breakdown.cobradoThisPeriod)}</span>
         </div>
